@@ -1,25 +1,29 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Huffaz Academy Results",
+    "slug": "huffaz-result-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/dsh_logo.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/dsh_logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E5631"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.huffaz.results"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/dsh_logo.png",
+        "backgroundColor": "#1E5631"
       },
-      "predictiveBackGestureEnabled": false
+      "package": "com.huffaz.results"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/images/dsh_logo.png"
     }
   }
 }

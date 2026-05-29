@@ -8,7 +8,8 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-  Clipboard
+  Clipboard,
+  Platform
 } from 'react-native';
 import api from '../../services/api';
 

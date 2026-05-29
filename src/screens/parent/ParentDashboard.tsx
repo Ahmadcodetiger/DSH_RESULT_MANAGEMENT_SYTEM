@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,12 +7,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Modal,
+  Animated,
   Dimensions,
-  Platform
+  Platform,
+  Image
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import api, { getAuthToken } from '../../services/api';
+
 
 interface ParentDashboardProps {
   studentUser: any;
@@ -22,11 +26,17 @@ interface ParentDashboardProps {
 export default function ParentDashboard({ studentUser, onLogout }: ParentDashboardProps) {
   const [selectedTerm, setSelectedTerm] = useState('Second Term');
   const [selectedYear, setSelectedYear] = useState('2025/2026');
-  
+
   const [results, setResults] = useState<any[]>([]);
   const [activeResult, setActiveResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Notification state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const bellAnim = useRef(new Animated.Value(0)).current;
 
   const fetchResults = async () => {
     setLoading(true);
@@ -40,8 +50,34 @@ export default function ParentDashboard({ studentUser, onLogout }: ParentDashboa
     }
   };
 
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get('/notifications');
+      const data: any[] = res.data || [];
+      setNotifications(data);
+      setUnreadCount(data.length);
+      if (data.length > 0) {
+        Animated.sequence([
+          Animated.timing(bellAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+          Animated.timing(bellAnim, { toValue: -1, duration: 120, useNativeDriver: true }),
+          Animated.timing(bellAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+          Animated.timing(bellAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
+        ]).start();
+      }
+    } catch (err: any) {
+      console.error('[ParentDashboard] fetch notifications error:', err.message);
+    }
+  };
+
   useEffect(() => {
     fetchResults();
+  }, []);
+
+  // Poll notifications every 30 seconds for real-time feel
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Update active result when selected term/year changes or results list reloads
@@ -52,6 +88,20 @@ export default function ParentDashboard({ studentUser, onLogout }: ParentDashboa
     setActiveResult(match || null);
   }, [results, selectedTerm, selectedYear]);
 
+  const bellRotate = bellAnim.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-15deg', '0deg', '15deg'],
+  });
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  };
+
+
   const handleDownloadPdf = async () => {
     if (!activeResult) return;
     setDownloading(true);
@@ -60,7 +110,7 @@ export default function ParentDashboard({ studentUser, onLogout }: ParentDashboa
       // Hits the server-side PDF generator route
       const pdfUrl = `${api.defaults.baseURL}/results/${activeResult._id}/pdf`;
       const filename = `Report_${studentUser.admissionNumber.replace('/', '_')}_${selectedTerm.replace(' ', '_')}.pdf`;
-      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+      const fileUri = `${(FileSystem as any).documentDirectory}${filename}`;
 
       const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri, {
         headers: {
@@ -92,10 +142,31 @@ export default function ParentDashboard({ studentUser, onLogout }: ParentDashboa
     <View style={styles.container}>
       {/* Top Banner */}
       <View style={styles.header}>
+        <Image
+          source={require('../../../assets/images/dsh_logo.png')}
+          style={styles.headerLogo}
+        />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Parent Portal</Text>
           <Text style={styles.headerSubtitle} numberOfLines={1}>{studentUser.name}</Text>
         </View>
+
+        {/* Notification Bell */}
+        <TouchableOpacity
+          style={styles.bellBtn}
+          onPress={() => { setNotifModalVisible(true); setUnreadCount(0); }}
+          activeOpacity={0.7}
+        >
+          <Animated.Text style={[styles.bellIcon, { transform: [{ rotate: bellRotate }] }]}>
+            🔔
+          </Animated.Text>
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
@@ -151,97 +222,129 @@ export default function ParentDashboard({ studentUser, onLogout }: ParentDashboa
         ) : activeResult ? (
           /* Report Sheet Visual Preview */
           <View style={styles.reportSheetCard}>
-            <View style={styles.doubleBorder}>
-              
-              {/* Header inside Preview */}
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitleAr}>أكاديمية دار صغار الحفاظ</Text>
-                <Text style={styles.sheetTitleEn}>HOME OF YOUNG HUFFAZ ACADEMY</Text>
-                <Text style={styles.sheetSub}>ISLAMIC/TAHFEEZH (DUAL CURRICULUM)</Text>
-              </View>
+            <View style={styles.outerBorder}>
+              <View style={styles.innerBorder}>
 
-              {/* Term Header */}
-              <View style={styles.termHeader}>
-                <Text style={styles.termHeaderText}>{activeResult.term} Result Sheet</Text>
-                <View style={styles.averageBadge}>
-                  <Text style={styles.averageBadgeLabel}>AVG</Text>
-                  <Text style={styles.averageBadgeVal}>{activeResult.finalAverage}%</Text>
+                {/* Header inside Preview */}
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitleAr}>أكاديمية دار صغار الحفاظ</Text>
+                  <Text style={styles.sheetTitleEn}>HOME OF YOUNG HUFFAZ ACADEMY</Text>
+                  <Text style={styles.sheetSub}>ISLAMIC/TAHFEEZH (DUAL CURRICULUM)</Text>
                 </View>
-              </View>
 
-              {/* Subject Grades Preview Table */}
-              <Text style={styles.sectionTitle}>ACADEMICS / المواد الأكاديمية</Text>
-              <View style={styles.tableBox}>
-                <View style={[styles.tableRow, styles.tableHeaderRow]}>
-                  <Text style={[styles.tableCol, { flex: 2, textAlign: 'left' }]}>Subject</Text>
-                  <Text style={[styles.tableCol, { flex: 0.8 }]}>Total</Text>
-                  <Text style={[styles.tableCol, { flex: 0.8 }]}>Grade</Text>
+                {/* Term Header */}
+                <View style={styles.termHeader}>
+                  <Text style={styles.termHeaderText}>{activeResult.term} Result Sheet</Text>
+                  <View style={styles.averageBadge}>
+                    <Text style={styles.averageBadgeLabel}>AVG</Text>
+                    <Text style={styles.averageBadgeVal}>{activeResult.finalAverage}%</Text>
+                  </View>
                 </View>
-                
-                {activeResult.subjects.map((sub: any, idx: number) => {
-                  if (!sub.isGraded) return null;
-                  return (
-                    <View key={idx} style={styles.tableRow}>
-                      <View style={{ flex: 2 }}>
-                        <Text style={styles.subjectNameText}>{sub.subjectName}</Text>
-                        <Text style={styles.subjectNameArText}>{sub.subjectNameArabic}</Text>
+
+                {/* Tahfeezh Subjects Preview Table */}
+                <Text style={styles.sectionTitle}>TAHFEEZH (ISLAMIC STUDIES) / قسم التحفيظ (الدراسات الإسلامية)</Text>
+                <View style={[styles.tableBox, { marginBottom: 15 }]}>
+                  <View style={[styles.tableRow, styles.tableHeaderRow]}>
+                    <Text style={[styles.tableCol, { flex: 2, textAlign: 'left' }]}>Subject</Text>
+                    <Text style={[styles.tableCol, { flex: 0.8 }]}>Total</Text>
+                    <Text style={[styles.tableCol, { flex: 0.8 }]}>Grade</Text>
+                  </View>
+
+                  {activeResult.subjects.map((sub: any, idx: number) => {
+                    const isTahfeezh = sub.section === 'tahfeezh' || ["Al-Qur'an Karem (Hifz)", "Al-Qur'an (Writing)", "Arabic", "Grammar VERBAL", "Islamic Subjects"].includes(sub.subjectName);
+                    if (!sub.isGraded || !isTahfeezh) return null;
+                    return (
+                      <View key={`tahfeezh-${idx}`} style={styles.tableRow}>
+                        <View style={{ flex: 2 }}>
+                          <Text style={styles.subjectNameText}>{sub.subjectName}</Text>
+                          <Text style={styles.subjectNameArText}>{sub.subjectNameArabic}</Text>
+                        </View>
+                        <Text style={[styles.tableCol, { flex: 0.8, fontWeight: 'bold' }]}>
+                          {sub.score100}
+                        </Text>
+                        <Text style={[styles.tableCol, { flex: 0.8, fontWeight: 'bold', color: '#1E5631' }]}>
+                          {sub.grade}
+                        </Text>
                       </View>
-                      <Text style={[styles.tableCol, { flex: 0.8, fontWeight: 'bold' }]}>
-                        {sub.score100}
-                      </Text>
-                      <Text style={[styles.tableCol, { flex: 0.8, fontWeight: 'bold', color: '#1E5631' }]}>
-                        {sub.grade}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
+                    );
+                  })}
+                </View>
 
-              {/* Tahfeezh Section */}
-              <Text style={[styles.sectionTitle, { marginTop: 15 }]}>TAHFEEZH / حفظ القرآن</Text>
-              <View style={styles.tahfeezhBox}>
-                <View style={styles.tahfeezhItem}>
-                  <Text style={styles.tahfeezhLabel}>From Surah / من سورة</Text>
-                  <Text style={styles.tahfeezhVal}>{activeResult.tahfeezhDetails.fromSurah || '-'}</Text>
-                </View>
-                <View style={styles.tahfeezhItem}>
-                  <Text style={styles.tahfeezhLabel}>To Surah / إلى سورة</Text>
-                  <Text style={styles.tahfeezhVal}>{activeResult.tahfeezhDetails.toSurah || '-'}</Text>
-                </View>
-                <View style={styles.tahfeezhItem}>
-                  <Text style={styles.tahfeezhLabel}>Missed Sessions / غياب التسميع</Text>
-                  <Text style={styles.tahfeezhVal}>{activeResult.tahfeezhDetails.absenceOfHifz || '0'}</Text>
-                </View>
-              </View>
+                {/* Academic Subjects Preview Table */}
+                <Text style={styles.sectionTitle}>ACADEMICS / المواد الأكاديمية</Text>
+                <View style={styles.tableBox}>
+                  <View style={[styles.tableRow, styles.tableHeaderRow]}>
+                    <Text style={[styles.tableCol, { flex: 2, textAlign: 'left' }]}>Subject</Text>
+                    <Text style={[styles.tableCol, { flex: 0.8 }]}>Total</Text>
+                    <Text style={[styles.tableCol, { flex: 0.8 }]}>Grade</Text>
+                  </View>
 
-              {/* Remarks/Recommendations */}
-              <Text style={[styles.sectionTitle, { marginTop: 15 }]}>REMARKS / الملاحظات والتوصيات</Text>
-              <View style={styles.remarksBox}>
-                <Text style={styles.remarkText}>
-                  • <Text style={{ fontWeight: 'bold' }}>Teacher:</Text>{' '}
-                  {activeResult.teacherRecommendations || 'Disciplined student. Keep it up.'}
-                </Text>
-                {activeResult.supervisorRecommendations ? (
+                  {activeResult.subjects.map((sub: any, idx: number) => {
+                    const isTahfeezh = sub.section === 'tahfeezh' || ["Al-Qur'an Karem (Hifz)", "Al-Qur'an (Writing)", "Arabic", "Grammar VERBAL", "Islamic Subjects"].includes(sub.subjectName);
+                    if (!sub.isGraded || isTahfeezh) return null;
+                    return (
+                      <View key={`acad-${idx}`} style={styles.tableRow}>
+                        <View style={{ flex: 2 }}>
+                          <Text style={styles.subjectNameText}>{sub.subjectName}</Text>
+                          <Text style={styles.subjectNameArText}>{sub.subjectNameArabic}</Text>
+                        </View>
+                        <Text style={[styles.tableCol, { flex: 0.8, fontWeight: 'bold' }]}>
+                          {sub.score100}
+                        </Text>
+                        <Text style={[styles.tableCol, { flex: 0.8, fontWeight: 'bold', color: '#1E5631' }]}>
+                          {sub.grade}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Tahfeezh Section */}
+                <Text style={[styles.sectionTitle, { marginTop: 15 }]}>TAHFEEZH / حفظ القرآن</Text>
+                <View style={styles.tahfeezhBox}>
+                  <View style={styles.tahfeezhItem}>
+                    <Text style={styles.tahfeezhLabel}>From Surah / من سورة</Text>
+                    <Text style={styles.tahfeezhVal}>{activeResult.tahfeezhDetails.fromSurah || '-'}</Text>
+                  </View>
+                  <View style={styles.tahfeezhItem}>
+                    <Text style={styles.tahfeezhLabel}>To Surah / إلى سورة</Text>
+                    <Text style={styles.tahfeezhVal}>{activeResult.tahfeezhDetails.toSurah || '-'}</Text>
+                  </View>
+                  <View style={styles.tahfeezhItem}>
+                    <Text style={styles.tahfeezhLabel}>Missed Sessions / غياب التسميع</Text>
+                    <Text style={styles.tahfeezhVal}>{activeResult.tahfeezhDetails.absenceOfHifz || '0'}</Text>
+                  </View>
+                </View>
+
+                {/* Remarks/Recommendations */}
+                <Text style={[styles.sectionTitle, { marginTop: 15 }]}>REMARKS / الملاحظات والتوصيات</Text>
+                <View style={styles.remarksBox}>
                   <Text style={styles.remarkText}>
-                    • <Text style={{ fontWeight: 'bold' }}>Supervisor:</Text>{' '}
-                    {activeResult.supervisorRecommendations}
+                    • <Text style={{ fontWeight: 'bold' }}>Teacher:</Text>{' '}
+                    {activeResult.teacherRecommendations || 'Disciplined student. Keep it up.'}
                   </Text>
-                ) : null}
+                  {activeResult.supervisorRecommendations ? (
+                    <Text style={styles.remarkText}>
+                      • <Text style={{ fontWeight: 'bold' }}>Supervisor:</Text>{' '}
+                      {activeResult.supervisorRecommendations}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {/* PDF download trigger */}
+                <TouchableOpacity
+                  style={styles.pdfBtn}
+                  onPress={handleDownloadPdf}
+                  disabled={downloading}
+                >
+                  {downloading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.pdfBtnText}>Download PDF Report Sheet</Text>
+                  )}
+                </TouchableOpacity>
+
               </View>
-
-              {/* PDF download trigger */}
-              <TouchableOpacity
-                style={styles.pdfBtn}
-                onPress={handleDownloadPdf}
-                disabled={downloading}
-              >
-                {downloading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.pdfBtnText}>Download PDF Report Sheet</Text>
-                )}
-              </TouchableOpacity>
-
             </View>
           </View>
         ) : (
@@ -255,6 +358,52 @@ export default function ParentDashboard({ studentUser, onLogout }: ParentDashboa
           </View>
         )}
       </ScrollView>
+
+      {/* Notification Modal */}
+      <Modal
+        visible={notifModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setNotifModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.notifModal}>
+            <View style={styles.notifModalHeader}>
+              <Text style={styles.notifModalTitle}>🔔 Notifications</Text>
+              <TouchableOpacity
+                style={styles.notifCloseBtn}
+                onPress={() => setNotifModalVisible(false)}
+              >
+                <Text style={styles.notifCloseText}>✕ Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+              {notifications.length === 0 ? (
+                <View style={styles.emptyNotif}>
+                  <Text style={styles.emptyNotifIcon}>📭</Text>
+                  <Text style={styles.emptyNotifText}>No notifications yet.</Text>
+                </View>
+              ) : (
+                notifications.map((n) => (
+                  <View key={n._id} style={styles.notifCard}>
+                    <View style={styles.notifCardTop}>
+                      <Text style={styles.notifTitle}>{n.title}</Text>
+                      <View style={styles.notifTagChip}>
+                        <Text style={styles.notifTag}>{n.targetRole}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.notifMessage}>{n.message}</Text>
+                    <Text style={styles.notifMeta}>
+                      From: {n.createdBy} · {formatDate(n.createdAt)}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -266,12 +415,20 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#1E5631',
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'ios' ? 50 : 35,
     paddingBottom: 20,
     paddingHorizontal: 20,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
+  },
+  headerLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: '#fff',
   },
   headerTitle: {
     color: '#fff',
@@ -384,7 +541,7 @@ const styles = StyleSheet.create({
   reportSheetCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 8,
+    padding: 6,
     elevation: 3,
     shadowColor: '#1E5631',
     shadowOffset: { width: 0, height: 4 },
@@ -392,12 +549,17 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     marginBottom: 30,
   },
-  doubleBorder: {
-    borderWidth: 3,
+  outerBorder: {
+    borderWidth: 1,
     borderColor: '#1E5631',
-    borderStyle: 'double',
-    padding: 10,
     borderRadius: 8,
+    padding: 2,
+  },
+  innerBorder: {
+    borderWidth: 2,
+    borderColor: '#1E5631',
+    borderRadius: 6,
+    padding: 8,
   },
   sheetHeader: {
     alignItems: 'center',
@@ -573,4 +735,91 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
+
+  // ── Notification styles ──
+  bellBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginRight: 6,
+  },
+  bellIcon: { fontSize: 20 },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#e53935',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#1E5631',
+  },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  notifModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+  },
+  notifModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    backgroundColor: '#1E5631',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  notifModalTitle: { color: '#fff', fontSize: 17, fontWeight: 'bold' },
+  notifCloseBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 6,
+  },
+  notifCloseText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+  emptyNotif: { alignItems: 'center', paddingVertical: 40 },
+  emptyNotifIcon: { fontSize: 44, marginBottom: 10 },
+  emptyNotifText: { fontSize: 14, color: '#888' },
+  notifCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: '#f9fffe',
+    borderRadius: 12,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: '#d4af37',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+  },
+  notifCardTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
+  notifTitle: { flex: 1, fontSize: 14, fontWeight: 'bold', color: '#1E5631' },
+  notifTagChip: {
+    backgroundColor: '#fdf3d0',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  notifTag: { fontSize: 10, color: '#8a6800', fontWeight: '700' },
+  notifMessage: { fontSize: 13, color: '#444', lineHeight: 19, marginBottom: 6 },
+  notifMeta: { fontSize: 10, color: '#999' },
 });

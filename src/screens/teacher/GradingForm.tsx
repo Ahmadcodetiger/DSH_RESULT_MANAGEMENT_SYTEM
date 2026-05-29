@@ -11,8 +11,10 @@ import {
   Switch,
   Modal,
   FlatList,
-  SafeAreaView
+  SafeAreaView,
+  Platform
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import { SURAHS, Surah } from '../../utils/surahs';
 
@@ -30,19 +32,27 @@ interface SubjectState {
   score20_1: string;
   score20_2: string;
   isGraded: boolean;
+  section?: 'tahfeezh' | 'academic'; // New field for grouping
 }
 
-const INITIAL_SUBJECTS: SubjectState[] = [
-  { subjectName: "Al-Qur'an Karem (Hifz)", subjectNameArabic: "القرآن الكريم ( حفظ )", score60: '', score20_1: '', score20_2: '', isGraded: true },
-  { subjectName: "Al-Qur'an (Writing)", subjectNameArabic: "القرآن كتابة", score60: '', score20_1: '', score20_2: '', isGraded: false },
-  { subjectName: "Science", subjectNameArabic: "علوم", score60: '', score20_1: '', score20_2: '', isGraded: true },
-  { subjectName: "Literacy", subjectNameArabic: "معرفة القراءة والكتابة", score60: '', score20_1: '', score20_2: '', isGraded: true },
-  { subjectName: "Numeracy", subjectNameArabic: "الحساب", score60: '', score20_1: '', score20_2: '', isGraded: true },
-  { subjectName: "Grammar VERBAL", subjectNameArabic: "القواعد", score60: '', score20_1: '', score20_2: '', isGraded: true },
-  { subjectName: "Arabic", subjectNameArabic: "العربية", score60: '', score20_1: '', score20_2: '', isGraded: true },
-  { subjectName: "Phonics", subjectNameArabic: "سماع الصوت", score60: '', score20_1: '', score20_2: '', isGraded: false },
-  { subjectName: "Social Habits", subjectNameArabic: "العادات الاجتماعية", score60: '', score20_1: '', score20_2: '', isGraded: false }
+// Subject groups for organized display
+const TAHFEEZH_SUBJECTS: SubjectState[] = [
+  { subjectName: "Al-Qur'an Karem (Hifz)", subjectNameArabic: "القرآن الكريم ( حفظ )", score60: '', score20_1: '', score20_2: '', isGraded: true, section: 'tahfeezh' },
+  { subjectName: "Al-Qur'an (Writing)", subjectNameArabic: "القرآن كتابة", score60: '', score20_1: '', score20_2: '', isGraded: false, section: 'tahfeezh' },
+  { subjectName: "Arabic", subjectNameArabic: "العربية", score60: '', score20_1: '', score20_2: '', isGraded: true, section: 'tahfeezh' },
+  { subjectName: "Grammar VERBAL", subjectNameArabic: "القواعد", score60: '', score20_1: '', score20_2: '', isGraded: true, section: 'tahfeezh' },
+  { subjectName: "Islamic Subjects", subjectNameArabic: "المواد الإسلامية", score60: '', score20_1: '', score20_2: '', isGraded: true, section: 'tahfeezh' }
 ];
+
+const ACADEMIC_SUBJECTS: SubjectState[] = [
+  { subjectName: "Science", subjectNameArabic: "علوم", score60: '', score20_1: '', score20_2: '', isGraded: true, section: 'academic' },
+  { subjectName: "Literacy", subjectNameArabic: "معرفة القراءة والكتابة", score60: '', score20_1: '', score20_2: '', isGraded: true, section: 'academic' },
+  { subjectName: "Numeracy", subjectNameArabic: "الحساب", score60: '', score20_1: '', score20_2: '', isGraded: true, section: 'academic' },
+  { subjectName: "Phonics", subjectNameArabic: "سماع الصوت", score60: '', score20_1: '', score20_2: '', isGraded: false, section: 'academic' },
+  { subjectName: "Social Habits", subjectNameArabic: "العادات الاجتماعية", score60: '', score20_1: '', score20_2: '', isGraded: false, section: 'academic' }
+];
+
+const INITIAL_SUBJECTS: SubjectState[] = [...TAHFEEZH_SUBJECTS, ...ACADEMIC_SUBJECTS];
 
 const EVALUATION_ELEMENTS_TEMPLATE = [
   { label: 'Correctness of recitation & Tajweed Practicing', labelAr: 'صحة التلاوة وتطبيق التجويد', rating: 'ممتاز جدا' },
@@ -61,7 +71,7 @@ export default function GradingForm({ student, term, academicYear, goBack }: Gra
   const [submitting, setSubmitting] = useState(false);
 
   // Form Fields State
-  const [subjects, setSubjects] = useState<SubjectState[]>(INITIAL_SUBJECTS);
+  const [subjects, setSubjects] = useState<SubjectState[]>([]);
   
   const [absenceOfHifz, setAbsenceOfHifz] = useState('0');
   const [daysPresent, setDaysPresent] = useState('0');
@@ -82,11 +92,31 @@ export default function GradingForm({ student, term, academicYear, goBack }: Gra
   const [isSurahModalOpen, setIsSurahModalOpen] = useState(false);
   const [surahPickerTarget, setSurahPickerTarget] = useState<'FROM' | 'TO' | null>(null);
 
-  // Fetch existing grades to edit if they exist
+  // Fetch existing grades and dynamic subjects to edit if they exist
   useEffect(() => {
-    const fetchExisting = async () => {
+    const fetchExistingAndSubjects = async () => {
       setLoadingExisting(true);
       try {
+        // 1. Load active subjects list from AsyncStorage
+        let activeSubjectsList = [...INITIAL_SUBJECTS];
+        const storedSubjects = await AsyncStorage.getItem('huffaz_subjects');
+        if (storedSubjects) {
+          const parsed = JSON.parse(storedSubjects);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Map raw stored subjects to include score fields
+            activeSubjectsList = parsed.map((s: any) => ({
+              subjectName: s.subjectName,
+              subjectNameArabic: s.subjectNameArabic,
+              score60: '',
+              score20_1: '',
+              score20_2: '',
+              isGraded: s.isGraded !== undefined ? s.isGraded : true,
+              section: s.section || 'academic'
+            }));
+          }
+        }
+
+        // 2. Fetch existing results from API
         const res = await api.get(`/grading/student/${student._id}`);
         // Find result matching the exact term and year
         const match = res.data.find(
@@ -94,8 +124,8 @@ export default function GradingForm({ student, term, academicYear, goBack }: Gra
         );
 
         if (match) {
-          // Pre-populate form fields
-          const populatedSubjects = INITIAL_SUBJECTS.map((initSub) => {
+          // Pre-populate active subjects list with matching previous scores
+          const populatedSubjects = activeSubjectsList.map((initSub) => {
             const foundSub = match.subjects.find((s: any) => s.subjectName === initSub.subjectName);
             if (foundSub) {
               return {
@@ -104,7 +134,8 @@ export default function GradingForm({ student, term, academicYear, goBack }: Gra
                 score60: foundSub.isGraded ? foundSub.score60.toString() : '',
                 score20_1: foundSub.isGraded ? foundSub.score20_1.toString() : '',
                 score20_2: foundSub.isGraded ? foundSub.score20_2.toString() : '',
-                isGraded: foundSub.isGraded
+                isGraded: foundSub.isGraded,
+                section: initSub.section
               };
             }
             return initSub;
@@ -135,14 +166,17 @@ export default function GradingForm({ student, term, academicYear, goBack }: Gra
           setHeadTeacherComments(match.headTeacherComments || '');
           setNextTermBegins(match.nextTermBegins || '');
           setDateIssued(match.dateIssued || '');
+        } else {
+          // No match, use clean active subjects list
+          setSubjects(activeSubjectsList);
         }
       } catch (err: any) {
-        console.log('Error checking existing results:', err.message);
+        console.log('Error checking existing results / loading subjects:', err.message);
       } finally {
         setLoadingExisting(false);
       }
     };
-    fetchExisting();
+    fetchExistingAndSubjects();
   }, [student._id, term, academicYear]);
 
   // Real-time calculation helpers
@@ -294,78 +328,158 @@ export default function GradingForm({ student, term, academicYear, goBack }: Gra
           <View>
             <Text style={styles.sectionHeaderTitle}>Subject Assessment Input</Text>
             <Text style={styles.sectionDesc}>
-              Check the toggle to enable grading. letter grades & totals are calculated in real-time.
+              Check the toggle to enable grading. Letter grades & totals are calculated in real-time.
             </Text>
 
-            {subjects.map((sub, idx) => {
-              const calc = getSubjectTotalAndGrade(sub);
-              return (
-                <View key={idx} style={[styles.subjectCard, !sub.isGraded && styles.subjectCardDisabled]}>
-                  <View style={styles.subjectCardHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.subjectName}>{sub.subjectName}</Text>
-                      <Text style={styles.subjectNameAr}>{sub.subjectNameArabic}</Text>
+            {/* TAHFEEZH SECTION */}
+            <View style={styles.subjectGroupContainer}>
+              <Text style={styles.subjectGroupTitle}>📖 Tahfeezh Section (Islamic Studies)</Text>
+              {subjects.filter(s => s.section === 'tahfeezh').map((sub, idx) => {
+                const globalIdx = subjects.findIndex(s => s.subjectName === sub.subjectName);
+                const calc = getSubjectTotalAndGrade(sub);
+                return (
+                  <View key={idx} style={[styles.subjectCard, !sub.isGraded && styles.subjectCardDisabled]}>
+                    <View style={styles.subjectCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.subjectName}>{sub.subjectName}</Text>
+                        <Text style={styles.subjectNameAr}>{sub.subjectNameArabic}</Text>
+                      </View>
+                      <Switch
+                        value={sub.isGraded}
+                        onValueChange={() => toggleSubjectGrading(globalIdx)}
+                        trackColor={{ false: '#dcdcdc', true: '#b3d1b3' }}
+                        thumbColor={sub.isGraded ? '#1E5631' : '#f4f3f4'}
+                      />
                     </View>
-                    <Switch
-                      value={sub.isGraded}
-                      onValueChange={() => toggleSubjectGrading(idx)}
-                      trackColor={{ false: '#dcdcdc', true: '#b3d1b3' }}
-                      thumbColor={sub.isGraded ? '#1E5631' : '#f4f3f4'}
-                    />
+
+                    {sub.isGraded && (
+                      <View style={styles.scoresRow}>
+                        <View style={styles.scoreInputBox}>
+                          <Text style={styles.scoreLabel}>Exam (60)</Text>
+                          <TextInput
+                            style={styles.scoreInput}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            maxLength={2}
+                            value={sub.score60}
+                            onChangeText={(val) => handleScoreChange(globalIdx, 'score60', val)}
+                          />
+                        </View>
+                        <View style={styles.scoreInputBox}>
+                          <Text style={styles.scoreLabel}>Test 1 (20)</Text>
+                          <TextInput
+                            style={styles.scoreInput}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            maxLength={2}
+                            value={sub.score20_1}
+                            onChangeText={(val) => handleScoreChange(globalIdx, 'score20_1', val)}
+                          />
+                        </View>
+                        <View style={styles.scoreInputBox}>
+                          <Text style={styles.scoreLabel}>Test 2 (20)</Text>
+                          <TextInput
+                            style={styles.scoreInput}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            maxLength={2}
+                            value={sub.score20_2}
+                            onChangeText={(val) => handleScoreChange(globalIdx, 'score20_2', val)}
+                          />
+                        </View>
+
+                        {/* Calculations display */}
+                        <View style={styles.calcBox}>
+                          <Text style={styles.calcLabel}>Total (100)</Text>
+                          <Text style={styles.calcVal}>{calc.total}</Text>
+                        </View>
+                        <View style={[styles.calcBox, { backgroundColor: '#eef6ee' }]}>
+                          <Text style={styles.calcLabel}>Grade</Text>
+                          <Text style={[styles.calcVal, { color: '#1E5631', fontSize: 16 }]}>
+                            {calc.grade}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
+                );
+              })}
+            </View>
 
-                  {sub.isGraded && (
-                    <View style={styles.scoresRow}>
-                      <View style={styles.scoreInputBox}>
-                        <Text style={styles.scoreLabel}>Exam (60)</Text>
-                        <TextInput
-                          style={styles.scoreInput}
-                          keyboardType="numeric"
-                          placeholder="0"
-                          maxLength={2}
-                          value={sub.score60}
-                          onChangeText={(val) => handleScoreChange(idx, 'score60', val)}
-                        />
+            {/* ACADEMIC SECTION */}
+            <View style={[styles.subjectGroupContainer, { marginTop: 20 }]}>
+              <Text style={styles.subjectGroupTitle}>📚 Academic Subjects</Text>
+              {subjects.filter(s => s.section === 'academic').map((sub, idx) => {
+                const globalIdx = subjects.findIndex(s => s.subjectName === sub.subjectName);
+                const calc = getSubjectTotalAndGrade(sub);
+                return (
+                  <View key={idx} style={[styles.subjectCard, !sub.isGraded && styles.subjectCardDisabled]}>
+                    <View style={styles.subjectCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.subjectName}>{sub.subjectName}</Text>
+                        <Text style={styles.subjectNameAr}>{sub.subjectNameArabic}</Text>
                       </View>
-                      <View style={styles.scoreInputBox}>
-                        <Text style={styles.scoreLabel}>Test 1 (20)</Text>
-                        <TextInput
-                          style={styles.scoreInput}
-                          keyboardType="numeric"
-                          placeholder="0"
-                          maxLength={2}
-                          value={sub.score20_1}
-                          onChangeText={(val) => handleScoreChange(idx, 'score20_1', val)}
-                        />
-                      </View>
-                      <View style={styles.scoreInputBox}>
-                        <Text style={styles.scoreLabel}>Test 2 (20)</Text>
-                        <TextInput
-                          style={styles.scoreInput}
-                          keyboardType="numeric"
-                          placeholder="0"
-                          maxLength={2}
-                          value={sub.score20_2}
-                          onChangeText={(val) => handleScoreChange(idx, 'score20_2', val)}
-                        />
-                      </View>
-
-                      {/* Calculations display */}
-                      <View style={styles.calcBox}>
-                        <Text style={styles.calcLabel}>Total (100)</Text>
-                        <Text style={styles.calcVal}>{calc.total}</Text>
-                      </View>
-                      <View style={[styles.calcBox, { backgroundColor: '#eef6ee' }]}>
-                        <Text style={styles.calcLabel}>Grade</Text>
-                        <Text style={[styles.calcVal, { color: '#1E5631', fontSize: 16 }]}>
-                          {calc.grade}
-                        </Text>
-                      </View>
+                      <Switch
+                        value={sub.isGraded}
+                        onValueChange={() => toggleSubjectGrading(globalIdx)}
+                        trackColor={{ false: '#dcdcdc', true: '#b3d1b3' }}
+                        thumbColor={sub.isGraded ? '#1E5631' : '#f4f3f4'}
+                      />
                     </View>
-                  )}
-                </View>
-              );
-            })}
+
+                    {sub.isGraded && (
+                      <View style={styles.scoresRow}>
+                        <View style={styles.scoreInputBox}>
+                          <Text style={styles.scoreLabel}>Exam (60)</Text>
+                          <TextInput
+                            style={styles.scoreInput}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            maxLength={2}
+                            value={sub.score60}
+                            onChangeText={(val) => handleScoreChange(globalIdx, 'score60', val)}
+                          />
+                        </View>
+                        <View style={styles.scoreInputBox}>
+                          <Text style={styles.scoreLabel}>Test 1 (20)</Text>
+                          <TextInput
+                            style={styles.scoreInput}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            maxLength={2}
+                            value={sub.score20_1}
+                            onChangeText={(val) => handleScoreChange(globalIdx, 'score20_1', val)}
+                          />
+                        </View>
+                        <View style={styles.scoreInputBox}>
+                          <Text style={styles.scoreLabel}>Test 2 (20)</Text>
+                          <TextInput
+                            style={styles.scoreInput}
+                            keyboardType="numeric"
+                            placeholder="0"
+                            maxLength={2}
+                            value={sub.score20_2}
+                            onChangeText={(val) => handleScoreChange(globalIdx, 'score20_2', val)}
+                          />
+                        </View>
+
+                        {/* Calculations display */}
+                        <View style={styles.calcBox}>
+                          <Text style={styles.calcLabel}>Total (100)</Text>
+                          <Text style={styles.calcVal}>{calc.total}</Text>
+                        </View>
+                        <View style={[styles.calcBox, { backgroundColor: '#eef6ee' }]}>
+                          <Text style={styles.calcLabel}>Grade</Text>
+                          <Text style={[styles.calcVal, { color: '#1E5631', fontSize: 16 }]}>
+                            {calc.grade}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 

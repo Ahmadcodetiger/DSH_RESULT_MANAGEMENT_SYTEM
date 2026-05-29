@@ -9,7 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView
+  SafeAreaView,
+  Image
 } from 'react-native';
 import api, { setAuthToken } from '../services/api';
 
@@ -21,7 +22,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [isStaff, setIsStaff] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  
+
   const [admissionNumber, setAdmissionNumber] = useState('');
   const [pin, setPin] = useState('');
 
@@ -77,7 +78,12 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       >
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
           <View style={styles.headerBox}>
-            <Text style={styles.arabicLogo}>أكاديمية دار صغار الحفاظ</Text>
+            <Image
+              source={require('../../assets/images/dsh_logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.arabicLogo}> دار صغار الحفاظ</Text>
             <Text style={styles.title}>HOME OF YOUNG HUFFAZ ACADEMY</Text>
             <Text style={styles.subtitle}>Result Management System</Text>
           </View>
@@ -199,7 +205,16 @@ const styles = StyleSheet.create({
   },
   headerBox: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
+  },
+  logoImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#1E5631',
+    backgroundColor: '#fff',
+    marginBottom: 12,
   },
   arabicLogo: {
     fontSize: 22,
