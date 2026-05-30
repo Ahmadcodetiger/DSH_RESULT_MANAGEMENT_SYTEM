@@ -54,7 +54,7 @@ export default function TeacherStudentPreview({
     try {
       const token = getAuthToken();
       const pdfUrl = `${api.defaults.baseURL}/results/${result._id}/pdf`;
-      const filename = `Report_${student.admissionNumber.replace('/', '_')}_${term.replace(' ', '_')}.pdf`;
+      const filename = `Report_${student.admissionNumber.replace(/\//g, '_')}_${term.replace(/ /g, '_')}.pdf`;
       const fileUri = `${(FileSystem as any).documentDirectory}${filename}`;
 
       const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri, {

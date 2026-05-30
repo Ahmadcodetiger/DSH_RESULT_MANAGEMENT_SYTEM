@@ -109,7 +109,7 @@ export default function ParentDashboard({ studentUser, onLogout }: ParentDashboa
       const token = getAuthToken();
       // Hits the server-side PDF generator route
       const pdfUrl = `${api.defaults.baseURL}/results/${activeResult._id}/pdf`;
-      const filename = `Report_${studentUser.admissionNumber.replace('/', '_')}_${selectedTerm.replace(' ', '_')}.pdf`;
+      const filename = `Report_${studentUser.admissionNumber.replace(/\//g, '_')}_${selectedTerm.replace(/ /g, '_')}.pdf`;
       const fileUri = `${(FileSystem as any).documentDirectory}${filename}`;
 
       const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri, {
