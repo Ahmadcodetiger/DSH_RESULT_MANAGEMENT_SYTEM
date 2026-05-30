@@ -58,7 +58,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
   const [teacherUsername, setTeacherUsername] = useState('');
   const [teacherPassword, setTeacherPassword] = useState('');
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
-  
+
   // Teacher Class Allocations
   const [tempLevel, setTempLevel] = useState('');
   const [tempSection, setTempSection] = useState('');
@@ -235,7 +235,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
     await AsyncStorage.setItem('huffaz_subjects', JSON.stringify(updated));
     setSubjects(updated);
     setIsSubjectModalOpen(false);
-    
+
     // Log action to notifications
     addNotificationLog('Subject Inventory Updated', `Admin updated subject: "${newSubject.subjectName}"`);
   };
@@ -243,7 +243,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
   const handleDeleteSubject = (index: number) => {
     Alert.alert('Delete Subject', `Are you sure you want to remove "${subjects[index].subjectName}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
           const name = subjects[index].subjectName;
           const updated = subjects.filter((_, i) => i !== index);
           await AsyncStorage.setItem('huffaz_subjects', JSON.stringify(updated));
@@ -392,7 +393,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
         Alert.alert('Success', 'Teacher account created successfully');
         addNotificationLog('Teacher Registered', `New teacher registered: ${teacherName}`);
       }
-      
+
       setTeacherName('');
       setTeacherUsername('');
       setTeacherPassword('');
@@ -428,7 +429,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
   const handleDeleteTeacher = (id: string, name: string) => {
     Alert.alert('Delete Teacher', `Are you sure you want to delete ${name}?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
           try {
             await api.delete(`/admin/teachers/${id}`);
             Alert.alert('Deleted', 'Teacher removed.');
@@ -446,7 +448,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
   const handleDeleteStudent = (id: string, name: string) => {
     Alert.alert('Delete Student', `Are you sure you want to delete student ${name}? This will permanently delete all related results.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
           try {
             await api.delete(`/admin/students/${id}`);
             Alert.alert('Deleted', 'Student and reports removed.');
@@ -496,7 +499,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
   const handleDeleteResult = (resultId: string) => {
     Alert.alert('Delete Result', 'Are you sure you want to delete this report sheet?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
           try {
             await api.delete(`/admin/results/${resultId}`);
             fetchGlobalResults();
@@ -544,8 +548,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
           </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.notificationBell} 
+        <TouchableOpacity
+          style={styles.notificationBell}
           onPress={() => setActivePanel('notifications')}
         >
           <Ionicons name="notifications-outline" size={22} color="#fff" />
@@ -557,7 +561,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
 
       {/* Main Panel Content Area */}
       <View style={{ flex: 1 }}>
-        
+
         {/* PANEL 1: MANAGE STUDENTS */}
         {activePanel === 'students' && (
           <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -577,8 +581,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
 
             {/* Quick action buttons */}
             <View style={styles.actionsBox}>
-              <TouchableOpacity 
-                style={[styles.actionBtn, styles.bulkBtn]} 
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.bulkBtn]}
                 onPress={navigateToBulkUpload}
               >
                 <Ionicons name="cloud-upload" size={16} color="#fff" style={{ marginRight: 6 }} />
@@ -715,12 +719,12 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
                       </Text>
                       <Text style={styles.resultDetailsText}>{result.term} | {result.academicYear}</Text>
                     </View>
-                    
+
                     <View style={[
-                      styles.badge, 
-                      { 
-                        backgroundColor: result.status === 'approved' ? '#eaf5ea' : '#fff3e0', 
-                        borderColor: result.status === 'approved' ? '#1E5631' : '#ff9800' 
+                      styles.badge,
+                      {
+                        backgroundColor: result.status === 'approved' ? '#eaf5ea' : '#fff3e0',
+                        borderColor: result.status === 'approved' ? '#1E5631' : '#ff9800'
                       }
                     ]}>
                       <Text style={[styles.badgeText, { color: result.status === 'approved' ? '#1E5631' : '#ff9800' }]}>
@@ -742,7 +746,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
                   </View>
 
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.resultActionBtn, { backgroundColor: '#1E5631' }]}
                       onPress={() => {
                         setSelectedStudentForResults(result.studentId);
@@ -751,7 +755,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
                     >
                       <Text style={styles.resultActionBtnText}>Edit</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.resultActionBtn, { backgroundColor: result.status === 'approved' ? '#ff9800' : '#1E5631' }]}
                       onPress={() => handleToggleResultStatus(result._id)}
                     >
@@ -759,7 +763,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
                         {result.status === 'approved' ? 'Unapprove' : 'Approve'}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.resultActionBtn, { backgroundColor: '#d32f2f' }]}
                       onPress={() => handleDeleteResult(result._id)}
                     >
@@ -900,15 +904,15 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
         {activePanel === 'notifications' && (
           <ScrollView contentContainerStyle={styles.scrollContent}>
             <View style={styles.actionsBox}>
-              <TouchableOpacity 
-                style={styles.actionBtn} 
+              <TouchableOpacity
+                style={styles.actionBtn}
                 onPress={() => setIsAnnouncementModalOpen(true)}
               >
                 <Ionicons name="megaphone" size={16} color="#fff" style={{ marginRight: 6 }} />
                 <Text style={styles.actionBtnText}>📢 Broadcast Announcement</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.actionBtn, { backgroundColor: '#d32f2f' }]} 
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#d32f2f' }]}
                 onPress={clearAllNotifications}
               >
                 <Ionicons name="trash-bin" size={16} color="#fff" style={{ marginRight: 6 }} />
@@ -948,9 +952,9 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
 
       {/* --- SIDEBAR NAV DRAWER COMPONENT --- */}
       {isSidebarOpen && (
-        <TouchableOpacity 
-          style={styles.sidebarOverlay} 
-          activeOpacity={1} 
+        <TouchableOpacity
+          style={styles.sidebarOverlay}
+          activeOpacity={1}
           onPress={toggleSidebar}
         />
       )}
@@ -967,8 +971,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
         </View>
 
         <ScrollView contentContainerStyle={styles.sidebarNavList}>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.sidebarNavItem, activePanel === 'students' && styles.sidebarNavItemActive]}
             onPress={() => handleSidebarNavigation('students')}
           >
@@ -978,7 +982,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.sidebarNavItem, activePanel === 'teachers' && styles.sidebarNavItemActive]}
             onPress={() => handleSidebarNavigation('teachers')}
           >
@@ -988,7 +992,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.sidebarNavItem, activePanel === 'results' && styles.sidebarNavItemActive]}
             onPress={() => handleSidebarNavigation('results')}
           >
@@ -998,7 +1002,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.sidebarNavItem, activePanel === 'subjects' && styles.sidebarNavItemActive]}
             onPress={() => handleSidebarNavigation('subjects')}
           >
@@ -1008,7 +1012,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.sidebarNavItem, activePanel === 'credentials' && styles.sidebarNavItemActive]}
             onPress={() => handleSidebarNavigation('credentials')}
           >
@@ -1018,7 +1022,7 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.sidebarNavItem, activePanel === 'notifications' && styles.sidebarNavItemActive]}
             onPress={() => handleSidebarNavigation('notifications')}
           >
@@ -1175,28 +1179,28 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
                         </Text>
                       </View>
                     </View>
-                    
+
                     <Text style={{ fontSize: 13, marginBottom: 15, color: '#555' }}>
                       Grade: <Text style={{ fontWeight: 'bold' }}>{item.generalGrade}</Text> | Avg: {item.finalAverage}%
                     </Text>
 
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                      <TouchableOpacity 
-                        style={[styles.actionBtn, { paddingVertical: 8, flex: 1 }]} 
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { paddingVertical: 8, flex: 1 }]}
                         onPress={() => handleEditResult(item)}
                       >
                         <Text style={styles.actionBtnText}>Edit</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.actionBtn, { paddingVertical: 8, flex: 1.5, backgroundColor: item.status === 'approved' ? '#ff9800' : '#1E5631' }]} 
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { paddingVertical: 8, flex: 1.5, backgroundColor: item.status === 'approved' ? '#ff9800' : '#1E5631' }]}
                         onPress={() => handleToggleResultStatus(item._id)}
                       >
                         <Text style={styles.actionBtnText}>
                           {item.status === 'approved' ? 'Unapprove' : 'Approve'}
                         </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.actionBtn, { paddingVertical: 8, flex: 1, backgroundColor: '#d32f2f' }]} 
+                      <TouchableOpacity
+                        style={[styles.actionBtn, { paddingVertical: 8, flex: 1, backgroundColor: '#d32f2f' }]}
                         onPress={() => handleDeleteResult(item._id)}
                       >
                         <Text style={styles.actionBtnText}>Delete</Text>
@@ -1206,8 +1210,8 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
                 )}
               />
             )}
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={[styles.actionBtn, styles.bulkBtn, { marginTop: 15, width: '100%' }]}
               onPress={() => {
                 setIsResultsModalOpen(false);
@@ -1272,10 +1276,10 @@ export default function AdminDashboard({ onLogout, navigateToBulkUpload, onSelec
                 style={[styles.gradedToggleBtn, subjectIsGraded && styles.gradedToggleBtnActive]}
                 onPress={() => setSubjectIsGraded(!subjectIsGraded)}
               >
-                <Ionicons 
-                  name={subjectIsGraded ? "checkbox" : "square-outline"} 
-                  size={22} 
-                  color={subjectIsGraded ? "#1E5631" : "#888"} 
+                <Ionicons
+                  name={subjectIsGraded ? "checkbox" : "square-outline"}
+                  size={22}
+                  color={subjectIsGraded ? "#1E5631" : "#888"}
                 />
               </TouchableOpacity>
             </View>
@@ -1376,6 +1380,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7f5',
+    paddingTop: 15,
   },
   header: {
     backgroundColor: '#1E5631',

@@ -24,6 +24,11 @@
     },
     "web": {
       "favicon": "./assets/images/dsh_logo.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d9e0c017-491d-447f-9a59-7e2ebbf547be"
+      }
     }
   }
 }

@@ -108,6 +108,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 }}
               >
                 <Text style={[styles.tabText, !isStaff && styles.activeTabText]}>Parent Portal</Text>
+
               </TouchableOpacity>
             </View>
 
