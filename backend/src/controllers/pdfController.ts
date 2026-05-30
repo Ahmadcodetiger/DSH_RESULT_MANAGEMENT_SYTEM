@@ -1,5 +1,7 @@
 import { Response } from 'express';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+// @ts-ignore
+import chromium from '@sparticuz/chromium';
 import { AuthRequest } from '../middleware/auth';
 import Result from '../models/Result';
 import Student from '../models/Student';
@@ -638,10 +640,23 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
     const htmlContent = generateReportHtml(result, student);
 
     // Launch puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    let browser;
+    if (process.env.VERCEL) {
+      // In Vercel, use @sparticuz/chromium with puppeteer-core
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: (chromium as any).defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+    } else {
+      // Locally, use the standard puppeteer
+      const localPuppeteer = require('puppeteer');
+      browser = await localPuppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
 
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
