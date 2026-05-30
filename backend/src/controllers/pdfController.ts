@@ -646,7 +646,7 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       browser = await puppeteer.launch({
         args: chromium.args,
         defaultViewport: (chromium as any).defaultViewport,
-        executablePath: await chromium.executablePath(),
+        executablePath: await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v127.0.0/chromium-v127.0.0-pack.tar'),
         headless: true,
       });
     } else {
@@ -676,10 +676,11 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
     await browser.close();
 
     // Set response headers and send binary data
-    const filename = `Report_${student.admissionNumber.replace('/', '_')}_${result.term.replace(' ', '_')}.pdf`;
+    const filename = `Report_${student.admissionNumber.replace(/\//g, '_')}_${result.term.replace(/ /g, '_')}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdfBuffer.length);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.send(pdfBuffer);
+    return res.end(pdfBuffer);
 
   } catch (error: any) {
     console.error('PDF Generation Error:', error);
