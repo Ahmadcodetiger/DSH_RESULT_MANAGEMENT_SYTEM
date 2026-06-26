@@ -10,20 +10,17 @@ import apiRouter from './routes/api';
 
 // Validate required environment variables at startup
 if (!process.env.MONGO_URI) {
-  throw new Error('FATAL ERROR: MONGO_URI is not set in environment variables.');
+  console.error('WARNING: MONGO_URI is not set in environment variables. Database will not connect.');
 }
 if (!process.env.JWT_SECRET) {
-  throw new Error('FATAL ERROR: JWT_SECRET is not set in environment variables.');
-}
-if (!process.env.OPENROUTER_API_KEY) {
-  throw new Error('FATAL ERROR: OPENROUTER_API_KEY is not set in environment variables.');
+  console.error('FATAL ERROR: JWT_SECRET is not set in environment variables.');
+  // JWT_SECRET is truly critical — authentication won't work without it
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL ERROR: JWT_SECRET is not set in environment variables.');
+  }
 }
 
 const app = express();
-const PORT = process.env.PORT || 5000;
-
-// Connect to MongoDB Database
-connectDB();
 
 // Middleware
 app.use(helmet());
@@ -56,11 +53,28 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // Support larger bulk uploads
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Ensure DB is connected before handling API requests (critical for serverless)
+app.use('/api', async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err: any) {
+    console.error('Database connection failed for request:', err.message);
+    res.status(503).json({ message: 'Service temporarily unavailable. Database connection failed.' });
+  }
+});
+
 // Route mounting
 app.use('/api', apiRouter);
 
 // Base route health check
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
+  // Try to connect, but don't fail the health check if it doesn't work
+  try {
+    await connectDB();
+  } catch (err: any) {
+    console.error('Health check DB connection failed:', err.message);
+  }
   res.status(200).json({
     status: 'healthy',
     uptime: process.uptime(),
@@ -77,11 +91,15 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Only start the HTTP server in local/non-Vercel environments
 if (process.env.VERCEL !== '1') {
-  app.listen(PORT, () => {
-    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  connectDB().then(() => {
+    app.listen(process.env.PORT || 5000, () => {
+      console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${process.env.PORT || 5000}`);
+    });
+  }).catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
   });
 }
 
 // Export for Vercel serverless
 export default app;
-
