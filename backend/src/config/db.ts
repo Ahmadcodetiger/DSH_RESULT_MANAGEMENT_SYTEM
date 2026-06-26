@@ -3,6 +3,9 @@ import Invoice from '../models/Invoice';
 import Expense from '../models/Expense';
 
 export const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) {
+    return;
+  }
   const connStr = process.env.MONGO_URI || 'mongodb://localhost:27017/huffaz_db';
   console.log(`Connecting to MongoDB at: ${connStr.replace(/:([^:@]+)@/, ':***@')}`);
 
