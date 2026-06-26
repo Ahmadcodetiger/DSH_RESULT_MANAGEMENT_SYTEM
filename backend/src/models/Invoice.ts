@@ -1,0 +1,47 @@
+import { Schema, model } from 'mongoose';
+
+const InvoiceSchema = new Schema(
+  {
+    studentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Student',
+      required: true,
+    },
+    title: {
+      type: String,
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+    },
+    dueDate: {
+      type: Date,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ['paid', 'unpaid', 'partially_paid'],
+      default: 'unpaid',
+      required: true,
+    },
+    paidAmount: {
+      type: Number,
+      default: 0,
+      required: true,
+    },
+    payments: [
+      {
+        amount: { type: Number, required: true },
+        date: { type: Date, default: Date.now, required: true },
+        method: { type: String, enum: ['cash', 'bank_transfer', 'card'], required: true },
+        transactionRef: { type: String },
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export default model('Invoice', InvoiceSchema);

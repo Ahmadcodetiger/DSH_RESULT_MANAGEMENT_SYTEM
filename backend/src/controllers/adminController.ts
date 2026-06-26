@@ -93,20 +93,50 @@ export const deleteTeacher = async (req: AuthRequest, res: Response) => {
 
 // --- Student Management ---
 
-// Bulk upload students via JSON list
+// Bulk upload students via JSON list or CSV
 export const uploadStudents = async (req: AuthRequest, res: Response) => {
   try {
-    const { students } = req.body; // Expecting { students: Array<{ admissionNumber, name, level, section, academicYear, parentPin? }> }
+    let students = req.body.students;
+
+    // Parse CSV data if provided
+    if (req.body.csvData && typeof req.body.csvData === 'string') {
+      students = [];
+      const lines = req.body.csvData.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parts = line.split(',').map((p: string) => p.trim());
+        if (parts.length < 4) continue;
+
+        // Skip header lines
+        if (
+          parts[0].toLowerCase() === 'name' ||
+          parts[1].toLowerCase() === 'admissionnumber' ||
+          parts[0].toLowerCase() === 'student name'
+        ) {
+          continue;
+        }
+
+        students.push({
+          name: parts[0],
+          admissionNumber: parts[1],
+          level: parts[2],
+          section: parts[3],
+          parentPin: parts[4] || undefined,
+          schoolFees: parts[5] ? Number(parts[5]) : undefined,
+          academicYear: '2025/2026' // Default active academic year
+        });
+      }
+    }
 
     if (!students || !Array.isArray(students)) {
-      return res.status(400).json({ message: 'Invalid payload. Expecting a list of students' });
+      return res.status(400).json({ message: 'Invalid payload. Expecting a list of students or csvData' });
     }
 
     const createdStudents = [];
     const skippedStudents = [];
 
     for (const stud of students) {
-      const { admissionNumber, name, level, section, academicYear, parentPin } = stud;
+      const { admissionNumber, name, level, section, academicYear, parentPin, schoolFees } = stud;
 
       if (!admissionNumber || !name || !level || !section || !academicYear) {
         skippedStudents.push({ ...stud, reason: 'Missing required fields' });
@@ -114,8 +144,32 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
       }
 
       const formattedAdmission = admissionNumber.trim().toUpperCase();
+      const parsedSchoolFees = Number(schoolFees) || 0;
       const existing = await Student.findOne({ admissionNumber: formattedAdmission });
       if (existing) {
+        if (existing.isDeleted) {
+          // Restore and update the soft-deleted student
+          const generatedPin = parentPin || Math.floor(1000 + Math.random() * 9000).toString();
+          existing.name = name;
+          existing.level = level;
+          existing.section = section;
+          existing.academicYear = academicYear;
+          existing.parentPin = generatedPin;
+          existing.schoolFees = parsedSchoolFees;
+          existing.isDeleted = false;
+          await existing.save();
+
+          createdStudents.push({
+            admissionNumber: formattedAdmission,
+            name,
+            level,
+            section,
+            academicYear,
+            pin: generatedPin,
+            schoolFees: parsedSchoolFees,
+          });
+          continue;
+        }
         skippedStudents.push({ ...stud, reason: 'Admission number already exists' });
         continue;
       }
@@ -129,7 +183,8 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
         level,
         section,
         academicYear,
-        parentPin: generatedPin, // Hashed in pre-save middleware
+        parentPin: generatedPin, // Plain text PIN
+        schoolFees: parsedSchoolFees,
       });
 
       await newStudent.save();
@@ -140,6 +195,7 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
         section,
         academicYear,
         pin: generatedPin, // return plain text pin so Admin can print/share it
+        schoolFees: parsedSchoolFees,
       });
     }
 
@@ -156,15 +212,30 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
 // Get all students (with optional filters)
 export const getStudents = async (req: AuthRequest, res: Response) => {
   try {
-    const { level, section } = req.query;
-    const filter: any = {};
+    const { level, section, page, limit } = req.query;
+    const filter: any = { isDeleted: { $ne: true } };
     if (level) filter.level = level;
     if (section) filter.section = section;
 
-    const students = await Student.find(filter).sort({ name: 1 });
-    // Since parentPin is hashed in the database, we cannot return it.
-    // If the admin wants to reset/edit, they submit a new one.
-    return res.status(200).json(students);
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 50;
+    const skipNum = (pageNum - 1) * limitNum;
+
+    const total = await Student.countDocuments(filter);
+    const students = await Student.find(filter)
+      .sort({ name: 1 })
+      .skip(skipNum)
+      .limit(limitNum);
+
+    return res.status(200).json({
+      students,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -174,14 +245,50 @@ export const getStudents = async (req: AuthRequest, res: Response) => {
 export const deleteStudent = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const student = await Student.findByIdAndDelete(id);
+    const student = await Student.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
-    // Clean up their results
-    await Result.deleteMany({ studentId: id });
+    // Clean up has been bypassed to preserve historical results (soft-delete)
 
-    return res.status(200).json({ message: 'Student and related results deleted successfully' });
+    return res.status(200).json({ message: 'Student deleted successfully' });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update student
+export const updateStudent = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees } = req.body;
+
+    const student = await Student.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (admissionNumber) {
+      const formattedAdmission = admissionNumber.trim().toUpperCase();
+      if (formattedAdmission !== student.admissionNumber) {
+        const existing = await Student.findOne({ admissionNumber: formattedAdmission, isDeleted: { $ne: true } });
+        if (existing) {
+          return res.status(400).json({ message: 'Admission number already exists for another student' });
+        }
+        student.admissionNumber = formattedAdmission;
+      }
+    }
+
+    if (name !== undefined) student.name = name;
+    if (level !== undefined) student.level = level;
+    if (section !== undefined) student.section = section;
+    if (academicYear !== undefined) student.academicYear = academicYear;
+    if (parentPin !== undefined) student.parentPin = parentPin;
+    if (schoolFees !== undefined) student.schoolFees = Number(schoolFees) || 0;
+
+    await student.save();
+
+    return res.status(200).json({ message: 'Student updated successfully', student });
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -274,10 +381,27 @@ export const updateAdminProfile = async (req: AuthRequest, res: Response) => {
 // Retrieve all results globally
 export const getResults = async (req: AuthRequest, res: Response) => {
   try {
+    const { page, limit } = req.query;
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 50;
+    const skipNum = (pageNum - 1) * limitNum;
+
+    const total = await Result.countDocuments({});
     const results = await Result.find({})
-      .populate('studentId', 'name admissionNumber level section')
-      .sort({ createdAt: -1 });
-    return res.status(200).json(results);
+      .populate('studentId', 'name admissionNumber level section isDeleted')
+      .sort({ createdAt: -1 })
+      .skip(skipNum)
+      .limit(limitNum);
+
+    return res.status(200).json({
+      results,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum)
+      }
+    });
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error fetching all results', error: error.message });
   }

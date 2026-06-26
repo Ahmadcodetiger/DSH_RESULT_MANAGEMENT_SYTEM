@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 export interface AuthRequest extends Request {
   user?: {
     id: string;
-    role: 'ADMIN' | 'TEACHER' | 'PARENT';
+    role: 'ADMIN' | 'TEACHER' | 'PARENT' | 'ACCOUNTANT' | 'DIRECTOR';
     admissionNumber?: string; // For parents
     name?: string;
   };
@@ -19,7 +19,10 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
   }
 
   try {
-    const secret = process.env.JWT_SECRET || 'huffaz_secret_key_2026_jwt_token';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
+    }
     const decoded = jwt.verify(token, secret) as any;
     req.user = decoded;
     next();
@@ -28,7 +31,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
   }
 };
 
-export const requireRole = (roles: Array<'ADMIN' | 'TEACHER' | 'PARENT'>) => {
+export const requireRole = (roles: Array<'ADMIN' | 'TEACHER' | 'PARENT' | 'ACCOUNTANT' | 'DIRECTOR'>) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Unauthorized access: insufficient permissions' });

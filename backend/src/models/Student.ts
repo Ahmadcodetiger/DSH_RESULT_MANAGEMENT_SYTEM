@@ -30,27 +30,27 @@ const StudentSchema = new Schema(
       type: String,
       required: true, // Secure 4-6 digit numeric PIN for parents
     },
+    schoolFees: {
+      type: Number,
+      default: 0,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      required: true,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// Hash the parentPin before saving
-StudentSchema.pre('save', async function (next) {
-  if (!this.isModified('parentPin')) return next();
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.parentPin = await bcrypt.hash(this.parentPin, salt);
-    next();
-  } catch (error: any) {
-    next(error);
-  }
-});
-
-// Compare parent PIN method
+// Compare parent PIN method (supports legacy bcrypt hashes and plaintext PINs)
 StudentSchema.methods.comparePin = async function (enteredPin: string): Promise<boolean> {
-  return bcrypt.compare(enteredPin, this.parentPin);
+  if (this.parentPin.startsWith('$2a$') || this.parentPin.startsWith('$2b$')) {
+    return bcrypt.compare(enteredPin, this.parentPin);
+  }
+  return enteredPin === this.parentPin;
 };
 
 export default model('Student', StudentSchema);

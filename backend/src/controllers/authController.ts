@@ -5,15 +5,27 @@ import { AuthRequest } from '../middleware/auth';
 import User from '../models/User';
 import Student from '../models/Student';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'huffaz_secret_key_2026_jwt_token';
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
+  }
+  return secret;
+};
 
 // Admin Registration (Initial setup)
 export const registerAdmin = async (req: AuthRequest, res: Response) => {
   try {
     const { username, password, name } = req.body;
 
-    if (!username || !password || !name) {
-      return res.status(400).json({ message: 'Please fill in all fields' });
+    if (password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+    }
+
+    // Bootstrap lock: block registration if an admin already exists in the database
+    const adminExists = await User.findOne({ role: 'ADMIN' });
+    if (adminExists) {
+      return res.status(403).json({ message: 'Access denied: Admin registration is locked after the first admin is created.' });
     }
 
     const existingUser = await User.findOne({ username });
@@ -59,8 +71,8 @@ export const loginUser = async (req: AuthRequest, res: Response) => {
 
     const token = jwt.sign(
       { id: user._id, role: user.role, name: user.name },
-      JWT_SECRET,
-      { expiresIn: '30d' }
+      getJwtSecret(),
+      { expiresIn: '8h' } // Reduced to 8 hours for staff
     );
 
     return res.status(200).json({
@@ -89,7 +101,7 @@ export const parentLogin = async (req: AuthRequest, res: Response) => {
 
     const formattedAdmissionNumber = admissionNumber.trim().toUpperCase();
 
-    const student: any = await Student.findOne({ admissionNumber: formattedAdmissionNumber });
+    const student: any = await Student.findOne({ admissionNumber: formattedAdmissionNumber, isDeleted: { $ne: true } });
     if (!student) {
       return res.status(404).json({ message: 'Student not found with this admission number' });
     }
@@ -106,8 +118,8 @@ export const parentLogin = async (req: AuthRequest, res: Response) => {
         admissionNumber: student.admissionNumber,
         name: student.name,
       },
-      JWT_SECRET,
-      { expiresIn: '30d' }
+      getJwtSecret(),
+      { expiresIn: '24h' } // Reduced to 24 hours for parents
     );
 
     return res.status(200).json({

@@ -47,6 +47,30 @@ const seed = async () => {
     await teacher.save();
     console.log('✓ Teacher created: username="khansau", password="teacherpassword123"');
 
+    // 4. Create Accountant
+    const accountantSalt = await bcrypt.genSalt(10);
+    const accountantPassword = await bcrypt.hash('accountantpassword123', accountantSalt);
+    const accountant = new User({
+      username: 'accountant',
+      password: accountantPassword,
+      name: 'Academy Accountant',
+      role: 'ACCOUNTANT'
+    });
+    await accountant.save();
+    console.log('✓ Accountant created: username="accountant", password="accountantpassword123"');
+
+    // 5. Create Director/Proprietor
+    const directorSalt = await bcrypt.genSalt(10);
+    const directorPassword = await bcrypt.hash('directorpassword123', directorSalt);
+    const director = new User({
+      username: 'director',
+      password: directorPassword,
+      name: 'Academy Director',
+      role: 'DIRECTOR'
+    });
+    await director.save();
+    console.log('✓ Director created: username="director", password="directorpassword123"');
+
     // 4. Create Student (matching the reference photo)
     const student = new Student({
       admissionNumber: 'DSH/015',

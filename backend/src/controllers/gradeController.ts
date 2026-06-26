@@ -23,15 +23,16 @@ export const getStudentsForTeacher = async (req: AuthRequest, res: Response) => 
         level: cls.level,
         section: cls.section,
       }));
-      filter = { $or: classOrFilters };
+      filter = { $or: classOrFilters, isDeleted: { $ne: true } };
     } else {
       // Admin filters (optional query params)
       const { level, section } = req.query;
+      filter.isDeleted = { $ne: true };
       if (level) filter.level = level;
       if (section) filter.section = section;
     }
 
-    const students = await Student.find(filter).sort({ name: 1 });
+    const students = await Student.find(filter).select('-parentPin').sort({ name: 1 });
     
     // Add grading status for each student (e.g. check if they have results for the current academic year/term if query params are provided)
     const { academicYear, term } = req.query;
@@ -77,9 +78,23 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Missing required grading fields' });
     }
 
-    const student = await Student.findById(studentId);
+    const student = await Student.findOne({ _id: studentId, isDeleted: { $ne: true } });
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Teacher scope check: Verify teacher assignment before allowing write
+    if (req.user?.role === 'TEACHER') {
+      const teacher = await User.findById(req.user.id);
+      if (!teacher) {
+        return res.status(403).json({ message: 'Teacher account not found' });
+      }
+      const hasAccess = teacher.assignedClasses?.some(
+        (cls) => cls.level === student.level && cls.section === student.section
+      );
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this student\'s class.' });
+      }
     }
 
     // Run auto-grading engine
@@ -126,6 +141,27 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
 export const getStudentResults = async (req: AuthRequest, res: Response) => {
   try {
     const { studentId } = req.params;
+
+    // Teacher scope check: Verify teacher is assigned to this student's class
+    if (req.user?.role === 'TEACHER') {
+      const teacher = await User.findById(req.user.id);
+      if (!teacher) {
+        return res.status(403).json({ message: 'Teacher details not found' });
+      }
+
+      const student = await Student.findOne({ _id: studentId, isDeleted: { $ne: true } });
+      if (!student) {
+        return res.status(404).json({ message: 'Student not found' });
+      }
+
+      const hasAccess = teacher.assignedClasses?.some(
+        (cls) => cls.level === student.level && cls.section === student.section
+      );
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this student\'s class.' });
+      }
+    }
+
     const results = await Result.find({ studentId }).sort({ academicYear: -1, term: -1 });
     return res.status(200).json(results);
   } catch (error: any) {
@@ -137,19 +173,34 @@ export const getStudentResults = async (req: AuthRequest, res: Response) => {
 export const getResultById = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await Result.findById(id).populate('studentId');
+    const result = await Result.findById(id).populate('studentId', '-parentPin');
     if (!result) {
       return res.status(404).json({ message: 'Result not found' });
     }
 
+    const student: any = result.studentId;
+
     // Security check: if parent, ensure they only access their child's result and it is approved
     if (req.user?.role === 'PARENT') {
-      const student: any = result.studentId;
-      if (student.admissionNumber !== req.user.admissionNumber) {
+      if (!student || student.admissionNumber !== req.user.admissionNumber) {
         return res.status(403).json({ message: 'Unauthorized: cannot view other students\' results' });
       }
       if (result.status !== 'approved') {
         return res.status(403).json({ message: 'Result is pending approval' });
+      }
+    }
+
+    // Security check: if teacher, ensure student's class matches teacher's assignedClasses
+    if (req.user?.role === 'TEACHER') {
+      const teacher = await User.findById(req.user.id);
+      if (!teacher) {
+        return res.status(403).json({ message: 'Teacher details not found' });
+      }
+      const hasAccess = teacher.assignedClasses?.some(
+        (cls) => cls.level === student?.level && cls.section === student?.section
+      );
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this student\'s class.' });
       }
     }
 
@@ -166,8 +217,8 @@ export const getParentStudentResults = async (req: AuthRequest, res: Response) =
       return res.status(403).json({ message: 'Access denied: parent only' });
     }
 
-    // Find student by admission number to be safe
-    const student = await Student.findOne({ admissionNumber: req.user.admissionNumber });
+    // Find student by admission number to be safe (exclude parentPin and ignore soft-deleted students)
+    const student = await Student.findOne({ admissionNumber: req.user.admissionNumber, isDeleted: { $ne: true } }).select('-parentPin');
     if (!student) {
       return res.status(404).json({ message: 'Student details not found' });
     }

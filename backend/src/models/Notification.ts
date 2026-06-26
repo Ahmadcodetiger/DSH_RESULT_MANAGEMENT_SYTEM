@@ -6,6 +6,8 @@ export interface INotification extends Document {
   targetRole: 'TEACHER' | 'PARENT' | 'ALL'; // who to show it to
   sentAt: Date;
   createdBy: string; // admin name
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const NotificationSchema: Schema = new Schema(

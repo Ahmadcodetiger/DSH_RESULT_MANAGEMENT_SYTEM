@@ -81,7 +81,13 @@ const ResultSchema = new Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
+
+ResultSchema.virtual('isApproved').get(function(this: any) {
+  return this.status === 'approved';
+});
 
 export default model('Result', ResultSchema);
