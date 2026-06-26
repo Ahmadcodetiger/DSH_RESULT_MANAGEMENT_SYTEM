@@ -24,7 +24,7 @@ const getBaseUrl = (): string => {
   }
   // Your machine's local IP address on the current Wi-Fi network.
   // Update this if your IP changes.
-  const MACHINE_IP = '10.49.249.9';
+  const MACHINE_IP = '10.29.131.9';
 
   if (Platform.OS === 'android') {
     // On physical Android, use machine IP.
@@ -43,12 +43,19 @@ const api = axios.create({
   },
 });
 
+declare var __DEV__: boolean;
+
 // Request Interceptor: Attach JWT token if it exists and log request details
 api.interceptors.request.use(
   async (config) => {
-    console.log(`[API Request] 🚀 ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
-    if (config.data) {
-      console.log('[API Request Body]', JSON.stringify(config.data, null, 2));
+    if (__DEV__) {
+      console.log(`[API Request] 🚀 ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
+      if (config.data) {
+        const sanitizedData = { ...config.data };
+        if (sanitizedData.password) sanitizedData.password = '***';
+        if (sanitizedData.pin) sanitizedData.pin = '***';
+        console.log('[API Request Body]', JSON.stringify(sanitizedData, null, 2));
+      }
     }
     if (tokenMemory) {
       config.headers.Authorization = `Bearer ${tokenMemory}`;
@@ -56,7 +63,9 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('[API Request Error]', error);
+    if (__DEV__) {
+      console.error('[API Request Error]', error);
+    }
     return Promise.reject(error);
   }
 );
@@ -64,23 +73,29 @@ api.interceptors.request.use(
 // Response Interceptor: Surface clear error messages and log responses
 api.interceptors.response.use(
   (response) => {
-    console.log(`[API Response] ✅ ${response.status} ${response.config.url}`);
-    if (response.data) {
-      console.log('[API Response Data]', JSON.stringify(response.data, null, 2));
+    if (__DEV__) {
+      console.log(`[API Response] ✅ ${response.status} ${response.config.url}`);
+      if (response.data) {
+        console.log('[API Response Data]', JSON.stringify(response.data, null, 2));
+      }
     }
     return response;
   },
   (error) => {
-    if (error.response) {
-      console.error(
-        `[API Error Response] ❌ ${error.response.status} ${error.config?.url}`,
-        JSON.stringify(error.response.data, null, 2)
-      );
-    } else if (error.request) {
-      console.error('[API Network Error] ❌ No response received from server:', error.message);
+    if (__DEV__) {
+      if (error.response) {
+        console.error(
+          `[API Error Response] ❌ ${error.response.status} ${error.config?.url}`,
+          JSON.stringify(error.response.data, null, 2)
+        );
+      } else if (error.request) {
+        console.error('[API Network Error] ❌ No response received from server:', error.message);
+      } else {
+        console.error('[API Configuration Error] ❌', error.message);
+      }
+    }
+    if (!error.response && error.request) {
       error.message = 'Network error — check your Wi-Fi or server is running.';
-    } else {
-      console.error('[API Configuration Error] ❌', error.message);
     }
     return Promise.reject(error);
   }
