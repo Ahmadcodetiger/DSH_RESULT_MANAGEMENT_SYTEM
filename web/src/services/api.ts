@@ -7,7 +7,7 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined' && window.location.hostname) {
     return `http://${window.location.hostname}:5000/api`;
   }
-  return 'http://localhost:5000/api';
+  return 'https://dsh-result-management-sytem.vercel.app/api';
 };
 
 export const BASE_URL = getApiUrl();
