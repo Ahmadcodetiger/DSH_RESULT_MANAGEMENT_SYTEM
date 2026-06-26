@@ -5,6 +5,29 @@ import Result from '../models/Result';
 import Invoice from '../models/Invoice';
 import Expense from '../models/Expense';
 import User from '../models/User';
+import Settings from '../models/Settings';
+
+const getSchoolSettings = async () => {
+  try {
+    let settings = await Settings.findOne({ key: 'school_info' });
+    if (!settings) {
+      settings = new Settings({ key: 'school_info' });
+      await settings.save();
+    }
+    return settings;
+  } catch (err) {
+    console.error('Settings lookup failed, using hardcoded defaults:', err);
+    return {
+      schoolName: 'Home of Young Huffaz Academy',
+      address: 'Address complex, Takushara, Abuja, Nigeria',
+      phoneNumbers: '+2348037322312, +2349033245467',
+      email: 'info@younghuffaz.com',
+      bankName: 'Huffaz Trust Bank',
+      accountName: 'Home of Young Huffaz Academy',
+      accountNumber: '1023456789'
+    };
+  }
+};
 
 const callOpenRouter = async (prompt: string): Promise<string> => {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -44,6 +67,7 @@ const callOpenRouter = async (prompt: string): Promise<string> => {
 // 1. Auto-generate report card feedback comments for Teachers
 export const generateReportFeedback = async (req: AuthRequest, res: Response) => {
   try {
+    const settings = await getSchoolSettings();
     let studentName = req.body.studentName || 'Student';
     let subjectsList = '';
     let averageGrade = 'C';
@@ -108,9 +132,10 @@ export const generateReportFeedback = async (req: AuthRequest, res: Response) =>
     }
 
     const prompt = `
-      You are an AI assistant helping a teacher at Home of Young Huffaz Academy, an Islamic dual-curriculum school.
-      Generate a professional, warm, and highly personalized report card comment (2-3 sentences) for the student based on their performance details below.
+      You are an AI assistant helping a teacher at ${settings.schoolName}, an Islamic dual-curriculum school.
+      Generate a professional, warm, and highly personalized report card comment (strictly maximum 25 words) for the student based on their performance details below.
       The comment must be written in English, include Islamic terms of encouragement (e.g. "Masha Allah", "Barakallah Feek/Feeki", "May Allah increase you in knowledge"), and offer constructive advice.
+      It MUST be extremely brief (strictly maximum 25 words) so that the printed report sheet fits on a single A4 page.
 
       Student Details:
       - Name: ${studentName}
@@ -134,7 +159,15 @@ export const generateReportFeedback = async (req: AuthRequest, res: Response) =>
 // 2. Auto-generate financial briefing for Accountants
 export const generateFinancialForecast = async (req: AuthRequest, res: Response) => {
   try {
-    const invoices = await Invoice.find({});
+    const { term, academicYear } = req.query;
+    const settings = await getSchoolSettings();
+    const filterTerm = (term as string) || (settings as any).currentTerm || 'First Term';
+    const filterYear = (academicYear as string) || (settings as any).currentAcademicYear || '2025/2026';
+
+    const activeStudents = await Student.find({ isDeleted: { $ne: true }, academicYear: filterYear });
+    const totalExpected = activeStudents.reduce((sum, s: any) => sum + (s.schoolFees || 0), 0);
+
+    const invoices = await Invoice.find({ term: filterTerm, academicYear: filterYear });
     let totalInvoiced = 0;
     let totalPaid = 0;
     invoices.forEach((inv) => {
@@ -142,25 +175,27 @@ export const generateFinancialForecast = async (req: AuthRequest, res: Response)
       totalPaid += inv.paidAmount;
     });
 
-    const expenses = await Expense.find({});
+    const expenses = await Expense.find({ term: filterTerm, academicYear: filterYear });
     let totalExpenses = 0;
     expenses.forEach((exp) => {
       totalExpenses += exp.amount;
     });
 
+    const outstandingFees = totalExpected - totalPaid;
     const currentBalance = totalPaid - totalExpenses;
 
     const prompt = `
-      You are a senior financial AI advisor. Generate a concise financial briefing and cash flow outlook (150-200 words) for the school's accountant based on the following metrics:
+      You are a senior financial AI advisor. Generate a concise financial briefing and cash flow outlook (150-200 words) for the accountant of ${(settings as any).schoolName} based on the following metrics:
       
-      Financial Metrics:
+      Financial Metrics (for ${filterTerm} / Academic Year ${filterYear}):
+      - Total Expected Fees (from Student Files): ₦${totalExpected.toLocaleString()}
       - Total Invoiced Fees: ₦${totalInvoiced.toLocaleString()}
       - Total Fees Collected: ₦${totalPaid.toLocaleString()}
-      - Outstanding Fees: ₦${(totalInvoiced - totalPaid).toLocaleString()}
+      - Outstanding Fees (Expected - Collected): ₦${outstandingFees.toLocaleString()}
       - Total Expenses: ₦${totalExpenses.toLocaleString()}
-      - Net Balance: ₦${currentBalance.toLocaleString()}
+      - Net Balance (Money on Ground): ₦${currentBalance.toLocaleString()}
 
-      Write a structured advice briefing. Underline the current collection efficiency (Paid/Invoiced percentage), assess reserves vs expenses, and suggest 2 concrete actions to recover outstanding fees. Format with clear Markdown paragraphs.
+      Write a structured advice briefing. Underline the current collection efficiency (Paid/Expected percentage), assess reserves vs expenses, and suggest 2 concrete actions to recover outstanding fees. Format with clear Markdown paragraphs.
     `;
 
     const responseText = await callOpenRouter(prompt);
@@ -174,22 +209,27 @@ export const generateFinancialForecast = async (req: AuthRequest, res: Response)
 // 3. Auto-generate Executive Briefing for Director
 export const generateExecutiveBriefing = async (req: AuthRequest, res: Response) => {
   try {
-    const activeStudentsCount = await Student.countDocuments({ isDeleted: { $ne: true } });
+    const { term, academicYear } = req.query;
+    const settings = await getSchoolSettings();
+    const filterTerm = (term as string) || (settings as any).currentTerm || 'First Term';
+    const filterYear = (academicYear as string) || (settings as any).currentAcademicYear || '2025/2026';
+
+    const activeStudentsCount = await Student.countDocuments({ isDeleted: { $ne: true }, academicYear: filterYear });
     const teachersCount = await User.countDocuments({ role: 'TEACHER' });
 
-    const invoices = await Invoice.find({});
+    const invoices = await Invoice.find({ term: filterTerm, academicYear: filterYear });
     let totalPaid = 0;
     invoices.forEach((inv) => {
       totalPaid += inv.paidAmount;
     });
-    const expenses = await Expense.find({});
+    const expenses = await Expense.find({ term: filterTerm, academicYear: filterYear });
     let totalExpenses = 0;
     expenses.forEach((exp) => {
       totalExpenses += exp.amount;
     });
     const netBalance = totalPaid - totalExpenses;
 
-    const results = await Result.find({});
+    const results = await Result.find({ term: filterTerm, academicYear: filterYear });
     let totalGPA = 0;
     results.forEach((r) => {
       totalGPA += r.finalAverage;
@@ -197,7 +237,7 @@ export const generateExecutiveBriefing = async (req: AuthRequest, res: Response)
     const averageScore = results.length > 0 ? (totalGPA / results.length).toFixed(1) : 'N/A';
 
     const prompt = `
-      You are a strategic education consultant AI. Write an executive briefing (150-200 words) for the Director/Proprietor of Home of Young Huffaz Academy using these school metrics:
+      You are a strategic education consultant AI. Write an executive briefing (150-200 words) for the Director/Proprietor of ${(settings as any).schoolName} using these school metrics for ${filterTerm} (Academic Year ${filterYear}):
       
       School Overview:
       - Active Students: ${activeStudentsCount}

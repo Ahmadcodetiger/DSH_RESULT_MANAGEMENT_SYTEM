@@ -6,6 +6,8 @@ import { AuthRequest } from '../middleware/auth';
 import Result from '../models/Result';
 import Student from '../models/Student';
 import User from '../models/User';
+import Invoice from '../models/Invoice';
+import Settings from '../models/Settings';
 import { SCHOOL_LOGO_BASE64 } from './logoBase64';
 
 // Helper to escape HTML characters for security (XSS prevention)
@@ -19,8 +21,30 @@ const escapeHtml = (unsafe: any): string => {
     .replace(/'/g, '&#039;');
 };
 
+const getSchoolSettings = async () => {
+  try {
+    let settings = await Settings.findOne({ key: 'school_info' });
+    if (!settings) {
+      settings = new Settings({ key: 'school_info' });
+      await settings.save();
+    }
+    return settings;
+  } catch (err) {
+    console.error('Settings lookup failed, using hardcoded defaults:', err);
+    return {
+      schoolName: 'Home of Young Huffaz Academy',
+      address: 'Address complex, Takushara, Abuja, Nigeria',
+      phoneNumbers: '+2348037322312, +2349033245467',
+      email: 'info@younghuffaz.com',
+      bankName: 'Huffaz Trust Bank',
+      accountName: 'Home of Young Huffaz Academy',
+      accountNumber: '1023456789'
+    };
+  }
+};
+
 // Helper to generate the HTML string
-const generateReportHtml = (result: any, student: any) => {
+const generateReportHtml = (result: any, student: any, settings: any) => {
   const renderSubjectRows = (subjects: any[]) => {
     return subjects.map((sub: any) => {
       if (!sub.isGraded) {
@@ -428,9 +452,9 @@ const generateReportHtml = (result: any, student: any) => {
           <img src="${SCHOOL_LOGO_BASE64}" class="header-logo" alt="School Logo" />
           <div class="header-text">
             <h1>أكاديمية دار صغار الحفاظ</h1>
-            <h2>Home of Young Huffaz Academy</h2>
+            <h2>${escapeHtml(settings.schoolName)}</h2>
             <p class="sub">Early Years · Elementary · Islamic/Tahfeezh (Dual Curriculum)</p>
-            <p class="contact">Address complex, Takushara, Abuja, Nigeria | Tel: +2348037322312, +2349033245467 | Email: info@younghuffaz.com</p>
+            <p class="contact">${escapeHtml(settings.address)} | Tel: ${escapeHtml(settings.phoneNumbers)} | Email: ${escapeHtml(settings.email)}</p>
           </div>
           <img src="${SCHOOL_LOGO_BASE64}" class="header-logo" alt="School Logo" />
         </div>
@@ -743,7 +767,8 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const htmlContent = generateReportHtml(result, student);
+    const settings = await getSchoolSettings();
+    const htmlContent = generateReportHtml(result, student, settings);
 
     // Launch puppeteer
     let browser;
@@ -792,6 +817,343 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
 
   } catch (error: any) {
     console.error('PDF Generation Error:', error);
+    return res.status(500).json({ message: 'Server error generating PDF', error: error.message });
+  }
+};
+
+// --- INVOICE & RECEIPT HTML GENERATORS ---
+
+const generateInvoiceHtml = (invoice: any, student: any, settings: any) => {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Invoice - ${escapeHtml(invoice.title)}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; padding: 20px; color: #333; }
+        .invoice-card { border: 2.5px solid #1E5631; padding: 30px; border-radius: 8px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1E5631; padding-bottom: 15px; margin-bottom: 20px; }
+        .header img { width: 80px; }
+        .header h1 { font-family: 'Cairo', sans-serif; font-size: 24px; color: #1E5631; margin: 0; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .details-block h3 { color: #1E5631; border-bottom: 1.5px solid #c5d5c5; padding-bottom: 5px; margin-bottom: 10px; }
+        .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .table th, .table td { border: 1px solid #c5d5c5; padding: 12px; text-align: left; }
+        .table th { background: #eef4ee; color: #1E5631; }
+        .total-row { font-weight: bold; font-size: 16px; background: #fafcfa; }
+        .footer-note { text-align: center; margin-top: 50px; font-size: 12px; color: #666; border-top: 1px dotted #c5d5c5; padding-top: 15px; }
+      </style>
+    </head>
+    <body>
+      <div class="invoice-card">
+        <div class="header">
+          <img src="${SCHOOL_LOGO_BASE64}" alt="Logo" />
+          <div style="text-align: center;">
+            <h1 style="font-size: 20px;">أكاديمية دار صغار الحفاظ</h1>
+            <h2 style="font-size: 18px; margin: 5px 0;">${escapeHtml(settings.schoolName)}</h2>
+            <p style="font-size: 10px; color: #666;">${escapeHtml(settings.address)} | Financial Office Billing Statement</p>
+          </div>
+          <img src="${SCHOOL_LOGO_BASE64}" alt="Logo" />
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #1E5631; text-transform: uppercase; letter-spacing: 1px;">Academy Fee Invoice</h2>
+          <p>Invoice ID: <b>${invoice._id}</b></p>
+        </div>
+
+        <div class="details-grid">
+          <div class="details-block">
+            <h3>Billed To (Student Details)</h3>
+            <p><b>Name:</b> ${escapeHtml(student.name)}</p>
+            <p><b>Admission Number:</b> ${escapeHtml(student.admissionNumber)}</p>
+            <p><b>Class Level:</b> Level ${escapeHtml(student.level)} - ${escapeHtml(student.section)}</p>
+          </div>
+          <div class="details-block">
+            <h3>Invoice Overview</h3>
+            <p><b>Billing Date:</b> ${new Date(invoice.createdAt).toLocaleDateString()}</p>
+            <p><b>Payment Due Date:</b> ${new Date(invoice.dueDate).toLocaleDateString()}</p>
+            <p><b>Payment Status:</b> <span style="text-transform: uppercase; font-weight: bold; color: ${invoice.status === 'paid' ? '#1E5631' : invoice.status === 'partially_paid' ? '#d4af37' : '#d9534f'}">${invoice.status}</span></p>
+          </div>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Fee Description</th>
+              <th style="text-align: right; width: 150px;">Billed Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${escapeHtml(invoice.title)}</td>
+              <td style="text-align: right; font-weight: 500;">₦${invoice.amount.toLocaleString()}</td>
+            </tr>
+            <tr class="total-row">
+              <td style="text-align: right;">Total Amount Due:</td>
+              <td style="text-align: right; color: #1E5631;">₦${invoice.amount.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td style="text-align: right; font-weight: 500;">Total Paid So Far:</td>
+              <td style="text-align: right; color: #5bc0de; font-weight: 500;">₦${invoice.paidAmount.toLocaleString()}</td>
+            </tr>
+            <tr class="total-row" style="background: #fff9eb;">
+              <td style="text-align: right;">Outstanding Balance Due:</td>
+              <td style="text-align: right; color: #d9534f;">₦${(invoice.amount - invoice.paidAmount).toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="background: #fafcfa; border: 1px dashed #1E5631; padding: 15px; border-radius: 4px; font-size: 12px; line-height: 1.6;">
+          <h4 style="color: #1E5631; margin-bottom: 5px;">Bank Transfer Settlement Instructions</h4>
+          <p>Payments can be made directly via bank transfer to the school's bank account:</p>
+          <p><b>Bank Name:</b> ${escapeHtml(settings.bankName)}</p>
+          <p><b>Account Name:</b> ${escapeHtml(settings.accountName)}</p>
+          <p><b>Account Number:</b> ${escapeHtml(settings.accountNumber)}</p>
+          <p>Please present the transfer receipt/reference code to the Accountant Accounts Office for confirmation.</p>
+        </div>
+
+        <div class="footer-note">
+          <p>Thank you for choosing ${escapeHtml(settings.schoolName)}.</p>
+          <p>This is a computer-generated billing statement issued by the Finance & Accounting Registry.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+const generateReceiptHtml = (invoice: any, student: any, payment: any, settings: any) => {
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Receipt - Payment Confirmation</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; padding: 20px; color: #333; }
+        .receipt-card { border: 2.5px solid #1E5631; padding: 30px; border-radius: 8px; position: relative; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1E5631; padding-bottom: 15px; margin-bottom: 20px; }
+        .header img { width: 80px; }
+        .header h1 { font-family: 'Cairo', sans-serif; font-size: 24px; color: #1E5631; margin: 0; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        .details-block h3 { color: #1E5631; border-bottom: 1.5px solid #c5d5c5; padding-bottom: 5px; margin-bottom: 10px; }
+        .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .table th, .table td { border: 1px solid #c5d5c5; padding: 12px; text-align: left; }
+        .table th { background: #eef4ee; color: #1E5631; }
+        .total-row { font-weight: bold; font-size: 16px; background: #fafcfa; }
+        .footer-note { text-align: center; margin-top: 50px; font-size: 12px; color: #666; border-top: 1px dotted #c5d5c5; padding-top: 15px; }
+        .paid-stamp { position: absolute; top: 120px; right: 50px; border: 3px solid #1E5631; color: #1E5631; text-transform: uppercase; font-size: 20px; font-weight: bold; padding: 10px 20px; border-radius: 4px; transform: rotate(-10deg); opacity: 0.8; }
+      </style>
+    </head>
+    <body>
+      <div class="receipt-card">
+        <div class="paid-stamp">Receipt Paid</div>
+        
+        <div class="header">
+          <img src="${SCHOOL_LOGO_BASE64}" alt="Logo" />
+          <div style="text-align: center;">
+            <h1 style="font-size: 20px;">أكاديمية دار صغار الحفاظ</h1>
+            <h2 style="font-size: 18px; margin: 5px 0;">${escapeHtml(settings.schoolName)}</h2>
+            <p style="font-size: 10px; color: #666;">${escapeHtml(settings.address)} | Financial Office Receipt Registry</p>
+          </div>
+          <img src="${SCHOOL_LOGO_BASE64}" alt="Logo" />
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #1E5631; text-transform: uppercase; letter-spacing: 1px;">Payment Receipt</h2>
+          <p>Receipt ID: <b>${payment._id}</b></p>
+        </div>
+
+        <div class="details-grid">
+          <div class="details-block">
+            <h3>Student Details</h3>
+            <p><b>Name:</b> ${escapeHtml(student.name)}</p>
+            <p><b>Admission Number:</b> ${escapeHtml(student.admissionNumber)}</p>
+            <p><b>Class Level:</b> Level ${escapeHtml(student.level)} - ${escapeHtml(student.section)}</p>
+          </div>
+          <div class="details-block">
+            <h3>Transaction Details</h3>
+            <p><b>Payment Date:</b> ${new Date(payment.date).toLocaleString()}</p>
+            <p><b>Payment Method:</b> <span style="text-transform: uppercase; font-weight: bold;">${escapeHtml(payment.method.replace('_', ' '))}</span></p>
+            <p><b>Transaction Ref:</b> <code>${escapeHtml(payment.transactionRef || 'N/A')}</code></p>
+          </div>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Invoice Description</th>
+              <th style="text-align: right; width: 150px;">Billed Amt</th>
+              <th style="text-align: right; width: 150px;">Amount Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${escapeHtml(invoice.title)}</td>
+              <td style="text-align: right;">₦${invoice.amount.toLocaleString()}</td>
+              <td style="text-align: right; font-weight: bold; color: #1E5631;">₦${payment.amount.toLocaleString()}</td>
+            </tr>
+            <tr class="total-row">
+              <td colspan="2" style="text-align: right;">Total Amount Confirmed Paid:</td>
+              <td style="text-align: right; color: #1E5631;">₦${payment.amount.toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td colspan="2" style="text-align: right; font-weight: 500;">Invoice Cumulative Paid:</td>
+              <td style="text-align: right; color: #5bc0de; font-weight: 500;">₦${invoice.paidAmount.toLocaleString()}</td>
+            </tr>
+            <tr class="total-row" style="background: #fff9eb;">
+              <td colspan="2" style="text-align: right;">Remaining Outstanding Balance:</td>
+              <td style="text-align: right; color: #d9534f;">₦${(invoice.amount - invoice.paidAmount).toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="footer-note">
+          <p>Thank you for your prompt fee settlement.</p>
+          <p>This payment has been successfully recorded and processed by the Academy Accounts Department.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// --- CONTROLLER HANDLERS FOR INVOICES & RECEIPTS ---
+
+export const generateInvoicePdf = async (req: AuthRequest, res: Response) => {
+  try {
+    const { invoiceId } = req.params;
+    const invoice = await Invoice.findById(invoiceId);
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    if (req.user?.role === 'PARENT' && invoice.studentId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized access to this invoice PDF' });
+    }
+
+    const student = await Student.findOne({ _id: invoice.studentId, isDeleted: { $ne: true } });
+    if (!student) {
+      return res.status(404).json({ message: 'Student details not found' });
+    }
+
+    const settings = await getSchoolSettings();
+    const htmlContent = generateInvoiceHtml(invoice, student, settings);
+
+    let browser;
+    if (process.env.VERCEL) {
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: (chromium as any).defaultViewport,
+        executablePath: await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v127.0.0/chromium-v127.0.0-pack.tar'),
+        headless: true,
+      });
+    } else {
+      const localPuppeteer = require('puppeteer');
+      browser = await localPuppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
+
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '15mm',
+        bottom: '15mm',
+        left: '15mm',
+        right: '15mm'
+      }
+    });
+
+    await browser.close();
+
+    const filename = `Bill_${student.admissionNumber.replace(/\//g, '_')}_${invoice._id}.pdf`;
+    const finalBuffer = Buffer.from(pdfBuffer);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', finalBuffer.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.end(finalBuffer);
+  } catch (error: any) {
+    console.error('Invoice PDF Generation Error:', error);
+    return res.status(500).json({ message: 'Server error generating PDF', error: error.message });
+  }
+};
+
+export const generateReceiptPdf = async (req: AuthRequest, res: Response) => {
+  try {
+    const { invoiceId, paymentId } = req.params;
+    const invoice = await Invoice.findById(invoiceId);
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    if (req.user?.role === 'PARENT' && invoice.studentId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized access to this receipt PDF' });
+    }
+
+    const student = await Student.findOne({ _id: invoice.studentId, isDeleted: { $ne: true } });
+    if (!student) {
+      return res.status(404).json({ message: 'Student details not found' });
+    }
+
+    const payment = invoice.payments.find(p => p._id.toString() === paymentId);
+    if (!payment) {
+      return res.status(404).json({ message: 'Payment record not found' });
+    }
+
+    const settings = await getSchoolSettings();
+    const htmlContent = generateReceiptHtml(invoice, student, payment, settings);
+
+    let browser;
+    if (process.env.VERCEL) {
+      browser = await puppeteer.launch({
+        args: chromium.args,
+        defaultViewport: (chromium as any).defaultViewport,
+        executablePath: await chromium.executablePath('https://github.com/Sparticuz/chromium/releases/download/v127.0.0/chromium-v127.0.0-pack.tar'),
+        headless: true,
+      });
+    } else {
+      const localPuppeteer = require('puppeteer');
+      browser = await localPuppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
+
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '15mm',
+        bottom: '15mm',
+        left: '15mm',
+        right: '15mm'
+      }
+    });
+
+    await browser.close();
+
+    const filename = `Receipt_${student.admissionNumber.replace(/\//g, '_')}_${payment._id}.pdf`;
+    const finalBuffer = Buffer.from(pdfBuffer);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', finalBuffer.length);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.end(finalBuffer);
+  } catch (error: any) {
+    console.error('Receipt PDF Generation Error:', error);
     return res.status(500).json({ message: 'Server error generating PDF', error: error.message });
   }
 };

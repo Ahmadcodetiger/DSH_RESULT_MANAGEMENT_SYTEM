@@ -5,6 +5,7 @@ import User from '../models/User';
 import Student from '../models/Student';
 import Result from '../models/Result';
 import Notification from '../models/Notification';
+import Settings from '../models/Settings';
 
 // --- Teacher Management ---
 
@@ -381,13 +382,17 @@ export const updateAdminProfile = async (req: AuthRequest, res: Response) => {
 // Retrieve all results globally
 export const getResults = async (req: AuthRequest, res: Response) => {
   try {
-    const { page, limit } = req.query;
+    const { page, limit, term, academicYear } = req.query;
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 50;
     const skipNum = (pageNum - 1) * limitNum;
 
-    const total = await Result.countDocuments({});
-    const results = await Result.find({})
+    const query: any = {};
+    if (term) query.term = String(term);
+    if (academicYear) query.academicYear = String(academicYear);
+
+    const total = await Result.countDocuments(query);
+    const results = await Result.find(query)
       .populate('studentId', 'name admissionNumber level section isDeleted')
       .sort({ createdAt: -1 })
       .skip(skipNum)
@@ -495,5 +500,91 @@ export const getPublicNotifications = async (req: any, res: Response) => {
     return res.status(200).json(notifications);
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error fetching notifications', error: error.message });
+  }
+};
+
+// --- School Setup & Calendar Settings ---
+
+// Get active school settings
+export const getSchoolSettings = async (req: any, res: Response) => {
+  try {
+    let settings = await Settings.findOne({ key: 'school_info' });
+    if (!settings) {
+      settings = new Settings({ key: 'school_info' });
+      await settings.save();
+    }
+    return res.status(200).json(settings);
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error retrieving settings', error: error.message });
+  }
+};
+
+// Update school settings
+export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      schoolName,
+      address,
+      phoneNumbers,
+      email,
+      bankName,
+      accountName,
+      accountNumber,
+      currentAcademicYear,
+      currentTerm,
+    } = req.body;
+
+    let settings = await Settings.findOne({ key: 'school_info' });
+    if (!settings) {
+      settings = new Settings({ key: 'school_info' });
+    }
+
+    if (schoolName !== undefined) settings.schoolName = schoolName;
+    if (address !== undefined) settings.address = address;
+    if (phoneNumbers !== undefined) settings.phoneNumbers = phoneNumbers;
+    if (email !== undefined) settings.email = email;
+    if (bankName !== undefined) settings.bankName = bankName;
+    if (accountName !== undefined) settings.accountName = accountName;
+    if (accountNumber !== undefined) settings.accountNumber = accountNumber;
+    if (currentAcademicYear !== undefined) settings.currentAcademicYear = currentAcademicYear;
+    if (currentTerm !== undefined) settings.currentTerm = currentTerm;
+
+    await settings.save();
+    return res.status(200).json({ message: 'School settings updated successfully', settings });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error updating settings', error: error.message });
+  }
+};
+
+// --- Class Promotions Manager ---
+
+// Promote student profiles in batch from one level to another
+export const promoteStudents = async (req: AuthRequest, res: Response) => {
+  try {
+    const { studentIds, fromLevel, toLevel } = req.body;
+
+    if (!toLevel) {
+      return res.status(400).json({ message: 'Target class level (toLevel) is required' });
+    }
+
+    if (studentIds && Array.isArray(studentIds) && studentIds.length > 0) {
+      // Promote specific selected students
+      const result = await Student.updateMany(
+        { _id: { $in: studentIds }, isDeleted: { $ne: true } },
+        { level: toLevel }
+      );
+      return res.status(200).json({ message: `Successfully promoted ${result.modifiedCount} selected students to Level ${toLevel}.` });
+    } else if (fromLevel) {
+      // Promote all students from a level
+      const result = await Student.updateMany(
+        { level: fromLevel, isDeleted: { $ne: true } },
+        { level: toLevel }
+      );
+      return res.status(200).json({ message: `Successfully promoted ${result.modifiedCount} students from Level ${fromLevel} to Level ${toLevel}.` });
+    } else {
+      return res.status(400).json({ message: 'Please specify either studentIds array or fromLevel class level' });
+    }
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error executing student promotions', error: error.message });
   }
 };

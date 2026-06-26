@@ -21,6 +21,9 @@ import {
   deleteNotification,
   getNotificationsForRole,
   getPublicNotifications,
+  getSchoolSettings,
+  updateSchoolSettings,
+  promoteStudents,
 } from '../controllers/adminController';
 import {
   getStudentsForTeacher,
@@ -36,6 +39,10 @@ import {
   createExpense,
   getExpenses,
   getFinanceSummary,
+  getStaffList,
+  paySalary,
+  getSalaries,
+  getMySalaries,
 } from '../controllers/financeController';
 import { getExecutiveOverview } from '../controllers/directorController';
 import {
@@ -43,7 +50,7 @@ import {
   generateFinancialForecast,
   generateExecutiveBriefing,
 } from '../controllers/aiController';
-import { generateResultPdf } from '../controllers/pdfController';
+import { generateResultPdf, generateInvoicePdf, generateReceiptPdf } from '../controllers/pdfController';
 import { SURAHS } from '../utils/surahs';
 
 const router = Router();
@@ -62,6 +69,7 @@ router.post('/auth/register-admin', authRateLimiter, registerAdmin);
 router.post('/auth/login-staff', authRateLimiter, loginUser);
 router.post('/auth/login-parent', authRateLimiter, parentLogin);
 router.get('/public/notifications', getPublicNotifications);
+router.get('/public/settings', getSchoolSettings);
 router.get('/surahs', (req, res) => {
   return res.status(200).json(SURAHS);
 });
@@ -74,11 +82,14 @@ router.delete('/admin/teachers/:id', authenticateToken, requireRole(['ADMIN']), 
 router.put('/admin/profile', authenticateToken, requireRole(['ADMIN']), updateAdminProfile);
 router.get('/admin/profile', authenticateToken, requireRole(['ADMIN']), getAdminProfile);
 router.get('/admin/results', authenticateToken, requireRole(['ADMIN']), getResults);
+router.get('/admin/settings', authenticateToken, requireRole(['ADMIN']), getSchoolSettings);
+router.put('/admin/settings', authenticateToken, requireRole(['ADMIN']), updateSchoolSettings);
 
 router.post('/admin/students/upload', authenticateToken, requireRole(['ADMIN']), uploadStudents);
-router.get('/admin/students', authenticateToken, requireRole(['ADMIN']), getStudents);
+router.get('/admin/students', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR']), getStudents);
 router.put('/admin/students/:id', authenticateToken, requireRole(['ADMIN']), updateStudent);
 router.delete('/admin/students/:id', authenticateToken, requireRole(['ADMIN']), deleteStudent);
+router.post('/admin/students/promote', authenticateToken, requireRole(['ADMIN']), promoteStudents);
 
 router.delete('/admin/results/:id', authenticateToken, requireRole(['ADMIN']), deleteResult);
 router.patch('/admin/results/:id/status', authenticateToken, requireRole(['ADMIN']), toggleResultApproval);
@@ -91,10 +102,16 @@ router.get('/grading/student/:studentId', authenticateToken, requireRole(['ADMIN
 // --- Finance/Accountant Routes ---
 router.post('/finance/invoices', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), createInvoice);
 router.post('/finance/invoices/:invoiceId/payment', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), recordPayment);
-router.get('/finance/invoices', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), getInvoices);
+router.get('/finance/invoices', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR', 'PARENT']), getInvoices);
 router.post('/finance/expenses', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), createExpense);
-router.get('/finance/expenses', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), getExpenses);
-router.get('/finance/summary', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), getFinanceSummary);
+router.get('/finance/expenses', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR']), getExpenses);
+router.get('/finance/summary', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR']), getFinanceSummary);
+
+// Salary Management Routes
+router.get('/finance/staff', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR']), getStaffList);
+router.get('/finance/salaries', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR']), getSalaries);
+router.post('/finance/salaries', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), paySalary);
+router.get('/staff/my-salaries', authenticateToken, requireRole(['ADMIN', 'TEACHER', 'ACCOUNTANT', 'DIRECTOR']), getMySalaries);
 
 // --- Director Only Routes ---
 router.get('/director/overview', authenticateToken, requireRole(['DIRECTOR']), getExecutiveOverview);
@@ -107,6 +124,8 @@ router.get('/ai/director-briefing', authenticateToken, requireRole(['DIRECTOR'])
 // --- Secure PDF and Result Views (Shared Roles) ---
 router.get('/results/:id', authenticateToken, getResultById);
 router.get('/results/:id/pdf', authenticateToken, generateResultPdf);
+router.get('/finance/invoices/:invoiceId/pdf', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR', 'PARENT']), generateInvoicePdf);
+router.get('/finance/invoices/:invoiceId/payments/:paymentId/pdf', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR', 'PARENT']), generateReceiptPdf);
 
 // --- Parent Portal Routes ---
 router.get('/parent/results', authenticateToken, requireRole(['PARENT']), getParentStudentResults);

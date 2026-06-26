@@ -38,6 +38,14 @@ const InvoiceSchema = new Schema(
         transactionRef: { type: String },
       },
     ],
+    term: {
+      type: String,
+      required: true,
+    },
+    academicYear: {
+      type: String,
+      required: true,
+    },
   },
   {
     timestamps: true,

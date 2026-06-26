@@ -162,7 +162,12 @@ export const getStudentResults = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const results = await Result.find({ studentId }).sort({ academicYear: -1, term: -1 });
+    const { term, academicYear } = req.query;
+    const filter: any = { studentId };
+    if (term) filter.term = String(term);
+    if (academicYear) filter.academicYear = String(academicYear);
+
+    const results = await Result.find(filter).sort({ academicYear: -1, term: -1 });
     return res.status(200).json(results);
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error', error: error.message });

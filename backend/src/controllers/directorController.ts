@@ -6,30 +6,36 @@ import Invoice from '../models/Invoice';
 import Expense from '../models/Expense';
 import Result from '../models/Result';
 import Notification from '../models/Notification';
+import Settings from '../models/Settings';
 
 export const getExecutiveOverview = async (req: AuthRequest, res: Response) => {
   try {
+    const { term, academicYear } = req.query;
+    const settings = await Settings.findOne({ key: 'school_info' });
+    const filterTerm = (term as string) || settings?.currentTerm || 'First Term';
+    const filterYear = (academicYear as string) || settings?.currentAcademicYear || '2025/2026';
+
     // 1. Core Counts
     const activeStudentsCount = await Student.countDocuments({ isDeleted: { $ne: true } });
     const teachersCount = await User.countDocuments({ role: 'TEACHER' });
 
-    const activeStudents = await Student.find({ isDeleted: { $ne: true } });
+    const activeStudents = await Student.find({ isDeleted: { $ne: true }, academicYear: filterYear });
     const totalInvoiced = activeStudents.reduce((sum, s: any) => sum + (s.schoolFees || 0), 0);
 
-    const invoices = await Invoice.find({});
+    const invoices = await Invoice.find({ term: filterTerm, academicYear: filterYear });
     let totalPaid = 0;
     invoices.forEach((inv) => {
       totalPaid += inv.paidAmount;
     });
 
-    const expenses = await Expense.find({});
+    const expenses = await Expense.find({ term: filterTerm, academicYear: filterYear });
     let totalExpenses = 0;
     expenses.forEach((exp) => {
       totalExpenses += exp.amount;
     });
 
     // 3. School Average Score
-    const results = await Result.find({});
+    const results = await Result.find({ term: filterTerm, academicYear: filterYear });
     let totalGPA = 0;
     results.forEach((r) => {
       totalGPA += r.finalAverage;
@@ -37,7 +43,11 @@ export const getExecutiveOverview = async (req: AuthRequest, res: Response) => {
     const averageScore = results.length > 0 ? Math.round(totalGPA / results.length) : 0;
 
     // 4. Pending Results approvals list
-    const pendingResults = await Result.find({ status: { $ne: 'approved' } }).populate('studentId');
+    const pendingResults = await Result.find({ 
+      status: { $ne: 'approved' },
+      term: filterTerm,
+      academicYear: filterYear
+    }).populate('studentId');
 
     // 5. Recent notifications mapped to audit logs
     const notifications = await Notification.find({}).sort({ createdAt: -1 }).limit(5);

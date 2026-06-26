@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content="Comprehensive School Management Portal for Home of Young Huffaz Academy, Abuja. Dual-curriculum grading, invoicing, and AI strategic briefings." />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      (function() {
+        const savedTheme = localStorage.getItem('theme');
+        let theme = savedTheme;
+        if (!theme) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        document.documentElement.classList.toggle('light', theme === 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
     <title>Home of Young Huffaz Academy — School Management System</title>
   </head>
   <body>
