@@ -72,7 +72,7 @@ export const loginUser = async (req: AuthRequest, res: Response) => {
     const token = jwt.sign(
       { id: user._id, role: user.role, name: user.name },
       getJwtSecret(),
-      { expiresIn: '8h' } // Reduced to 8 hours for staff
+      { expiresIn: '1h' } // Reduced to 1 hour for staff/admin security
     );
 
     return res.status(200).json({
@@ -119,7 +119,7 @@ export const parentLogin = async (req: AuthRequest, res: Response) => {
         name: student.name,
       },
       getJwtSecret(),
-      { expiresIn: '24h' } // Reduced to 24 hours for parents
+      { expiresIn: '2h' } // Reduced to 2 hours for parents security
     );
 
     return res.status(200).json({

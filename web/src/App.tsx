@@ -538,6 +538,36 @@ export default function App() {
     authService.logout();
   };
 
+  // Idle Activity Tracker for Auto-Logout (10 minutes)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let idleTimer: any;
+    const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+    const resetIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        handleLogout();
+        alert('You have been logged out due to inactivity.');
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    events.forEach(event => {
+      window.addEventListener(event, resetIdleTimer);
+    });
+
+    resetIdleTimer();
+
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      events.forEach(event => {
+        window.removeEventListener(event, resetIdleTimer);
+      });
+    };
+  }, [currentUser]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       {/* HEADER NAVBAR */}
