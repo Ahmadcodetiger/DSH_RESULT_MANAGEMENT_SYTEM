@@ -3,7 +3,7 @@ import {
   Users, DollarSign, Bell, X, Shield, Award, Settings as SettingsIcon, Menu, LogOut,
   Sun, Moon
 } from 'lucide-react';
-import api, { authService } from '../services/api';
+import api, { authService, classService } from '../services/api';
 
 interface User {
   _id: string;
@@ -54,6 +54,15 @@ interface Notification {
   targetRole: string;
   createdBy: string;
   createdAt: string;
+}
+
+interface SchoolClass {
+  _id: string;
+  className: string;
+  section: string;
+  annex: string;
+  order: number;
+  isActive: boolean;
 }
 
 interface AdminDashboardViewProps {
@@ -148,11 +157,23 @@ export default function AdminDashboardView({
   const [promoToLevel, setPromoToLevel] = useState('2');
   const [promoSelectedStudents, setPromoSelectedStudents] = useState<string[]>([]);
 
+  // School classes & annexes state
+  const [schoolClasses, setSchoolClasses] = useState<SchoolClass[]>([]);
+  const [annexes, setAnnexes] = useState<string[]>([]);
+  const [newAnnexName, setNewAnnexName] = useState('');
+  const [newClassName, setNewClassName] = useState('');
+  const [newClassSection, setNewClassSection] = useState('');
+  const [newClassAnnex, setNewClassAnnex] = useState('');
+  const [newClassOrder, setNewClassOrder] = useState(0);
+  const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
+  const [editClassForm, setEditClassForm] = useState({ className: '', section: '', annex: '', order: 0 });
+
   useEffect(() => {
     fetchTeachers();
     fetchStudents();
     fetchResults();
     fetchAdminNotifications();
+    fetchSchoolClasses();
   }, []);
 
   useEffect(() => {
@@ -166,6 +187,7 @@ export default function AdminDashboardView({
       setSettingsAccountNumber(schoolSettings.accountNumber || '');
       setSettingsTerm(schoolSettings.currentTerm || 'Second Term');
       setSettingsYear(schoolSettings.currentAcademicYear || '2025/2026');
+      setAnnexes(schoolSettings.annexes || []);
     }
   }, [schoolSettings]);
 
@@ -206,6 +228,90 @@ export default function AdminDashboardView({
       setAdminNotifications(res.data || []);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchSchoolClasses = async () => {
+    try {
+      const data = await classService.getClasses(false);
+      setSchoolClasses(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Helpers to get unique levels and sections from dynamic classes
+  const activeClasses = schoolClasses.filter(c => c.isActive);
+  const uniqueLevels = [...new Set(activeClasses.map(c => c.className))];
+  const uniqueSections = [...new Set(activeClasses.map(c => c.section))];
+  const sectionGroups = uniqueSections.reduce((acc, sec) => {
+    acc[sec] = activeClasses.filter(c => c.section === sec).sort((a, b) => a.order - b.order);
+    return acc;
+  }, {} as Record<string, SchoolClass[]>);
+
+  const handleCreateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await classService.createClass({
+        className: newClassName,
+        section: newClassSection,
+        annex: newClassAnnex,
+        order: newClassOrder,
+      });
+      setNewClassName('');
+      setNewClassOrder(0);
+      fetchSchoolClasses();
+      alert('Class created successfully!');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to create class');
+    }
+  };
+
+  const handleUpdateClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass) return;
+    try {
+      await classService.updateClass(editingClass._id, editClassForm);
+      setEditingClass(null);
+      fetchSchoolClasses();
+      alert('Class updated successfully!');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update class');
+    }
+  };
+
+  const handleDeleteClass = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this class?')) return;
+    try {
+      await classService.deleteClass(id);
+      fetchSchoolClasses();
+    } catch (err) {
+      alert('Failed to delete class');
+    }
+  };
+
+  const handleAddAnnex = async () => {
+    if (!newAnnexName.trim()) return;
+    const updated = [...annexes, newAnnexName.trim()];
+    try {
+      await classService.updateAnnexes(updated);
+      setAnnexes(updated);
+      setNewAnnexName('');
+      onUpdateSettings();
+    } catch (err) {
+      alert('Failed to update annexes');
+    }
+  };
+
+  const handleRemoveAnnex = async (annexToRemove: string) => {
+    if (!confirm(`Remove annex "${annexToRemove}"?`)) return;
+    const updated = annexes.filter(a => a !== annexToRemove);
+    try {
+      await classService.updateAnnexes(updated);
+      setAnnexes(updated);
+      onUpdateSettings();
+    } catch (err) {
+      alert('Failed to update annexes');
     }
   };
 
@@ -583,21 +689,27 @@ export default function AdminDashboardView({
                       </div>
                       <div className="form-row-responsive">
                         <div>
-                          <label style={styles.label}>Class Level</label>
+                          <label style={styles.label}>Class</label>
                           <select value={newTeacherLevel} onChange={e => setNewTeacherLevel(e.target.value)}>
-                            <option value="1">Level 1</option>
-                            <option value="2">Level 2</option>
-                            <option value="3">Level 3</option>
-                            <option value="4">Level 4</option>
-                            <option value="5">Level 5</option>
+                            <option value="">Select Class</option>
+                            {Object.entries(sectionGroups).map(([sec, classes]) => (
+                              <optgroup key={sec} label={sec}>
+                                {classes.map(c => (
+                                  <option key={c._id} value={c.className}>{c.className}</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                            {activeClasses.length === 0 && <option disabled>No classes configured</option>}
                           </select>
                         </div>
                         <div>
                           <label style={styles.label}>Section</label>
                           <select value={newTeacherSection} onChange={e => setNewTeacherSection(e.target.value)}>
-                            <option value="ALLO">ALLO</option>
-                            <option value="B">B</option>
-                            <option value="C">C</option>
+                            <option value="">Select Section</option>
+                            {uniqueSections.map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                            {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
                           </select>
                         </div>
                       </div>
@@ -753,23 +865,35 @@ export default function AdminDashboardView({
                         <div className="form-row-responsive">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Level *</label>
-                            <input 
-                              type="text" 
+                            <select 
                               required
-                              placeholder="e.g. 5"
                               value={manualStudent.level}
                               onChange={e => setManualStudent({ ...manualStudent, level: e.target.value })}
-                            />
+                            >
+                              <option value="">Select Level</option>
+                              {Object.entries(sectionGroups).map(([sec, classes]) => (
+                                <optgroup key={sec} label={sec}>
+                                  {classes.map(c => (
+                                    <option key={c._id} value={c.className}>{c.className}</option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                              {activeClasses.length === 0 && <option disabled>No classes configured</option>}
+                            </select>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Section *</label>
-                            <input 
-                              type="text" 
+                            <select 
                               required
-                              placeholder="e.g. ALLO"
                               value={manualStudent.section}
                               onChange={e => setManualStudent({ ...manualStudent, section: e.target.value })}
-                            />
+                            >
+                              <option value="">Select Section</option>
+                              {uniqueSections.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                              {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
+                            </select>
                           </div>
                         </div>
                         <div className="form-row-responsive">
@@ -846,21 +970,35 @@ export default function AdminDashboardView({
                     <div className="form-row-responsive">
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Level *</label>
-                        <input 
-                          type="text" 
+                        <select 
                           required
                           value={editStudentForm.level}
                           onChange={e => setEditStudentForm({ ...editStudentForm, level: e.target.value })}
-                        />
+                        >
+                          <option value="">Select Level</option>
+                          {Object.entries(sectionGroups).map(([sec, classes]) => (
+                            <optgroup key={sec} label={sec}>
+                              {classes.map(c => (
+                                <option key={c._id} value={c.className}>{c.className}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          {activeClasses.length === 0 && <option disabled>No classes configured</option>}
+                        </select>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Section *</label>
-                        <input 
-                          type="text" 
+                        <select 
                           required
                           value={editStudentForm.section}
                           onChange={e => setEditStudentForm({ ...editStudentForm, section: e.target.value })}
-                        />
+                        >
+                          <option value="">Select Section</option>
+                          {uniqueSections.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                          {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
+                        </select>
                       </div>
                     </div>
                     <div className="form-row-responsive">
@@ -1017,7 +1155,282 @@ export default function AdminDashboardView({
               </form>
             </div>
 
+            {/* SCHOOLS & CLASSES MANAGEMENT */}
             <div>
+              {/* ANNEX MANAGER */}
+              <div className="glass dashboard-card" style={{ marginBottom: '1.5rem' }}>
+                <h3 style={styles.cardHeader}>School Annexes / Branches</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                  Define different school locations or branches. Classes can be assigned to specific annexes.
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <input
+                    type="text"
+                    placeholder="e.g. Takushara Annex"
+                    value={newAnnexName}
+                    onChange={e => setNewAnnexName(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <button type="button" onClick={handleAddAnnex} style={{ ...styles.submitBtn, padding: '0.5rem 1rem', whiteSpace: 'nowrap' }}>Add Annex</button>
+                </div>
+                {annexes.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {annexes.map(a => (
+                      <span key={a} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.4rem 0.75rem',
+                        backgroundColor: 'var(--primary-glow)',
+                        border: '1px solid var(--primary)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        color: 'var(--primary)'
+                      }}>
+                        {a}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAnnex(a)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error)', fontWeight: 'bold', fontSize: '1rem', lineHeight: 1, padding: 0 }}
+                        >×</button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No annexes defined yet. Add one above.</p>
+                )}
+              </div>
+
+              {/* CLASS MANAGER */}
+              <div className="glass dashboard-card" style={{ marginBottom: '1.5rem' }}>
+                <h3 style={styles.cardHeader}>Class Configuration</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                  Define classes grouped under sections. Example: "Foundation 1" under section "Foundation", "Basic 1" under section "Primary".
+                </p>
+
+                {/* Create New Class Form */}
+                <form onSubmit={handleCreateClass} style={{
+                  display: 'flex', flexDirection: 'column', gap: '0.75rem',
+                  padding: '1rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-base)', marginBottom: '1.5rem'
+                }}>
+                  <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--primary)' }}>Add New Class</h4>
+                  <div className="form-row-responsive">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Class Name *</label>
+                      <input type="text" required placeholder="e.g. Foundation 1" value={newClassName} onChange={e => setNewClassName(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Section (Group) *</label>
+                      <input type="text" required placeholder="e.g. Foundation" value={newClassSection} onChange={e => setNewClassSection(e.target.value)} list="section-suggestions" />
+                      <datalist id="section-suggestions">
+                        {uniqueSections.map(s => <option key={s} value={s} />)}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div className="form-row-responsive">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Annex (Optional)</label>
+                      <select value={newClassAnnex} onChange={e => setNewClassAnnex(e.target.value)}>
+                        <option value="">All Annexes / None</option>
+                        {annexes.map(a => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Sort Order</label>
+                      <input type="number" value={newClassOrder} onChange={e => setNewClassOrder(parseInt(e.target.value) || 0)} />
+                    </div>
+                  </div>
+                  <button type="submit" style={{ ...styles.submitBtn, alignSelf: 'flex-start' }}>Create Class</button>
+                </form>
+
+                {/* Classes Table grouped by Section */}
+                {Object.keys(sectionGroups).length > 0 ? (
+                  Object.entries(sectionGroups).map(([sec, classes]) => (
+                    <div key={sec} style={{ marginBottom: '1.5rem' }}>
+                      <h4 style={{
+                        fontSize: '0.95rem',
+                        fontWeight: 'bold',
+                        color: 'var(--primary)',
+                        borderBottom: '2px solid var(--primary)',
+                        paddingBottom: '0.35rem',
+                        marginBottom: '0.75rem'
+                      }}>
+                        {sec}
+                      </h4>
+                      <div style={styles.tableWrapper}>
+                        <table className="custom-table">
+                          <thead>
+                            <tr>
+                              <th>Class Name</th>
+                              <th>Annex</th>
+                              <th>Order</th>
+                              <th>Status</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {classes.map(c => (
+                              <tr key={c._id}>
+                                <td style={{ fontWeight: '600' }}>{c.className}</td>
+                                <td>{c.annex || '—'}</td>
+                                <td>{c.order}</td>
+                                <td>
+                                  <span style={{
+                                    padding: '0.15rem 0.5rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 'bold',
+                                    backgroundColor: c.isActive ? 'var(--success-glow)' : 'var(--error-glow)',
+                                    color: c.isActive ? 'var(--success)' : 'var(--error)',
+                                    border: `1px solid ${c.isActive ? 'var(--success)' : 'var(--error)'}`,
+                                  }}>
+                                    {c.isActive ? 'Active' : 'Disabled'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                      type="button"
+                                      style={{
+                                        padding: '0.25rem 0.5rem',
+                                        backgroundColor: 'var(--success-glow)',
+                                        color: 'var(--success)',
+                                        border: '1px solid var(--success)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer'
+                                      }}
+                                      onClick={() => {
+                                        setEditingClass(c);
+                                        setEditClassForm({ className: c.className, section: c.section, annex: c.annex, order: c.order });
+                                      }}
+                                    >Edit</button>
+                                    <button
+                                      type="button"
+                                      style={{
+                                        padding: '0.25rem 0.5rem',
+                                        backgroundColor: 'var(--error-glow)',
+                                        color: 'var(--error)',
+                                        border: '1px solid var(--error)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer'
+                                      }}
+                                      onClick={() => handleDeleteClass(c._id)}
+                                    >Delete</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{
+                    padding: '2rem',
+                    textAlign: 'center',
+                    border: '2px dashed var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-muted)'
+                  }}>
+                    <p style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>No classes configured yet</p>
+                    <p style={{ fontSize: '0.85rem' }}>Use the form above to create your first class.</p>
+                  </div>
+                )}
+
+                {/* Also show inactive classes if any */}
+                {schoolClasses.filter(c => !c.isActive).length > 0 && (
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <h4 style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Disabled Classes</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {schoolClasses.filter(c => !c.isActive).map(c => (
+                        <span key={c._id} style={{
+                          padding: '0.3rem 0.75rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.8rem',
+                          backgroundColor: 'var(--bg-base)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text-muted)',
+                          textDecoration: 'line-through'
+                        }}>
+                          {c.className} ({c.section})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* EDIT CLASS MODAL */}
+              {editingClass && (
+                <div className="modal-overlay-blur">
+                  <div className="modal-card modal-card-sm animate-scale-in" style={{ maxWidth: '450px' }}>
+                    <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
+                      <h3 style={{ margin: 0, color: 'var(--primary)' }}>Edit Class</h3>
+                      <button
+                        type="button"
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                        onClick={() => setEditingClass(null)}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <form onSubmit={handleUpdateClass} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Class Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editClassForm.className}
+                          onChange={e => setEditClassForm({ ...editClassForm, className: e.target.value })}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Section (Group) *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editClassForm.section}
+                          onChange={e => setEditClassForm({ ...editClassForm, section: e.target.value })}
+                          list="edit-section-suggestions"
+                        />
+                        <datalist id="edit-section-suggestions">
+                          {uniqueSections.map(s => <option key={s} value={s} />)}
+                        </datalist>
+                      </div>
+                      <div className="form-row-responsive">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Annex</label>
+                          <select value={editClassForm.annex} onChange={e => setEditClassForm({ ...editClassForm, annex: e.target.value })}>
+                            <option value="">All / None</option>
+                            {annexes.map(a => <option key={a} value={a}>{a}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Sort Order</label>
+                          <input
+                            type="number"
+                            value={editClassForm.order}
+                            onChange={e => setEditClassForm({ ...editClassForm, order: parseInt(e.target.value) || 0 })}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <button type="submit" style={{ ...styles.submitBtn, flex: 1 }}>Save Changes</button>
+                        <button
+                          type="button"
+                          style={{ ...styles.deleteBtn, flex: 1, margin: 0, padding: '0.75rem' }}
+                          onClick={() => setEditingClass(null)}
+                        >Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
               <div className="glass dashboard-card card-lg">
                 <h3 style={styles.cardHeader}>Class Promotion Manager</h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
@@ -1026,25 +1439,33 @@ export default function AdminDashboardView({
                 
                 <div className="form-row-responsive" style={{ marginBottom: '1.25rem' }}>
                   <div>
-                    <label style={styles.label}>From Level</label>
+                    <label style={styles.label}>From Class</label>
                     <select value={promoFromLevel} onChange={e => {
                       setPromoFromLevel(e.target.value);
                       setPromoSelectedStudents([]);
                     }}>
-                      <option value="1">Level 1</option>
-                      <option value="2">Level 2</option>
-                      <option value="3">Level 3</option>
-                      <option value="4">Level 4</option>
-                      <option value="5">Level 5</option>
+                      <option value="">Select Class</option>
+                      {Object.entries(sectionGroups).map(([sec, classes]) => (
+                        <optgroup key={sec} label={sec}>
+                          {classes.map(c => (
+                            <option key={c._id} value={c.className}>{c.className}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {activeClasses.length === 0 && <option disabled>No classes configured</option>}
                     </select>
                   </div>
                   <div>
-                    <label style={styles.label}>To Target Level</label>
+                    <label style={styles.label}>To Target Class</label>
                     <select value={promoToLevel} onChange={e => setPromoToLevel(e.target.value)}>
-                      <option value="2">Level 2</option>
-                      <option value="3">Level 3</option>
-                      <option value="4">Level 4</option>
-                      <option value="5">Level 5</option>
+                      <option value="">Select Class</option>
+                      {Object.entries(sectionGroups).map(([sec, classes]) => (
+                        <optgroup key={sec} label={sec}>
+                          {classes.map(c => (
+                            <option key={c._id} value={c.className}>{c.className}</option>
+                          ))}
+                        </optgroup>
+                      ))}
                       <option value="Graduated">Graduated</option>
                     </select>
                   </div>

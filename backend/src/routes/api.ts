@@ -24,6 +24,11 @@ import {
   getSchoolSettings,
   updateSchoolSettings,
   promoteStudents,
+  createSchoolClass,
+  getSchoolClasses,
+  updateSchoolClass,
+  deleteSchoolClass,
+  updateAnnexes,
 } from '../controllers/adminController';
 import {
   getStudentsForTeacher,
@@ -70,6 +75,7 @@ router.post('/auth/login-staff', authRateLimiter, loginUser);
 router.post('/auth/login-parent', authRateLimiter, parentLogin);
 router.get('/public/notifications', getPublicNotifications);
 router.get('/public/settings', getSchoolSettings);
+router.get('/public/classes', getSchoolClasses);
 router.get('/surahs', (req, res) => {
   return res.status(200).json(SURAHS);
 });
@@ -90,6 +96,13 @@ router.get('/admin/students', authenticateToken, requireRole(['ADMIN', 'ACCOUNTA
 router.put('/admin/students/:id', authenticateToken, requireRole(['ADMIN']), updateStudent);
 router.delete('/admin/students/:id', authenticateToken, requireRole(['ADMIN']), deleteStudent);
 router.post('/admin/students/promote', authenticateToken, requireRole(['ADMIN']), promoteStudents);
+
+// --- School Class Management (Admin Only) ---
+router.post('/admin/classes', authenticateToken, requireRole(['ADMIN']), createSchoolClass);
+router.get('/admin/classes', authenticateToken, requireRole(['ADMIN']), getSchoolClasses);
+router.put('/admin/classes/:id', authenticateToken, requireRole(['ADMIN']), updateSchoolClass);
+router.delete('/admin/classes/:id', authenticateToken, requireRole(['ADMIN']), deleteSchoolClass);
+router.put('/admin/annexes', authenticateToken, requireRole(['ADMIN']), updateAnnexes);
 
 router.delete('/admin/results/:id', authenticateToken, requireRole(['ADMIN']), deleteResult);
 router.patch('/admin/results/:id/status', authenticateToken, requireRole(['ADMIN']), toggleResultApproval);

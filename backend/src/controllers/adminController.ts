@@ -6,6 +6,7 @@ import Student from '../models/Student';
 import Result from '../models/Result';
 import Notification from '../models/Notification';
 import Settings from '../models/Settings';
+import SchoolClass from '../models/SchoolClass';
 
 // --- Teacher Management ---
 
@@ -586,5 +587,115 @@ export const promoteStudents = async (req: AuthRequest, res: Response) => {
     }
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error executing student promotions', error: error.message });
+  }
+};
+
+// --- School Class Management ---
+
+// Create a new school class
+export const createSchoolClass = async (req: AuthRequest, res: Response) => {
+  try {
+    const { className, section, annex, order } = req.body;
+
+    if (!className || !section) {
+      return res.status(400).json({ message: 'Class name and section are required' });
+    }
+
+    // Check for duplicate within same annex
+    const existing = await SchoolClass.findOne({
+      className: className.trim(),
+      section: section.trim(),
+      annex: (annex || '').trim(),
+    });
+    if (existing) {
+      return res.status(400).json({ message: 'A class with this name already exists in this section/annex' });
+    }
+
+    const schoolClass = new SchoolClass({
+      className: className.trim(),
+      section: section.trim(),
+      annex: (annex || '').trim(),
+      order: order ?? 0,
+    });
+
+    await schoolClass.save();
+    return res.status(201).json({ message: 'Class created successfully', schoolClass });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error creating class', error: error.message });
+  }
+};
+
+// List all school classes (with optional annex filter)
+export const getSchoolClasses = async (req: any, res: Response) => {
+  try {
+    const { annex, activeOnly } = req.query;
+    const filter: any = {};
+    if (annex) filter.annex = annex;
+    if (activeOnly === 'true') filter.isActive = true;
+
+    const classes = await SchoolClass.find(filter).sort({ section: 1, order: 1, className: 1 });
+    return res.status(200).json(classes);
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error fetching classes', error: error.message });
+  }
+};
+
+// Update a school class
+export const updateSchoolClass = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { className, section, annex, order, isActive } = req.body;
+
+    const schoolClass = await SchoolClass.findById(id);
+    if (!schoolClass) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    if (className !== undefined) schoolClass.className = className.trim();
+    if (section !== undefined) schoolClass.section = section.trim();
+    if (annex !== undefined) schoolClass.annex = annex.trim();
+    if (order !== undefined) schoolClass.order = order;
+    if (isActive !== undefined) schoolClass.isActive = isActive;
+
+    await schoolClass.save();
+    return res.status(200).json({ message: 'Class updated successfully', schoolClass });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error updating class', error: error.message });
+  }
+};
+
+// Delete a school class (hard delete)
+export const deleteSchoolClass = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const schoolClass = await SchoolClass.findByIdAndDelete(id);
+    if (!schoolClass) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+    return res.status(200).json({ message: 'Class deleted successfully' });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error deleting class', error: error.message });
+  }
+};
+
+// Update annexes list in school settings
+export const updateAnnexes = async (req: AuthRequest, res: Response) => {
+  try {
+    const { annexes } = req.body;
+    if (!Array.isArray(annexes)) {
+      return res.status(400).json({ message: 'annexes must be an array of strings' });
+    }
+
+    let settings = await Settings.findOne({ key: 'school_info' });
+    if (!settings) {
+      settings = new Settings({ key: 'school_info' });
+    }
+
+    settings.annexes = annexes.map((a: string) => a.trim()).filter((a: string) => a.length > 0);
+    await settings.save();
+
+    return res.status(200).json({ message: 'Annexes updated successfully', annexes: settings.annexes });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error updating annexes', error: error.message });
   }
 };

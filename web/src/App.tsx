@@ -4,7 +4,7 @@ import {
   Lock, Bell, LogOut, ArrowRight, Download, Award, TrendingUp, Info, Menu, Calendar,
   Sun, Moon, CreditCard
 } from 'lucide-react';
-import api, { authService, BASE_URL } from './services/api';
+import api, { authService, BASE_URL, classService } from './services/api';
 import { SURAHS } from './utils/surahs';
 import AdminDashboardView from './components/AdminDashboardView';
 
@@ -1843,6 +1843,7 @@ function FinanceLedgerView({ showControls, activeTabOverride }: FinanceLedgerVie
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [activeFinTabState, setActiveFinTabState] = useState<'billing' | 'expenses' | 'reserves' | 'expected' | 'salaries'>('billing');
+  const [schoolClasses, setSchoolClasses] = useState<any[]>([]);
   
   const activeFinTab = activeTabOverride || activeFinTabState;
   const setActiveFinTab = activeTabOverride ? () => {} : setActiveFinTabState;
@@ -1888,6 +1889,23 @@ function FinanceLedgerView({ showControls, activeTabOverride }: FinanceLedgerVie
   const [payAmount, setPayAmount] = useState(0);
   const [payRef, setPayRef] = useState('');
 
+  const fetchSchoolClasses = async () => {
+    try {
+      const data = await classService.getClasses(false);
+      setSchoolClasses(data || []);
+    } catch (err) {
+      console.error('Failed to fetch school classes', err);
+    }
+  };
+
+  const activeClasses = schoolClasses.filter(c => c.isActive);
+  const uniqueLevels = [...new Set(activeClasses.map(c => c.className))];
+  const uniqueSections = [...new Set(activeClasses.map(c => c.section))];
+  const sectionGroups = uniqueSections.reduce((acc, sec) => {
+    acc[sec] = activeClasses.filter(c => c.section === sec).sort((a, b) => a.order - b.order);
+    return acc;
+  }, {} as Record<string, any[]>);
+
   // Fetch active school settings on mount to set defaults
   useEffect(() => {
     const fetchDefaultSettings = async () => {
@@ -1902,6 +1920,7 @@ function FinanceLedgerView({ showControls, activeTabOverride }: FinanceLedgerVie
       }
     };
     fetchDefaultSettings();
+    fetchSchoolClasses();
   }, []);
 
   // Fetch scoped data whenever selected term or year changes
@@ -2347,19 +2366,25 @@ function FinanceLedgerView({ showControls, activeTabOverride }: FinanceLedgerVie
                       <div style={{ flex: 1 }}>
                         <label style={styles.label}>Class Level</label>
                         <select value={selectedClassLevel} onChange={e => setSelectedClassLevel(e.target.value)}>
-                          <option value="1">Level 1</option>
-                          <option value="2">Level 2</option>
-                          <option value="3">Level 3</option>
-                          <option value="4">Level 4</option>
-                          <option value="5">Level 5</option>
+                          <option value="">Select Class</option>
+                          {Object.entries(sectionGroups).map(([sec, classes]) => (
+                            <optgroup key={sec} label={sec}>
+                              {classes.map(c => (
+                                <option key={c._id} value={c.className}>{c.className}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          {activeClasses.length === 0 && <option disabled>No classes configured</option>}
                         </select>
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={styles.label}>Section</label>
                         <select value={selectedClassSection} onChange={e => setSelectedClassSection(e.target.value)}>
-                          <option value="ALLO">ALLO</option>
-                          <option value="B">B</option>
-                          <option value="C">C</option>
+                          <option value="">Select Section</option>
+                          {uniqueSections.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                          {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
                         </select>
                       </div>
                     </div>
@@ -2602,11 +2627,9 @@ function FinanceLedgerView({ showControls, activeTabOverride }: FinanceLedgerVie
               <label style={{ ...styles.label, marginBottom: '0.25rem', display: 'block', fontSize: '0.8rem' }}>Filter Level</label>
               <select value={expectedLevelFilter} onChange={e => setExpectedLevelFilter(e.target.value)}>
                 <option value="ALL">All Levels</option>
-                <option value="1">Level 1</option>
-                <option value="2">Level 2</option>
-                <option value="3">Level 3</option>
-                <option value="4">Level 4</option>
-                <option value="5">Level 5</option>
+                {uniqueLevels.map(lvl => (
+                  <option key={lvl} value={lvl}>{lvl}</option>
+                ))}
               </select>
             </div>
             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>

@@ -87,4 +87,31 @@ export const authService = {
   }
 };
 
+export const classService = {
+  async getClasses(activeOnly = true) {
+    const response = await api.get(`/public/classes${activeOnly ? '?activeOnly=true' : ''}`);
+    return response.data;
+  },
+
+  async createClass(data: { className: string; section: string; annex?: string; order?: number }) {
+    const response = await api.post('/admin/classes', data);
+    return response.data;
+  },
+
+  async updateClass(id: string, data: { className?: string; section?: string; annex?: string; order?: number; isActive?: boolean }) {
+    const response = await api.put(`/admin/classes/${id}`, data);
+    return response.data;
+  },
+
+  async deleteClass(id: string) {
+    const response = await api.delete(`/admin/classes/${id}`);
+    return response.data;
+  },
+
+  async updateAnnexes(annexes: string[]) {
+    const response = await api.put('/admin/annexes', { annexes });
+    return response.data;
+  },
+};
+
 export default api;

@@ -44,6 +44,11 @@ const SettingsSchema = new Schema(
       type: String,
       default: 'Second Term',
     },
+    annexes: {
+      type: [String],
+      default: [],
+      // List of school branches/annexes, e.g. ["Main Campus", "Takushara Annex"]
+    },
   },
   {
     timestamps: true,
