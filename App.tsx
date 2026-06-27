@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, SafeAreaView, Animated, Text, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, SafeAreaView, Animated, Text, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import LoginScreen from './src/screens/LoginScreen';
 import AdminDashboard from './src/screens/admin/AdminDashboard';
 import StudentUpload from './src/screens/admin/StudentUpload';
@@ -9,7 +10,7 @@ import TeacherDashboard from './src/screens/teacher/TeacherDashboard';
 import GradingForm from './src/screens/teacher/GradingForm';
 import TeacherStudentPreview from './src/screens/teacher/TeacherStudentPreview';
 import ParentDashboard from './src/screens/parent/ParentDashboard';
-import api, { setAuthToken } from './src/services/api';
+import api, { setAuthToken, getAuthToken } from './src/services/api';
 
 type ScreenName =
   | 'LOGIN'
@@ -24,6 +25,34 @@ type ScreenName =
 export default function App() {
   const [screen, setScreen] = useState<ScreenName>('LOGIN');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [restoringToken, setRestoringToken] = useState(true);
+
+  // Restore saved credentials from SecureStore on app startup
+  useEffect(() => {
+    const restoreCredentials = async () => {
+      try {
+        const token = await SecureStore.getItemAsync('huffaz_auth_token');
+        const userStr = await SecureStore.getItemAsync('huffaz_user_data');
+        if (token && userStr) {
+          const user = JSON.parse(userStr);
+          setAuthToken(token);
+          setCurrentUser(user);
+          if (user.role === 'ADMIN') {
+            setScreen('ADMIN_DASHBOARD');
+          } else if (user.role === 'TEACHER') {
+            setScreen('TEACHER_DASHBOARD');
+          } else if (user.role === 'PARENT') {
+            setScreen('PARENT_DASHBOARD');
+          }
+        }
+      } catch (err) {
+        console.log('Error restoring token:', err);
+      } finally {
+        setRestoringToken(false);
+      }
+    };
+    restoreCredentials();
+  }, []);
 
   // States for grading sub-flow
   const [gradingStudent, setGradingStudent] = useState<any>(null);
@@ -103,8 +132,13 @@ export default function App() {
       if (userPayload?.role) {
         await AsyncStorage.setItem('lastUserRole', userPayload.role);
       }
+      const token = getAuthToken();
+      if (token) {
+        await SecureStore.setItemAsync('huffaz_auth_token', token);
+        await SecureStore.setItemAsync('huffaz_user_data', JSON.stringify(userPayload));
+      }
     } catch (e) {
-      console.log('Error saving user role:', e);
+      console.log('Error saving user role/session:', e);
     }
     if (userPayload.role === 'ADMIN') {
       setScreen('ADMIN_DASHBOARD');
@@ -115,11 +149,25 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setAuthToken(null);
     setCurrentUser(null);
+    try {
+      await SecureStore.deleteItemAsync('huffaz_auth_token');
+      await SecureStore.deleteItemAsync('huffaz_user_data');
+    } catch (e) {
+      console.log('Error clearing session:', e);
+    }
     setScreen('LOGIN');
   };
+
+  if (restoringToken) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f7f5' }}>
+        <ActivityIndicator size="large" color="#1E5631" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>

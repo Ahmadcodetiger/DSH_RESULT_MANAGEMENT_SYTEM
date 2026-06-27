@@ -6,7 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -181,15 +182,15 @@ export default function TeacherStudentPreview({
                 <Text style={[styles.sectionTitle, { marginTop: 15 }]}>TAHFEEZH / حفظ القرآن</Text>
                 <View style={styles.tahfeezhBox}>
                   <View style={styles.tahfeezhItem}>
-                    <Text style={styles.tahfeezhLabel}>From Surah</Text>
+                    <Text style={styles.tahfeezhLabel}>From Surah / من سورة</Text>
                     <Text style={styles.tahfeezhVal}>{result.tahfeezhDetails?.fromSurah || '-'}</Text>
                   </View>
                   <View style={styles.tahfeezhItem}>
-                    <Text style={styles.tahfeezhLabel}>To Surah</Text>
+                    <Text style={styles.tahfeezhLabel}>To Surah / إلى سورة</Text>
                     <Text style={styles.tahfeezhVal}>{result.tahfeezhDetails?.toSurah || '-'}</Text>
                   </View>
                   <View style={styles.tahfeezhItem}>
-                    <Text style={styles.tahfeezhLabel}>Missed Hifz</Text>
+                    <Text style={styles.tahfeezhLabel}>Missed Sessions / غياب التسميع</Text>
                     <Text style={styles.tahfeezhVal}>{result.tahfeezhDetails?.absenceOfHifz || '0'}</Text>
                   </View>
                 </View>
@@ -237,7 +238,7 @@ export default function TeacherStudentPreview({
             <Text style={styles.emptyDesc}>
               There is no graded result for this term yet.
             </Text>
-            <TouchableOpacity style={styles.editBtn} onPress={onEdit} style={{ marginTop: 20, width: '100%' }}>
+            <TouchableOpacity style={[styles.editBtn, { marginTop: 20, width: '100%' }]} onPress={onEdit}>
               <Text style={styles.editBtnText}>Start Grading</Text>
             </TouchableOpacity>
           </View>
@@ -248,64 +249,289 @@ export default function TeacherStudentPreview({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f7f5' },
+  container: {
+    flex: 1,
+    backgroundColor: '#f4f6f4',
+  },
   header: {
     backgroundColor: '#1E5631',
-    paddingTop: 50,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 35,
+    paddingBottom: 16,
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
   backBtn: {
     marginRight: 15,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
   },
-  backBtnText: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  headerSubtitle: { color: '#b3d1b3', fontSize: 12, marginTop: 2 },
-  scrollContent: { padding: 15 },
+  backBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 0.25,
+  },
+  headerSubtitle: {
+    color: '#b3d1b3',
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
   reportSheetCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 6,
-    elevation: 3,
+    borderRadius: 16,
+    padding: 8,
+    elevation: 4,
+    shadowColor: '#1E5631',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     marginBottom: 30,
+    borderWidth: 1,
+    borderColor: '#e2ebe2',
   },
-  outerBorder: { borderWidth: 1, borderColor: '#1E5631', borderRadius: 8, padding: 2 },
-  innerBorder: { borderWidth: 2, borderColor: '#1E5631', borderRadius: 6, padding: 8 },
-  sheetHeader: { alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#1E5631', paddingBottom: 8, marginBottom: 10 },
-  sheetTitleAr: { fontSize: 16, fontWeight: 'bold', color: '#1E5631' },
-  sheetTitleEn: { fontSize: 12, fontWeight: 'bold', color: '#333', marginTop: 2 },
-  sheetSub: { fontSize: 8, color: '#666', fontWeight: 'bold', marginTop: 1 },
-  termHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#1E5631', padding: 8, borderRadius: 4, marginBottom: 10 },
-  termHeaderText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
-  averageBadge: { backgroundColor: '#d4af37', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, alignItems: 'center' },
-  averageBadgeLabel: { fontSize: 7, color: '#fff', fontWeight: 'bold' },
-  averageBadgeVal: { fontSize: 11, color: '#fff', fontWeight: 'bold' },
-  sectionTitle: { fontSize: 10, fontWeight: 'bold', color: '#1E5631', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 3, marginBottom: 6 },
-  tableBox: { borderWidth: 1, borderColor: '#eee', borderRadius: 6, overflow: 'hidden' },
-  tableRow: { flexDirection: 'row', padding: 8, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
-  tableHeaderRow: { backgroundColor: '#f9fcf9' },
-  tableCol: { textAlign: 'center', fontSize: 11, color: '#444' },
-  subjectNameText: { fontSize: 12, fontWeight: 'bold', color: '#333' },
-  subjectNameArText: { fontSize: 10, color: '#777', marginTop: 1 },
-  tahfeezhBox: { flexDirection: 'row', gap: 8 },
-  tahfeezhItem: { flex: 1, backgroundColor: '#f9faf9', borderWidth: 1, borderColor: '#e1e5e1', borderRadius: 6, padding: 8, alignItems: 'center' },
-  tahfeezhLabel: { fontSize: 8, color: '#666', textAlign: 'center', marginBottom: 4 },
-  tahfeezhVal: { fontSize: 12, fontWeight: 'bold', color: '#1E5631' },
-  remarksBox: { backgroundColor: '#fdfbf7', borderWidth: 1, borderColor: '#f5efe3', borderRadius: 6, padding: 8 },
-  remarkText: { fontSize: 11, color: '#555', lineHeight: 16, marginVertical: 2 },
-  actionsRow: { flexDirection: 'row', marginTop: 20, gap: 10 },
-  editBtn: { flex: 1, backgroundColor: '#d4af37', paddingVertical: 12, borderRadius: 6, alignItems: 'center' },
-  editBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  pdfBtn: { flex: 1, backgroundColor: '#1E5631', paddingVertical: 12, borderRadius: 6, alignItems: 'center' },
-  pdfBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
-  emptyCard: { backgroundColor: '#fff', borderRadius: 12, padding: 30, alignItems: 'center', borderWidth: 1, borderColor: '#e2e6e2', marginTop: 20 },
-  emptyIcon: { fontSize: 40, marginBottom: 10 },
-  emptyTitle: { fontSize: 16, fontWeight: 'bold', color: '#555', marginBottom: 6 },
-  emptyDesc: { fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18 }
+  outerBorder: {
+    borderWidth: 1.5,
+    borderColor: '#1E5631',
+    borderRadius: 12,
+    padding: 3,
+  },
+  innerBorder: {
+    borderWidth: 3,
+    borderColor: '#1E5631',
+    borderRadius: 10,
+    padding: 10,
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#1E5631',
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  sheetTitleAr: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1E5631',
+    letterSpacing: 0.5,
+  },
+  sheetTitleEn: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 2,
+    letterSpacing: 0.25,
+  },
+  sheetSub: {
+    fontSize: 9,
+    color: '#666',
+    fontWeight: '700',
+    marginTop: 1,
+    letterSpacing: 0.5,
+  },
+  termHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1E5631',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  termHeaderText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 13,
+    letterSpacing: 0.25,
+  },
+  averageBadge: {
+    backgroundColor: '#d4af37',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  averageBadgeLabel: {
+    fontSize: 7,
+    color: '#fff',
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  averageBadgeVal: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  sectionTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#1E5631',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#eee',
+    paddingBottom: 4,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.25,
+  },
+  tableBox: {
+    borderWidth: 1,
+    borderColor: '#e2ebe2',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f2f0',
+    alignItems: 'center',
+  },
+  tableHeaderRow: {
+    backgroundColor: '#f5faf5',
+  },
+  tableCol: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: '#444',
+  },
+  subjectNameText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  subjectNameArText: {
+    fontSize: 10,
+    color: '#777',
+    marginTop: 1,
+  },
+  tahfeezhBox: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tahfeezhItem: {
+    flex: 1,
+    backgroundColor: '#fafcfa',
+    borderWidth: 1,
+    borderColor: '#e2ebe2',
+    borderRadius: 8,
+    padding: 8,
+    alignItems: 'center',
+  },
+  tahfeezhLabel: {
+    fontSize: 8,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  tahfeezhVal: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#1E5631',
+  },
+  remarksBox: {
+    backgroundColor: '#fdfcf9',
+    borderWidth: 1,
+    borderColor: '#f5efe3',
+    borderRadius: 8,
+    padding: 10,
+  },
+  remarkText: {
+    fontSize: 11,
+    color: '#555',
+    lineHeight: 16,
+    marginVertical: 2,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    marginTop: 20,
+    gap: 12,
+  },
+  editBtn: {
+    flex: 1,
+    backgroundColor: '#d4af37',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#d4af37',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  editBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  pdfBtn: {
+    flex: 1,
+    backgroundColor: '#1E5631',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#1E5631',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  pdfBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  emptyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2ebe2',
+    marginTop: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  emptyIcon: {
+    fontSize: 44,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#555',
+    marginBottom: 6,
+  },
+  emptyDesc: {
+    fontSize: 12,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 10,
+  }
 });
