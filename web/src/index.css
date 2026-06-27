@@ -1579,3 +1579,255 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
+/* ========================================================
+   TEACHER GRADING FORM — MOBILE RESPONSIVE
+   ======================================================== */
+
+/* Grading form wrapper — reduce padding on small screens */
+@media (max-width: 767px) {
+  .grading-form {
+    padding: 1rem !important;
+  }
+
+  /* Grading form header: stack title + close button */
+  .grading-form .grading-header {
+    flex-direction: row !important;
+    text-align: left !important;
+    gap: 0.5rem;
+  }
+
+  .grading-form .grading-header h3 {
+    font-size: 1.15rem !important;
+  }
+
+  /* Section headers */
+  .grading-form .grading-section-header {
+    font-size: 0.95rem !important;
+  }
+}
+
+/* Convert grading scores table to stacked card layout on mobile */
+.grading-scores-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.grading-scores-table thead th,
+.grading-scores-table tbody td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.grading-scores-table thead th {
+  background-color: var(--primary-glow);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.grading-scores-table tbody tr:hover td {
+  background-color: var(--primary-glow);
+}
+
+/* Score input cells */
+.grading-scores-table .score-input {
+  padding: 0.4rem;
+  text-align: center;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  /* Hide the table header on small screens */
+  .grading-scores-table thead {
+    display: none;
+  }
+
+  .grading-scores-table,
+  .grading-scores-table tbody,
+  .grading-scores-table tr,
+  .grading-scores-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .grading-scores-table tbody tr {
+    margin-bottom: 1rem;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    background-color: var(--bg-card);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .grading-scores-table tbody tr:hover td {
+    background-color: transparent;
+  }
+
+  .grading-scores-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    gap: 0.75rem;
+  }
+
+  .grading-scores-table td:last-child {
+    border-bottom: none;
+  }
+
+  /* Show the data-label as a "header" on the left */
+  .grading-scores-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  /* Subject name cell takes full width, no before label */
+  .grading-scores-table td.subject-name-cell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
+    border-bottom: 1.5px solid var(--primary-glow);
+  }
+
+  .grading-scores-table td.subject-name-cell::before {
+    display: none;
+  }
+
+  .grading-scores-table td.subject-name-cell .subject-name-en {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--primary);
+  }
+
+  /* Score inputs in card mode */
+  .grading-scores-table .score-input {
+    width: 70px;
+    padding: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Total and Grade display cells */
+  .grading-scores-table td.total-cell,
+  .grading-scores-table td.grade-cell {
+    font-size: 1.1rem;
+  }
+}
+
+/* Evaluation ratings table — also convert on mobile */
+.grading-eval-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.grading-eval-table thead th,
+.grading-eval-table tbody td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.grading-eval-table thead th {
+  background-color: var(--primary-glow);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.grading-eval-table tbody tr:hover td {
+  background-color: var(--primary-glow);
+}
+
+@media (max-width: 640px) {
+  .grading-eval-table thead {
+    display: none;
+  }
+
+  .grading-eval-table,
+  .grading-eval-table tbody,
+  .grading-eval-table tr,
+  .grading-eval-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .grading-eval-table tbody tr {
+    margin-bottom: 0.75rem;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    background-color: var(--bg-card);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .grading-eval-table tbody tr:hover td {
+    background-color: transparent;
+  }
+
+  .grading-eval-table td {
+    display: block;
+    padding: 0.3rem 0;
+    border-bottom: none;
+  }
+
+  .grading-eval-table td.eval-label-cell {
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .grading-eval-table td.eval-arabic-cell {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding-bottom: 0.5rem;
+  }
+
+  .grading-eval-table td.eval-rating-cell select {
+    width: 100%;
+  }
+}
+
+/* AI assistant header — keep it row on mobile, just wrap */
+@media (max-width: 640px) {
+  .grading-ai-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+    gap: 0.75rem !important;
+  }
+
+  .grading-ai-header button {
+    width: 100%;
+  }
+}
+
+/* Tahfeezh grid sections — ensure 2-col on small screens, 1-col on tiny */
+@media (max-width: 640px) {
+  .grading-tahfeezh-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .grading-tahfeezh-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

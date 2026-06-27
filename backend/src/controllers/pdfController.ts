@@ -79,10 +79,12 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
     }).join('');
   };
 
-  const tahfeezhSubjects = result.subjects.filter((s: any) => s.section === 'tahfeezh' || ["Al-Qur'an Karem (Hifz)", "Al-Qur'an (Writing)", "Arabic", "Grammar VERBAL", "Islamic Subjects"].includes(s.subjectName));
-  const academicSubjects = result.subjects.filter((s: any) => !tahfeezhSubjects.includes(s));
+  const tahfeezhSubjects = result.subjects.filter((s: any) => s.section === 'tahfeezh');
+  const islamicSubjects = result.subjects.filter((s: any) => s.section === 'islamic');
+  const academicSubjects = result.subjects.filter((s: any) => s.section === 'academic');
 
   const tahfeezhRows = renderSubjectRows(tahfeezhSubjects);
+  const islamicRows = renderSubjectRows(islamicSubjects);
   const academicRows = renderSubjectRows(academicSubjects);
 
   // Map evaluation elements to rows
@@ -509,7 +511,7 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           <span class="ar" style="font-family: 'Cairo', sans-serif;">كشف درجات الامتحان والتقييم</span>
         </div>
 
-        <div class="sub-heading">Tahfeezh Section (Islamic Studies) / قسم التحفيظ</div>
+        <div class="sub-heading">Tahfeezh Section (Qur'an & Hifz) / قسم التحفيظ</div>
         <table class="results-table">
           <thead>
             <tr>
@@ -528,6 +530,28 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           </thead>
           <tbody>
             ${tahfeezhRows}
+          </tbody>
+        </table>
+
+        <div class="sub-heading">Islamic Studies / الدراسات الإسلامية</div>
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">
+                <div class="bilingual-cell">
+                  <span class="en">Subjects</span>
+                  <span class="ar">المواد</span>
+                </div>
+              </th>
+              <th style="width: 10%;">Grade</th>
+              <th style="width: 11%;">100%</th>
+              <th style="width: 11%;">60% (Exam)</th>
+              <th style="width: 20% (CA1)">20% (CA1)</th>
+              <th style="width: 12%;">20% (CA2)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${islamicRows}
           </tbody>
         </table>
 
@@ -557,8 +581,8 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         <div class="tahfeezh-section">
           <div class="tahfeezh-col">
             <div class="tahfeezh-title bilingual-cell">
-              <span class="en">Total Absence of Hifz</span>
-              <span class="ar">عدد مرات عدم التسميع</span>
+              <span class="en">Total Hifz Days</span>
+              <span class="ar">إجمالي أيام الحفظ</span>
             </div>
             <div class="tahfeezh-val">${escapeHtml(result.tahfeezhDetails.absenceOfHifz || '0')}</div>
           </div>

@@ -29,6 +29,10 @@ import {
   updateSchoolClass,
   deleteSchoolClass,
   updateAnnexes,
+  createSubject,
+  getSubjects,
+  updateSubject,
+  deleteSubject,
 } from '../controllers/adminController';
 import {
   getStudentsForTeacher,
@@ -76,6 +80,7 @@ router.post('/auth/login-parent', authRateLimiter, parentLogin);
 router.get('/public/notifications', getPublicNotifications);
 router.get('/public/settings', getSchoolSettings);
 router.get('/public/classes', getSchoolClasses);
+router.get('/public/subjects', getSubjects);
 router.get('/surahs', (req, res) => {
   return res.status(200).json(SURAHS);
 });
@@ -103,6 +108,12 @@ router.get('/admin/classes', authenticateToken, requireRole(['ADMIN']), getSchoo
 router.put('/admin/classes/:id', authenticateToken, requireRole(['ADMIN']), updateSchoolClass);
 router.delete('/admin/classes/:id', authenticateToken, requireRole(['ADMIN']), deleteSchoolClass);
 router.put('/admin/annexes', authenticateToken, requireRole(['ADMIN']), updateAnnexes);
+
+// --- Subject CRUD Management (Admin Only) ---
+router.post('/admin/subjects', authenticateToken, requireRole(['ADMIN']), createSubject);
+router.get('/admin/subjects', authenticateToken, requireRole(['ADMIN']), getSubjects);
+router.put('/admin/subjects/:id', authenticateToken, requireRole(['ADMIN']), updateSubject);
+router.delete('/admin/subjects/:id', authenticateToken, requireRole(['ADMIN']), deleteSubject);
 
 router.delete('/admin/results/:id', authenticateToken, requireRole(['ADMIN']), deleteResult);
 router.patch('/admin/results/:id/status', authenticateToken, requireRole(['ADMIN']), toggleResultApproval);

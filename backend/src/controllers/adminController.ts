@@ -7,6 +7,7 @@ import Result from '../models/Result';
 import Notification from '../models/Notification';
 import Settings from '../models/Settings';
 import SchoolClass from '../models/SchoolClass';
+import Subject from '../models/Subject';
 
 // --- Teacher Management ---
 
@@ -697,5 +698,85 @@ export const updateAnnexes = async (req: AuthRequest, res: Response) => {
     return res.status(200).json({ message: 'Annexes updated successfully', annexes: settings.annexes });
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error updating annexes', error: error.message });
+  }
+};
+
+// --- Dynamic Subject CRUD Management ---
+
+// Create a new subject
+export const createSubject = async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, nameArabic, section } = req.body;
+
+    if (!name || !section) {
+      return res.status(400).json({ message: 'Subject name and section category are required' });
+    }
+
+    const existing = await Subject.findOne({ name: name.trim() });
+    if (existing) {
+      return res.status(400).json({ message: 'A subject with this name already exists' });
+    }
+
+    const subject = new Subject({
+      name: name.trim(),
+      nameArabic: (nameArabic || '').trim(),
+      section,
+    });
+
+    await subject.save();
+    return res.status(201).json({ message: 'Subject created successfully', subject });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error creating subject', error: error.message });
+  }
+};
+
+// List all subjects (with optional active filter)
+export const getSubjects = async (req: any, res: Response) => {
+  try {
+    const { activeOnly } = req.query;
+    const filter: any = {};
+    if (activeOnly === 'true') filter.isActive = true;
+
+    const subjects = await Subject.find(filter).sort({ section: 1, name: 1 });
+    return res.status(200).json(subjects);
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error fetching subjects', error: error.message });
+  }
+};
+
+// Update subject details
+export const updateSubject = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, nameArabic, section, isActive } = req.body;
+
+    const subject = await Subject.findById(id);
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+
+    if (name !== undefined) subject.name = name.trim();
+    if (nameArabic !== undefined) subject.nameArabic = nameArabic.trim();
+    if (section !== undefined) subject.section = section;
+    if (isActive !== undefined) subject.isActive = isActive;
+
+    await subject.save();
+    return res.status(200).json({ message: 'Subject updated successfully', subject });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error updating subject', error: error.message });
+  }
+};
+
+// Delete subject (hard delete)
+export const deleteSubject = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const subject = await Subject.findByIdAndDelete(id);
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    return res.status(200).json({ message: 'Subject deleted successfully' });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error deleting subject', error: error.message });
   }
 };

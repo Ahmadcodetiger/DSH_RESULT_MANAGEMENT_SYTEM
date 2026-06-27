@@ -18,12 +18,26 @@ export const getStudentsForTeacher = async (req: AuthRequest, res: Response) => 
         return res.status(200).json([]); // No classes assigned
       }
       
-      // Formulate OR query to match any assigned level + section
-      const classOrFilters = teacher.assignedClasses.map((cls) => ({
-        level: cls.level,
-        section: cls.section,
-      }));
-      filter = { $or: classOrFilters, isDeleted: { $ne: true } };
+      const level = req.query.level as string;
+      const section = req.query.section as string;
+
+      if (level && section) {
+        // Verify teacher is assigned to this specific class
+        const isAssigned = teacher.assignedClasses.some(
+          (cls) => cls.level === level && cls.section === section
+        );
+        if (!isAssigned) {
+          return res.status(403).json({ message: 'Access denied: You are not assigned to this class.' });
+        }
+        filter = { level, section, isDeleted: { $ne: true } };
+      } else {
+        // Formulate OR query to match any assigned level + section
+        const classOrFilters = teacher.assignedClasses.map((cls) => ({
+          level: cls.level,
+          section: cls.section,
+        }));
+        filter = { $or: classOrFilters, isDeleted: { $ne: true } };
+      }
     } else {
       // Admin filters (optional query params)
       const { level, section } = req.query;
@@ -64,7 +78,7 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
       studentId,
       academicYear,
       term,
-      subjects, // Array of SubjectInput: { subjectName, subjectNameArabic, score60, score20_1, score20_2, isGraded }
+      subjects, // Array of SubjectInput: { subjectName, subjectNameArabic, score60, score20_1, score20_2, isGraded, section }
       tahfeezhDetails,
       evaluationElements,
       supervisorRecommendations,
@@ -83,22 +97,134 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
+    let allowedSubjects: string[] = [];
+    let isTeacher = false;
+    let teachesTahfeezh = false;
+    let teachesAcademic = false;
+
     // Teacher scope check: Verify teacher assignment before allowing write
     if (req.user?.role === 'TEACHER') {
+      isTeacher = true;
       const teacher = await User.findById(req.user.id);
       if (!teacher) {
         return res.status(403).json({ message: 'Teacher account not found' });
       }
-      const hasAccess = teacher.assignedClasses?.some(
+      
+      const teacherClassAssignments = teacher.assignedClasses?.filter(
         (cls) => cls.level === student.level && cls.section === student.section
-      );
-      if (!hasAccess) {
+      ) || [];
+
+      if (teacherClassAssignments.length === 0) {
         return res.status(403).json({ message: 'Access denied: You are not assigned to this student\'s class.' });
+      }
+
+      allowedSubjects = teacherClassAssignments.map(cls => cls.subjectName);
+      
+      // Determine what sections the teacher teaches
+      const canGradeAll = allowedSubjects.some(s => s?.toLowerCase() === 'both' || s?.toLowerCase() === 'all' || s?.toLowerCase() === 'both/all');
+      for (const subj of subjects) {
+        if (allowedSubjects.includes(subj.subjectName) || canGradeAll) {
+          if (subj.section === 'tahfeezh' || subj.section === 'islamic') teachesTahfeezh = true;
+          if (subj.section === 'academic') teachesAcademic = true;
+        }
+      }
+    }
+
+    // Fetch existing result
+    const existingResult = await Result.findOne({ studentId, academicYear, term });
+
+    let finalSubjectsList = [];
+    let finalTahfeezhDetails = tahfeezhDetails || {};
+    let finalEvaluationElements = evaluationElements || [];
+    let finalTeacherRec = teacherRecommendations || '';
+    let finalSupervisorRec = supervisorRecommendations || '';
+    let finalHeadTeacherComm = headTeacherComments || '';
+
+    if (existingResult) {
+      // 1. Merge subjects
+      const existingSubjectsMap = new Map(existingResult.subjects.map(s => [s.subjectName, s]));
+      
+      const canGradeAll = allowedSubjects.some(s => s?.toLowerCase() === 'both' || s?.toLowerCase() === 'all' || s?.toLowerCase() === 'both/all');
+      finalSubjectsList = subjects.map((incomingSubj: any) => {
+        const existingSubj = existingSubjectsMap.get(incomingSubj.subjectName);
+        if (isTeacher) {
+          // If teacher is allowed to grade this subject, update it
+          if (allowedSubjects.includes(incomingSubj.subjectName) || canGradeAll) {
+            return incomingSubj;
+          }
+          // Otherwise, preserve the existing subject grade
+          return existingSubj ? existingSubj.toObject() : { ...incomingSubj, score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: false };
+        }
+        // Admin or other roles can edit everything
+        return incomingSubj;
+      });
+
+      // 2. Merge Tahfeezh Details and Recommendations
+      if (isTeacher) {
+        if (teachesTahfeezh) {
+          finalTahfeezhDetails = tahfeezhDetails || {};
+          finalSupervisorRec = supervisorRecommendations || existingResult.supervisorRecommendations || '';
+        } else {
+          finalTahfeezhDetails = existingResult.tahfeezhDetails || {};
+          finalSupervisorRec = existingResult.supervisorRecommendations || '';
+        }
+
+        if (teachesAcademic) {
+          finalTeacherRec = teacherRecommendations || existingResult.teacherRecommendations || '';
+        } else {
+          finalTeacherRec = existingResult.teacherRecommendations || '';
+        }
+        
+        finalHeadTeacherComm = existingResult.headTeacherComments || '';
+      }
+
+      // 3. Merge evaluations (Manners & Performance Ratings)
+      if (isTeacher) {
+        const existingEvalMap = new Map((existingResult.evaluationElements || []).map(el => [el.elementLabel, el.rating]));
+        finalEvaluationElements = (evaluationElements || []).map((incomingEl: any) => {
+          // If teacher teaches Tahfeezh, allow them to edit evaluation ratings. Otherwise keep existing.
+          if (teachesTahfeezh) {
+            return incomingEl;
+          }
+          return {
+            ...incomingEl,
+            rating: existingEvalMap.has(incomingEl.elementLabel) ? existingEvalMap.get(incomingEl.elementLabel) : ''
+          };
+        });
+      }
+    } else {
+      const canGradeAll = allowedSubjects.some(s => s?.toLowerCase() === 'both' || s?.toLowerCase() === 'all' || s?.toLowerCase() === 'both/all');
+      // Create new result sheet - but if teacher, initialize non-assigned subjects as ungraded
+      finalSubjectsList = subjects.map((incomingSubj: any) => {
+        if (isTeacher && !allowedSubjects.includes(incomingSubj.subjectName) && !canGradeAll) {
+          return {
+            ...incomingSubj,
+            score60: 0,
+            score20_1: 0,
+            score20_2: 0,
+            score100: 0,
+            grade: '',
+            isGraded: false
+          };
+        }
+        return incomingSubj;
+      });
+
+      if (isTeacher) {
+        if (!teachesTahfeezh) {
+          finalTahfeezhDetails = { absenceOfHifz: 0, daysPresent: 0, daysAbsent: 0, fromSurah: '', toSurah: '', memorizedPages: 0 };
+          finalSupervisorRec = '';
+          finalEvaluationElements = (evaluationElements || []).map((el: any) => ({ ...el, rating: '' }));
+        }
+        if (!teachesAcademic) {
+          finalTeacherRec = '';
+        }
+        finalHeadTeacherComm = '';
       }
     }
 
     // Run auto-grading engine
-    const computed = computeResultMetrics(subjects);
+    const computed = computeResultMetrics(finalSubjectsList);
 
     // Get current teacher/admin name
     const teacherName = req.user?.name || 'Unknown Teacher';
@@ -109,14 +235,14 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
       level: student.level,
       section: student.section,
       subjects: computed.subjects,
-      tahfeezhDetails: tahfeezhDetails || {},
-      evaluationElements: evaluationElements || [],
+      tahfeezhDetails: finalTahfeezhDetails,
+      evaluationElements: finalEvaluationElements,
       totalMark: computed.totalMark,
       finalAverage: computed.finalAverage,
       generalGrade: computed.generalGrade,
-      supervisorRecommendations: supervisorRecommendations || '',
-      teacherRecommendations: teacherRecommendations || '',
-      headTeacherComments: headTeacherComments || '',
+      supervisorRecommendations: finalSupervisorRec,
+      teacherRecommendations: finalTeacherRec,
+      headTeacherComments: finalHeadTeacherComm,
       teacherName,
       dateIssued: dateIssued || new Date().toLocaleDateString('en-GB'),
       nextTermBegins: nextTermBegins || ''

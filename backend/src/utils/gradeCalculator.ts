@@ -5,6 +5,7 @@ export interface SubjectInput {
   score20_1: number;
   score20_2: number;
   isGraded: boolean;
+  section?: string;
 }
 
 export interface CalculatedSubject {
@@ -16,6 +17,7 @@ export interface CalculatedSubject {
   score100: number;
   grade: string;
   isGraded: boolean;
+  section?: string;
 }
 
 /**
@@ -65,6 +67,7 @@ export const computeResultMetrics = (subjects: SubjectInput[]) => {
       score100,
       grade,
       isGraded: true,
+      section: sub.section || 'academic'
     };
   });
 

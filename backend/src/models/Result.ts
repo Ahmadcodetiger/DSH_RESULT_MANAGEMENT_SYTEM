@@ -28,14 +28,14 @@ const ResultSchema = new Schema(
     subjects: [
       {
         subjectName: { type: String, required: true },
-        subjectNameArabic: { type: String, required: true },
+        subjectNameArabic: { type: String, default: '' },
         score60: { type: Number, default: 0 }, // Exam
         score20_1: { type: Number, default: 0 }, // Test 1
         score20_2: { type: Number, default: 0 }, // Test 2
         score100: { type: Number, default: 0 }, // Total (60 + 20 + 20)
         grade: { type: String, default: 'F' }, // A, B, C, D, F
         isGraded: { type: Boolean, default: true }, // If false, displays blank (for optional/not-taken subjects)
-        section: { type: String, enum: ['tahfeezh', 'academic'], default: 'academic' }
+        section: { type: String, enum: ['tahfeezh', 'academic', 'islamic'], default: 'academic' }
       }
     ],
 
@@ -53,7 +53,7 @@ const ResultSchema = new Schema(
     evaluationElements: [
       {
         elementLabel: { type: String, required: true },
-        elementLabelArabic: { type: String, required: true },
+        elementLabelArabic: { type: String, default: '' },
         rating: { type: String, default: '' } // ممتاز جدا (Excellent), ممتاز (V.Good), جيد جدا (Good), مقبول (Pass), ضعيف (Poor)
       }
     ],

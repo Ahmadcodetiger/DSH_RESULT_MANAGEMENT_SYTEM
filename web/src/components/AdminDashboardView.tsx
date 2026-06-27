@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, DollarSign, Bell, X, Shield, Award, Settings as SettingsIcon, Menu, LogOut,
-  Sun, Moon
+  Sun, Moon, BookOpen, Sliders
 } from 'lucide-react';
-import api, { authService, classService } from '../services/api';
+import api, { authService, classService, subjectService } from '../services/api';
 
 interface User {
   _id: string;
   username: string;
   name: string;
   role: 'ADMIN' | 'TEACHER' | 'PARENT' | 'ACCOUNTANT' | 'DIRECTOR';
-  assignedClasses?: { level: string; section: string }[];
+  assignedClasses?: { level: string; section: string; subjectName?: string }[];
 }
 
 interface Student {
@@ -94,7 +94,7 @@ export default function AdminDashboardView({
   const [filterResultsTerm, setFilterResultsTerm] = useState('All');
   const [filterResultsYear, setFilterResultsYear] = useState('All');
   const [adminNotifications, setAdminNotifications] = useState<Notification[]>([]);
-  const [activeAdminSubTab, setActiveAdminSubTab] = useState<'users' | 'setup' | 'results' | 'announcements' | 'finances'>('users');
+  const [activeAdminSubTab, setActiveAdminSubTab] = useState<'users' | 'classes' | 'subjects' | 'settings' | 'results' | 'announcements' | 'finances'>('users');
   const [userTab, setUserTab] = useState<'teachers' | 'students'>('teachers');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -112,6 +112,7 @@ export default function AdminDashboardView({
   const [newTeacherPassword, setNewTeacherPassword] = useState('');
   const [newTeacherLevel, setNewTeacherLevel] = useState('5');
   const [newTeacherSection, setNewTeacherSection] = useState('ALLO');
+  const [newTeacherSubject, setNewTeacherSubject] = useState("Al-Qur'an Karem (Hifz)");
 
   const [studentCsvFile, setStudentCsvFile] = useState<string>('');
   const [uploadStatus, setUploadStatus] = useState('');
@@ -157,7 +158,7 @@ export default function AdminDashboardView({
   const [promoToLevel, setPromoToLevel] = useState('2');
   const [promoSelectedStudents, setPromoSelectedStudents] = useState<string[]>([]);
 
-  // School classes & annexes state
+// School classes & annexes state
   const [schoolClasses, setSchoolClasses] = useState<SchoolClass[]>([]);
   const [annexes, setAnnexes] = useState<string[]>([]);
   const [newAnnexName, setNewAnnexName] = useState('');
@@ -168,12 +169,35 @@ export default function AdminDashboardView({
   const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
   const [editClassForm, setEditClassForm] = useState({ className: '', section: '', annex: '', order: 0 });
 
+  // Subject CRUD states
+  interface Subject {
+    _id: string;
+    name: string;
+    nameArabic: string;
+    section: 'academic' | 'tahfeezh' | 'islamic';
+    isActive: boolean;
+  }
+  const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
+  const [newSubjName, setNewSubjName] = useState('');
+  const [newSubjNameArabic, setNewSubjNameArabic] = useState('');
+  const [newSubjSection, setNewSubjSection] = useState<'academic' | 'tahfeezh' | 'islamic'>('academic');
+  const [editingSubj, setEditingSubj] = useState<Subject | null>(null);
+  const [editSubjForm, setEditSubjForm] = useState({ name: '', nameArabic: '', section: 'academic' as 'academic' | 'tahfeezh' | 'islamic' });
+
+  // Teacher editing & multiple assignments states
+  const [editingTeacher, setEditingTeacher] = useState<User | null>(null);
+  const [editTeacherForm, setEditTeacherForm] = useState({ name: '', username: '', password: '', assignedClasses: [] as { level: string; section: string; subjectName?: string }[] });
+  
+  // Temp assignments for teacher creation form
+  const [tempAssignments, setTempAssignments] = useState<{ level: string; section: string; subjectName?: string }[]>([]);
+
   useEffect(() => {
     fetchTeachers();
     fetchStudents();
     fetchResults();
     fetchAdminNotifications();
     fetchSchoolClasses();
+    fetchSubjects();
   }, []);
 
   useEffect(() => {
@@ -240,9 +264,75 @@ export default function AdminDashboardView({
     }
   };
 
+  const fetchSubjects = async () => {
+    try {
+      const data = await subjectService.getSubjects(false);
+      setSubjectsList(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await subjectService.createSubject({
+        name: newSubjName,
+        nameArabic: newSubjNameArabic,
+        section: newSubjSection,
+      });
+      setNewSubjName('');
+      setNewSubjNameArabic('');
+      fetchSubjects();
+      alert('Subject created successfully!');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to create subject');
+    }
+  };
+
+  const handleUpdateSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSubj) return;
+    try {
+      await subjectService.updateSubject(editingSubj._id, editSubjForm);
+      setEditingSubj(null);
+      fetchSubjects();
+      alert('Subject updated successfully!');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update subject');
+    }
+  };
+
+  const handleDeleteSubject = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this subject?')) return;
+    try {
+      await subjectService.deleteSubject(id);
+      fetchSubjects();
+    } catch (err) {
+      alert('Failed to delete subject');
+    }
+  };
+
+  const handleUpdateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacher) return;
+    try {
+      await api.put(`/admin/teachers/${editingTeacher._id}`, {
+        name: editTeacherForm.name,
+        username: editTeacherForm.username,
+        password: editTeacherForm.password || undefined,
+        assignedClasses: editTeacherForm.assignedClasses,
+      });
+      setEditingTeacher(null);
+      fetchTeachers();
+      alert('Teacher updated successfully!');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update teacher');
+    }
+  };
+
   // Helpers to get unique levels and sections from dynamic classes
   const activeClasses = schoolClasses.filter(c => c.isActive);
-  const uniqueLevels = [...new Set(activeClasses.map(c => c.className))];
   const uniqueSections = [...new Set(activeClasses.map(c => c.section))];
   const sectionGroups = uniqueSections.reduce((acc, sec) => {
     acc[sec] = activeClasses.filter(c => c.section === sec).sort((a, b) => a.order - b.order);
@@ -315,18 +405,36 @@ export default function AdminDashboardView({
     }
   };
 
+  const handleAddTempAssignment = () => {
+    if (!newTeacherLevel || !newTeacherSection || !newTeacherSubject) {
+      alert('Please select Class, Section, and Subject first');
+      return;
+    }
+    const exists = tempAssignments.some(a => a.level === newTeacherLevel && a.section === newTeacherSection && a.subjectName === newTeacherSubject);
+    if (exists) {
+      alert('This class/subject assignment is already in the list.');
+      return;
+    }
+    setTempAssignments([...tempAssignments, { level: newTeacherLevel, section: newTeacherSection, subjectName: newTeacherSubject }]);
+  };
+
   const handleCreateTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (tempAssignments.length === 0) {
+      alert('Please add at least one class/subject assignment to this teacher.');
+      return;
+    }
     try {
       await api.post('/admin/teachers', {
         name: newTeacherName,
         username: newTeacherUsername,
         password: newTeacherPassword,
-        assignedClasses: [{ level: newTeacherLevel, section: newTeacherSection }]
+        assignedClasses: tempAssignments
       });
       setNewTeacherName('');
       setNewTeacherUsername('');
       setNewTeacherPassword('');
+      setTempAssignments([]);
       fetchTeachers();
       alert('Teacher created successfully!');
     } catch (err: any) {
@@ -571,8 +679,14 @@ export default function AdminDashboardView({
           <button className={`sidebar-btn ${activeAdminSubTab === 'users' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('users'); setIsMobileSidebarOpen(false); }}>
             <Users size={16} /> User Management
           </button>
-          <button className={`sidebar-btn ${activeAdminSubTab === 'setup' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('setup'); setIsMobileSidebarOpen(false); }}>
-            <SettingsIcon size={16} /> School Setup & Settings
+          <button className={`sidebar-btn ${activeAdminSubTab === 'classes' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('classes'); setIsMobileSidebarOpen(false); }}>
+            <BookOpen size={16} /> Manage Classes
+          </button>
+          <button className={`sidebar-btn ${activeAdminSubTab === 'subjects' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('subjects'); setIsMobileSidebarOpen(false); }}>
+            <Sliders size={16} /> Manage Subjects
+          </button>
+          <button className={`sidebar-btn ${activeAdminSubTab === 'settings' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('settings'); setIsMobileSidebarOpen(false); }}>
+            <SettingsIcon size={16} /> School Settings
           </button>
           <button className={`sidebar-btn ${activeAdminSubTab === 'results' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('results'); setIsMobileSidebarOpen(false); }}>
             <Award size={16} /> Result Approval ({results.filter(r => !r.isApproved).length})
@@ -610,7 +724,9 @@ export default function AdminDashboardView({
         <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
           <Shield size={28} color="var(--primary)" /> Admin: {
             activeAdminSubTab === 'users' ? 'User Management' :
-            activeAdminSubTab === 'setup' ? 'School Setup & Settings' :
+            activeAdminSubTab === 'classes' ? 'Manage Classes & Annexes' :
+            activeAdminSubTab === 'subjects' ? 'Manage Academic Subjects' :
+            activeAdminSubTab === 'settings' ? 'School Settings & Calendar' :
             activeAdminSubTab === 'results' ? 'Result Sheets Queue' :
             activeAdminSubTab === 'announcements' ? 'Broadcasting & Notifications' :
             'Finance & Reserves Ledger'
@@ -638,7 +754,8 @@ export default function AdminDashboardView({
             </div>
 
             {userTab === 'teachers' ? (
-              <div className="grid-cols-3">
+              <>
+                <div className="grid-cols-3">
                 <div className="span-2-desktop glass dashboard-card">
                   <h3 style={{ ...styles.cardHeader, marginBottom: '0.25rem' }}>Registered Faculty</h3>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
@@ -660,10 +777,34 @@ export default function AdminDashboardView({
                             <td>{t.name}</td>
                             <td><code>{t.username}</code></td>
                             <td>
-                              {t.assignedClasses?.map(c => `Lvl ${c.level}-${c.section}`).join(', ') || 'None'}
+                              {t.assignedClasses?.map(c => `Lvl ${c.level}-${c.section} (${c.subjectName || 'both'})`).join(', ') || 'None'}
                             </td>
                             <td>
-                              <button style={styles.deleteBtn} onClick={() => handleDeleteTeacher(t._id)}>Delete</button>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button 
+                                  style={{
+                                    padding: '0.25rem 0.5rem',
+                                    backgroundColor: 'var(--success-glow)',
+                                    color: 'var(--success)',
+                                    border: '1px solid var(--success)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer'
+                                  }} 
+                                  onClick={() => {
+                                    setEditingTeacher(t);
+                                    setEditTeacherForm({
+                                      name: t.name,
+                                      username: t.username,
+                                      password: '',
+                                      assignedClasses: t.assignedClasses || []
+                                    });
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button style={styles.deleteBtn} onClick={() => handleDeleteTeacher(t._id)}>Delete</button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -687,38 +828,211 @@ export default function AdminDashboardView({
                         <label style={styles.label}>Password</label>
                         <input type="password" required value={newTeacherPassword} onChange={e => setNewTeacherPassword(e.target.value)} placeholder="••••••••" />
                       </div>
-                      <div className="form-row-responsive">
-                        <div>
-                          <label style={styles.label}>Class</label>
-                          <select value={newTeacherLevel} onChange={e => setNewTeacherLevel(e.target.value)}>
-                            <option value="">Select Class</option>
-                            {Object.entries(sectionGroups).map(([sec, classes]) => (
-                              <optgroup key={sec} label={sec}>
-                                {classes.map(c => (
-                                  <option key={c._id} value={c.className}>{c.className}</option>
-                                ))}
-                              </optgroup>
+                      <div style={{ padding: '0.75rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)', marginBottom: '0.5rem' }}>
+                        <label style={{ ...styles.label, fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.5rem', display: 'block' }}>Add Class & Subject Assignment</label>
+                        <div className="form-row-responsive" style={{ marginBottom: '0.75rem' }}>
+                          <div>
+                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Class</label>
+                            <select value={newTeacherLevel} onChange={e => setNewTeacherLevel(e.target.value)}>
+                              <option value="">Select Class</option>
+                              {Object.entries(sectionGroups).map(([sec, classes]) => (
+                                <optgroup key={sec} label={sec}>
+                                  {classes.map(c => (
+                                    <option key={c._id} value={c.className}>{c.className}</option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                              {activeClasses.length === 0 && <option disabled>No classes configured</option>}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Section</label>
+                            <select value={newTeacherSection} onChange={e => setNewTeacherSection(e.target.value)}>
+                              <option value="">Select Section</option>
+                              {uniqueSections.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                              {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={{ ...styles.label, fontSize: '0.75rem' }}>Assigned Subject</label>
+                          <select value={newTeacherSubject} onChange={e => setNewTeacherSubject(e.target.value)}>
+                            <option value="">Select Subject</option>
+                            {subjectsList.filter(s => s.isActive).map(s => (
+                              <option key={s._id} value={s.name}>{s.name} ({s.section})</option>
                             ))}
-                            {activeClasses.length === 0 && <option disabled>No classes configured</option>}
+                            {subjectsList.filter(s => s.isActive).length === 0 && <option disabled>No subjects configured</option>}
                           </select>
                         </div>
-                        <div>
-                          <label style={styles.label}>Section</label>
-                          <select value={newTeacherSection} onChange={e => setNewTeacherSection(e.target.value)}>
-                            <option value="">Select Section</option>
-                            {uniqueSections.map(s => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                            {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
-                          </select>
-                        </div>
+                        <button type="button" onClick={handleAddTempAssignment} style={{ ...styles.submitBtn, padding: '0.4rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}>
+                          + Add Assignment
+                        </button>
                       </div>
-                      <button type="submit" style={styles.submitBtn}>Save Faculty Account</button>
+
+                      {tempAssignments.length > 0 && (
+                        <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)', marginBottom: '0.5rem' }}>
+                          <label style={{ ...styles.label, fontSize: '0.75rem', fontWeight: 'bold' }}>Teacher Assignments Stack ({tempAssignments.length})</label>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem', maxHeight: '120px', overflowY: 'auto' }}>
+                            {tempAssignments.map((a, idx) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.3rem 0.5rem', backgroundColor: 'var(--bg-card)', borderRadius: '3px', border: '1px solid var(--border)' }}>
+                                <span>Lvl {a.level} - {a.section} ({a.subjectName})</span>
+                                <button type="button" onClick={() => setTempAssignments(tempAssignments.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>×</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <button type="submit" style={{ ...styles.submitBtn, marginTop: '0.5rem' }}>Save Faculty Account</button>
                     </form>
                   </div>
                 </div>
               </div>
-            ) : (
+
+              {/* EDIT TEACHER MODAL */}
+              {editingTeacher && (
+                <div className="modal-overlay-blur">
+                  <div className="modal-card animate-scale-in" style={{ maxWidth: '550px' }}>
+                    <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
+                      <h3 style={{ margin: 0, color: 'var(--primary)' }}>Edit Teacher Details</h3>
+                      <button
+                        type="button"
+                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                        onClick={() => setEditingTeacher(null)}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <form onSubmit={handleUpdateTeacher} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div>
+                        <label style={styles.label}>Full Name</label>
+                        <input 
+                          type="text" 
+                          required 
+                          value={editTeacherForm.name} 
+                          onChange={e => setEditTeacherForm({ ...editTeacherForm, name: e.target.value })} 
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Username</label>
+                        <input 
+                          type="text" 
+                          required 
+                          value={editTeacherForm.username} 
+                          onChange={e => setEditTeacherForm({ ...editTeacherForm, username: e.target.value })} 
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Reset Password (leave blank to keep current)</label>
+                        <input 
+                          type="password" 
+                          value={editTeacherForm.password} 
+                          onChange={e => setEditTeacherForm({ ...editTeacherForm, password: e.target.value })} 
+                          placeholder="New Password" 
+                        />
+                      </div>
+
+                      <div style={{ padding: '0.75rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)' }}>
+                        <label style={{ ...styles.label, fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.5rem', display: 'block' }}>Add Class & Subject Assignment</label>
+                        <div className="form-row-responsive" style={{ marginBottom: '0.75rem' }}>
+                          <div>
+                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Class</label>
+                            <select id="edit-teacher-class-select">
+                              <option value="">Select Class</option>
+                              {Object.entries(sectionGroups).map(([sec, classes]) => (
+                                <optgroup key={sec} label={sec}>
+                                  {classes.map(c => (
+                                    <option key={c._id} value={c.className}>{c.className}</option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Section</label>
+                            <select id="edit-teacher-section-select">
+                              <option value="">Select Section</option>
+                              {uniqueSections.map(s => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={{ ...styles.label, fontSize: '0.75rem' }}>Assigned Subject</label>
+                          <select id="edit-teacher-subject-select">
+                            <option value="">Select Subject</option>
+                            {subjectsList.filter(s => s.isActive).map(s => (
+                              <option key={s._id} value={s.name}>{s.name} ({s.section})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const classSel = document.getElementById('edit-teacher-class-select') as HTMLSelectElement;
+                            const secSel = document.getElementById('edit-teacher-section-select') as HTMLSelectElement;
+                            const subjSel = document.getElementById('edit-teacher-subject-select') as HTMLSelectElement;
+                            if (!classSel?.value || !secSel?.value || !subjSel?.value) {
+                              alert('Please select Class, Section, and Subject first');
+                              return;
+                            }
+                            // Check duplicates
+                            const exists = editTeacherForm.assignedClasses.some(a => a.level === classSel.value && a.section === secSel.value && a.subjectName === subjSel.value);
+                            if (exists) {
+                              alert('This class/subject assignment is already in the list.');
+                              return;
+                            }
+                            setEditTeacherForm({
+                              ...editTeacherForm,
+                              assignedClasses: [...editTeacherForm.assignedClasses, { level: classSel.value, section: secSel.value, subjectName: subjSel.value }]
+                            });
+                          }} 
+                          style={{ ...styles.submitBtn, padding: '0.4rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
+                        >
+                          + Add Assignment
+                        </button>
+                      </div>
+
+                      <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)' }}>
+                        <label style={{ ...styles.label, fontSize: '0.75rem', fontWeight: 'bold' }}>Current Assignments ({editTeacherForm.assignedClasses.length})</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem', maxHeight: '120px', overflowY: 'auto' }}>
+                          {editTeacherForm.assignedClasses.map((a, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.3rem 0.5rem', backgroundColor: 'var(--bg-card)', borderRadius: '3px', border: '1px solid var(--border)' }}>
+                              <span>Lvl {a.level} - {a.section} ({a.subjectName})</span>
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  setEditTeacherForm({
+                                    ...editTeacherForm,
+                                    assignedClasses: editTeacherForm.assignedClasses.filter((_, i) => i !== idx)
+                                  });
+                                }} 
+                                style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <button type="submit" style={{ ...styles.submitBtn, flex: 1 }}>Save Changes</button>
+                        <button
+                          type="button"
+                          style={{ ...styles.deleteBtn, flex: 1, margin: 0, padding: '0.75rem' }}
+                          onClick={() => setEditingTeacher(null)}
+                        >Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
               <div className="grid-cols-3">
                 <div className="span-2-desktop glass dashboard-card">
                   <h3 style={{ ...styles.cardHeader, marginBottom: '0.25rem' }}>Student Roll Call</h3>
@@ -1045,9 +1359,9 @@ export default function AdminDashboardView({
           </div>
         )}
 
-        {/* 2. SCHOOL SETUP & SETTINGS TAB */}
-        {activeAdminSubTab === 'setup' && (
-          <div className="grid-cols-2">
+        {/* 2a. SCHOOL SETTINGS & CALENDAR TAB */}
+        {activeAdminSubTab === 'settings' && (
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div className="glass dashboard-card card-lg">
               <h3 style={styles.cardHeader}>School Profile & Calendar</h3>
               <form onSubmit={handleUpdateSchoolSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1154,8 +1468,12 @@ export default function AdminDashboardView({
                 <button type="submit" style={{ ...styles.submitBtn, marginTop: '1rem' }}>Save & Apply Settings</button>
               </form>
             </div>
+          </div>
+        )}
 
-            {/* SCHOOLS & CLASSES MANAGEMENT */}
+        {/* 2b. MANAGE CLASSES & ANNEXES TAB */}
+        {activeAdminSubTab === 'classes' && (
+          <div className="grid-cols-2">
             <div>
               {/* ANNEX MANAGER */}
               <div className="glass dashboard-card" style={{ marginBottom: '1.5rem' }}>
@@ -1364,6 +1682,8 @@ export default function AdminDashboardView({
                   </div>
                 )}
               </div>
+            </div>
+            <div>
 
               {/* EDIT CLASS MODAL */}
               {editingClass && (
@@ -1542,6 +1862,178 @@ export default function AdminDashboardView({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 2c. MANAGE SUBJECTS TAB */}
+        {activeAdminSubTab === 'subjects' && (
+          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+            {/* SUBJECTS CONFIGURATION MANAGER */}
+            <div className="glass dashboard-card" style={{ marginBottom: '1.5rem' }}>
+              <h3 style={styles.cardHeader}>Subjects Configuration</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                Define subjects and categorize them under Academic (Secular) or Tahfeezh (Quranic) sections.
+              </p>
+
+              {/* Create New Subject Form */}
+              <form onSubmit={handleCreateSubject} style={{
+                display: 'flex', flexDirection: 'column', gap: '0.75rem',
+                padding: '1rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--bg-base)', marginBottom: '1.5rem'
+              }}>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--primary)' }}>Add New Subject</h4>
+                <div className="form-row-responsive">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Subject Name *</label>
+                    <input type="text" required placeholder="e.g. Literacy" value={newSubjName} onChange={e => setNewSubjName(e.target.value)} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Arabic Translation (Opt)</label>
+                    <input type="text" placeholder="e.g. معرفة القراءة والكتابة" value={newSubjNameArabic} onChange={e => setNewSubjNameArabic(e.target.value)} style={{ fontFamily: 'var(--font-arabic)' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Category / Section *</label>
+                  <select value={newSubjSection} onChange={e => setNewSubjSection(e.target.value as any)}>
+                    <option value="academic">Academic (Secular)</option>
+                    <option value="tahfeezh">Tahfeezh (Qur'an & Hifz)</option>
+                    <option value="islamic">Islamic Studies</option>
+                  </select>
+                </div>
+                <button type="submit" style={{ ...styles.submitBtn, alignSelf: 'flex-start' }}>Create Subject</button>
+              </form>
+
+              {/* List of Subjects */}
+              {subjectsList.length > 0 ? (
+                <div style={styles.tableWrapper}>
+                  <table className="custom-table">
+                    <thead>
+                      <tr>
+                        <th>Subject Name</th>
+                        <th>Arabic Name</th>
+                        <th>Section</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {subjectsList.map(s => (
+                        <tr key={s._id}>
+                          <td style={{ fontWeight: '600' }}>{s.name}</td>
+                          <td style={{ fontFamily: 'var(--font-arabic)' }}>{s.nameArabic || '—'}</td>
+                          <td style={{ textTransform: 'capitalize' }}>{s.section}</td>
+                          <td>
+                            <span style={{
+                              padding: '0.15rem 0.5rem',
+                              borderRadius: 'var(--radius-sm)',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              backgroundColor: s.isActive ? 'var(--success-glow)' : 'var(--error-glow)',
+                              color: s.isActive ? 'var(--success)' : 'var(--error)',
+                              border: `1px solid ${s.isActive ? 'var(--success)' : 'var(--error)'}`,
+                            }}>
+                              {s.isActive ? 'Active' : 'Disabled'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                style={{
+                                  padding: '0.25rem 0.5rem',
+                                  backgroundColor: 'var(--success-glow)',
+                                  color: 'var(--success)',
+                                  border: '1px solid var(--success)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => {
+                                  setEditingSubj(s);
+                                  setEditSubjForm({ name: s.name, nameArabic: s.nameArabic, section: s.section });
+                                }}
+                              >Edit</button>
+                              <button
+                                type="button"
+                                style={{
+                                  padding: '0.25rem 0.5rem',
+                                  backgroundColor: 'var(--error-glow)',
+                                  color: 'var(--error)',
+                                  border: '1px solid var(--error)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  fontSize: '0.8rem',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => handleDeleteSubject(s._id)}
+                              >Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>No subjects defined yet. Add one above.</p>
+              )}
+            </div>
+
+            {/* EDIT SUBJECT MODAL */}
+            {editingSubj && (
+              <div className="modal-overlay-blur">
+                <div className="modal-card modal-card-sm animate-scale-in" style={{ maxWidth: '450px' }}>
+                  <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>Edit Subject</h3>
+                    <button
+                      type="button"
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+                      onClick={() => setEditingSubj(null)}
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <form onSubmit={handleUpdateSubject} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={styles.label}>Subject Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editSubjForm.name}
+                        onChange={e => setEditSubjForm({ ...editSubjForm, name: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={styles.label}>Arabic Translation</label>
+                      <input
+                        type="text"
+                        value={editSubjForm.nameArabic}
+                        onChange={e => setEditSubjForm({ ...editSubjForm, nameArabic: e.target.value })}
+                        style={{ fontFamily: 'var(--font-arabic)' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={styles.label}>Category / Section *</label>
+                      <select
+                        value={editSubjForm.section}
+                        onChange={e => setEditSubjForm({ ...editSubjForm, section: e.target.value as any })}
+                      >
+                        <option value="academic">Academic (Secular)</option>
+                        <option value="tahfeezh">Tahfeezh (Qur'an & Hifz)</option>
+                        <option value="islamic">Islamic Studies</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <button type="submit" style={{ ...styles.submitBtn, flex: 1 }}>Save Changes</button>
+                      <button
+                        type="button"
+                        style={{ ...styles.deleteBtn, flex: 1, margin: 0, padding: '0.75rem' }}
+                        onClick={() => setEditingSubj(null)}
+                      >Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

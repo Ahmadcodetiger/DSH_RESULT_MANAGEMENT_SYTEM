@@ -22,11 +22,12 @@ const UserSchema = new Schema(
       default: 'TEACHER',
       required: true,
     },
-    // For teachers, to assign which level/sections they can grade
+    // For teachers, to assign which level/sections and subject they can grade
     assignedClasses: [
       {
         level: { type: String, required: true }, // e.g. "5" or "Early Years 1"
         section: { type: String, required: true }, // e.g. "ALLO"
+        subjectName: { type: String, required: true }, // e.g. "Literacy"
       },
     ],
   },

@@ -7,7 +7,7 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined' && window.location.hostname) {
     return `http://${window.location.hostname}:5000/api`;
   }
-  return 'https://dsh-backend-xi.vercel.app/api';
+  return 'http://localhost:5000/api';
 };
 
 export const BASE_URL = getApiUrl();
@@ -110,6 +110,28 @@ export const classService = {
 
   async updateAnnexes(annexes: string[]) {
     const response = await api.put('/admin/annexes', { annexes });
+    return response.data;
+  },
+};
+
+export const subjectService = {
+  async getSubjects(activeOnly = true) {
+    const response = await api.get(`/public/subjects${activeOnly ? '?activeOnly=true' : ''}`);
+    return response.data;
+  },
+
+  async createSubject(data: { name: string; nameArabic?: string; section: string }) {
+    const response = await api.post('/admin/subjects', data);
+    return response.data;
+  },
+
+  async updateSubject(id: string, data: { name?: string; nameArabic?: string; section?: string; isActive?: boolean }) {
+    const response = await api.put(`/admin/subjects/${id}`, data);
+    return response.data;
+  },
+
+  async deleteSubject(id: string) {
+    const response = await api.delete(`/admin/subjects/${id}`);
     return response.data;
   },
 };

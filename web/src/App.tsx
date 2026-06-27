@@ -4,7 +4,7 @@ import {
   Lock, Bell, LogOut, ArrowRight, Download, Award, TrendingUp, Info, Menu, Calendar,
   Sun, Moon, CreditCard
 } from 'lucide-react';
-import api, { authService, BASE_URL, classService } from './services/api';
+import api, { authService, BASE_URL, classService, subjectService } from './services/api';
 import { SURAHS } from './utils/surahs';
 import AdminDashboardView from './components/AdminDashboardView';
 
@@ -14,7 +14,7 @@ interface User {
   username: string;
   name: string;
   role: 'ADMIN' | 'TEACHER' | 'PARENT' | 'ACCOUNTANT' | 'DIRECTOR';
-  assignedClasses?: { level: string; section: string }[];
+  assignedClasses?: { level: string; section: string; subjectName?: string }[];
 }
 
 interface Student {
@@ -38,7 +38,7 @@ interface SubjectGrade {
   score100: number;
   grade: string;
   isGraded: boolean;
-  section: 'tahfeezh' | 'academic';
+  section: 'tahfeezh' | 'academic' | 'islamic';
 }
 
 interface EvaluationElement {
@@ -293,12 +293,44 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                 </table>
               </div>
 
+              {/* ISLAMIC STUDIES SECTION */}
+              <h4 style={{ ...styles.reportSectionTitle, marginTop: '1.5rem' }}>Islamic Studies Assessment</h4>
+              <div style={styles.tableWrapper}>
+                <table style={styles.reportTable}>
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th style={{ width: '60px' }}>CA 1</th>
+                      <th style={{ width: '60px' }}>CA 2</th>
+                      <th style={{ width: '60px' }}>Exam</th>
+                      <th style={{ width: '70px' }}>Total</th>
+                      <th style={{ width: '50px' }}>Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.subjects.filter(s => s.section === 'islamic').map(s => (
+                      <tr key={s.subjectName}>
+                        <td>
+                          <div>{s.subjectName}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
+                        </td>
+                        <td>{s.score20_1}</td>
+                        <td>{s.score20_2}</td>
+                        <td>{s.score60}</td>
+                        <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
+                        <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
               <h4 style={{ ...styles.reportSectionTitle, marginTop: '1.5rem' }}>Tahfeezh Progress Details</h4>
               <div style={styles.tahfeezhProgressGrid}>
                 <div><strong>Hifz Commenced From Surah:</strong> <span style={{ fontFamily: 'var(--font-arabic)', fontSize: '1.1rem' }}>{result.tahfeezhDetails?.fromSurah || '—'}</span></div>
                 <div><strong>Hifz Concluded To Surah:</strong> <span style={{ fontFamily: 'var(--font-arabic)', fontSize: '1.1rem' }}>{result.tahfeezhDetails?.toSurah || '—'}</span></div>
                 <div><strong>Pages Memorized This Term:</strong> {result.tahfeezhDetails?.memorizedPages || 0}</div>
-                <div><strong>Absence of Hifz:</strong> {result.tahfeezhDetails?.absenceOfHifz || 0} days</div>
+                <div><strong>Total Hifz Days:</strong> {result.tahfeezhDetails?.absenceOfHifz || 0} days</div>
                 <div><strong>Days Present:</strong> {result.tahfeezhDetails?.daysPresent || 0}</div>
                 <div><strong>Days Absent:</strong> {result.tahfeezhDetails?.daysAbsent || 0}</div>
               </div>
@@ -306,7 +338,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
 
             {/* SECULAR ACADEMIC CURRICULUM */}
             <div style={{ flex: 1 }}>
-              <h4 style={styles.reportSectionTitle}>Secular Academic Assessment</h4>
+              <h4 style={styles.reportSectionTitle}>Academic Assessment</h4>
               <div style={styles.tableWrapper}>
                 <table style={styles.reportTable}>
                   <thead>
@@ -930,6 +962,7 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
   const [selectedTerm, setSelectedTerm] = useState(schoolSettings?.currentTerm || 'Second Term');
   const [selectedYear, setSelectedYear] = useState(schoolSettings?.currentAcademicYear || '2025/2026');
 
+
   useEffect(() => {
     if (schoolSettings) {
       setSelectedTerm(schoolSettings.currentTerm || 'Second Term');
@@ -961,18 +994,8 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
   const [aiLoading, setAiLoading] = useState(false);
 
   // Subject Grades form states
-  const [subjectGrades, setSubjectGrades] = useState<SubjectGrade[]>([
-    { subjectName: "Al-Qur'an Karem (Hifz)", subjectNameArabic: "القرآن الكريم ( حفظ )", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'tahfeezh' },
-    { subjectName: "Al-Qur'an (Writing)", subjectNameArabic: "القرآن كتابة", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'tahfeezh' },
-    { subjectName: "Arabic", subjectNameArabic: "العربية", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'tahfeezh' },
-    { subjectName: "Grammar VERBAL", subjectNameArabic: "القواعد", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'tahfeezh' },
-    { subjectName: "Islamic Subjects", subjectNameArabic: "المواد الإسلامية", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'tahfeezh' },
-    { subjectName: "Science", subjectNameArabic: "علوم", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'academic' },
-    { subjectName: "Literacy", subjectNameArabic: "معرفة القراءة والكتابة", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'academic' },
-    { subjectName: "Numeracy", subjectNameArabic: "الحساب", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'academic' },
-    { subjectName: "Phonics", subjectNameArabic: "سماع الصوت", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'academic' },
-    { subjectName: "Social Habits", subjectNameArabic: "العادات الاجتماعية", score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '', isGraded: true, section: 'academic' },
-  ]);
+  const [subjectsList, setSubjectsList] = useState<any[]>([]);
+  const [subjectGrades, setSubjectGrades] = useState<SubjectGrade[]>([]);
 
   // Tahfeezh Details form states
   const [tahfeezhAbsenceOfHifz, setTahfeezhAbsenceOfHifz] = useState(0);
@@ -999,10 +1022,42 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
   const [dateIssued] = useState('2026-06-23');
   const [nextTermBegins] = useState('2026-09-15');
 
+  const [, , subjectName] = selectedClass ? selectedClass.split('-') : ['', '', ''];
+  const showAll = !subjectName || subjectName === 'undefined' || subjectName === 'both';
+  const currentSubj = subjectGrades ? subjectGrades.find(s => s.subjectName === subjectName) : null;
+  const isTahfeezhSubject = showAll || (currentSubj ? (currentSubj.section === 'tahfeezh' || currentSubj.section === 'islamic') : false);
+  const isTahfeezhOnly = showAll || (currentSubj ? currentSubj.section === 'tahfeezh' : false);
+  const isAcademicSubject = showAll || (currentSubj ? currentSubj.section === 'academic' : false);
+
+  const fetchActiveSubjects = async () => {
+    try {
+      const res = await subjectService.getSubjects(true);
+      setSubjectsList(res || []);
+      const initialGrades = (res || []).map((s: any) => ({
+        subjectName: s.name,
+        subjectNameArabic: s.nameArabic,
+        score60: 0,
+        score20_1: 0,
+        score20_2: 0,
+        score100: 0,
+        grade: '',
+        isGraded: false,
+        section: s.section
+      }));
+      setSubjectGrades(initialGrades);
+    } catch (err) {
+      console.error('Failed to load active subjects', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveSubjects();
+  }, []);
+
   useEffect(() => {
     if (teacher.assignedClasses && teacher.assignedClasses.length > 0) {
       const cls = teacher.assignedClasses[0];
-      setSelectedClass(`${cls.level}-${cls.section}`);
+      setSelectedClass(`${cls.level}-${cls.section}-${cls.subjectName}`);
     }
   }, [teacher]);
 
@@ -1030,9 +1085,19 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
       if (res.data && res.data.length > 0) {
         const resultObj: Result = res.data[0];
         // Populate subject values
-        const mappedSubjects = subjectGrades.map(s => {
-          const match = resultObj.subjects.find(sub => sub.subjectName === s.subjectName);
-          return match ? match : s;
+        const mappedSubjects = subjectsList.map(s => {
+          const match = resultObj.subjects.find(sub => sub.subjectName === s.name);
+          return match ? match : {
+            subjectName: s.name,
+            subjectNameArabic: s.nameArabic,
+            score60: 0,
+            score20_1: 0,
+            score20_2: 0,
+            score100: 0,
+            grade: '',
+            isGraded: false,
+            section: s.section
+          };
         });
         setSubjectGrades(mappedSubjects);
 
@@ -1054,8 +1119,19 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
         setSupervisorRecommendations(resultObj.supervisorRecommendations || '');
         setHeadTeacherComments(resultObj.headTeacherComments || '');
       } else {
-        // Reset to zeros
-        setSubjectGrades(subjectGrades.map(s => ({ ...s, score60: 0, score20_1: 0, score20_2: 0, score100: 0, grade: '' })));
+        // Reset to zeros using dynamic subjects list
+        const resetGrades = subjectsList.map(s => ({
+          subjectName: s.name,
+          subjectNameArabic: s.nameArabic,
+          score60: 0,
+          score20_1: 0,
+          score20_2: 0,
+          score100: 0,
+          grade: '',
+          isGraded: false,
+          section: s.section
+        }));
+        setSubjectGrades(resetGrades);
         setTahfeezhAbsenceOfHifz(0);
         setTahfeezhDaysPresent(0);
         setTahfeezhDaysAbsent(0);
@@ -1074,13 +1150,16 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
     const total = updated[index].score60 + updated[index].score20_1 + updated[index].score20_2;
     updated[index].score100 = total;
 
+    // Mark as graded if any score has been entered
+    updated[index].isGraded = (updated[index].score60 > 0 || updated[index].score20_1 > 0 || updated[index].score20_2 > 0);
+
     // Calculate Grade
     let grade = 'F';
     if (total >= 85) grade = 'A';
     else if (total >= 70) grade = 'B';
     else if (total >= 55) grade = 'C';
     else if (total >= 40) grade = 'D';
-    updated[index].grade = grade;
+    updated[index].grade = updated[index].isGraded ? grade : '';
 
     setSubjectGrades(updated);
   };
@@ -1171,8 +1250,8 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
           <label style={styles.label}>Class Section</label>
           <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
             {teacher.assignedClasses?.map(c => (
-              <option key={`${c.level}-${c.section}`} value={`${c.level}-${c.section}`}>
-                Level {c.level} - {c.section}
+              <option key={`${c.level}-${c.section}-${c.subjectName}`} value={`${c.level}-${c.section}-${c.subjectName}`}>
+                Level {c.level} - {c.section} ({c.subjectName})
               </option>
             ))}
           </select>
@@ -1228,8 +1307,8 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
         {/* GRADING FORM */}
         <div className="span-2-desktop">
           {activeStudent ? (
-            <form onSubmit={handleSubmitGrades} className="glass" style={{ padding: '2rem', borderRadius: 'var(--radius-md)' }}>
-              <div className="flex-between" style={{ marginBottom: '1.5rem', borderBottom: '1.5px solid var(--border)', paddingBottom: '1rem' }}>
+            <form onSubmit={handleSubmitGrades} className="glass grading-form" style={{ padding: '2rem', borderRadius: 'var(--radius-md)' }}>
+              <div className="grading-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1.5px solid var(--border)', paddingBottom: '1rem' }}>
                 <div>
                   <h3 style={{ fontSize: '1.5rem' }}>Grading: {activeStudent.name}</h3>
                   <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Adm: {activeStudent.admissionNumber} | Class Level: {activeStudent.level}-{activeStudent.section}</p>
@@ -1240,64 +1319,64 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
               </div>
 
               {/* TAHFEEZH SECTION & DETAILS */}
-              <div style={{ marginBottom: '2rem' }}>
-                <h4 style={styles.formSectionHeader}>Quranic & Tahfeezh Progress</h4>
-                <div className="grid-cols-3" style={{ gap: '1rem', marginBottom: '1rem' }}>
-                  <div>
-                    <label style={styles.label}>Absence of Hifz Days</label>
-                    <input type="number" value={tahfeezhAbsenceOfHifz} onChange={e => setTahfeezhAbsenceOfHifz(parseInt(e.target.value) || 0)} />
+              {isTahfeezhOnly && (
+                <div style={{ marginBottom: '2rem' }}>
+                  <h4 style={styles.formSectionHeader} className="grading-section-header">Quranic & Tahfeezh Progress</h4>
+                  <div className="grading-tahfeezh-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                    <div>
+                      <label style={styles.label}>Total Hifz Days</label>
+                      <input type="number" value={tahfeezhAbsenceOfHifz} onChange={e => setTahfeezhAbsenceOfHifz(parseInt(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                      <label style={styles.label}>Days Present</label>
+                      <input type="number" value={tahfeezhDaysPresent} onChange={e => setTahfeezhDaysPresent(parseInt(e.target.value) || 0)} />
+                    </div>
+                    <div>
+                      <label style={styles.label}>Days Absent</label>
+                      <input type="number" value={tahfeezhDaysAbsent} onChange={e => setTahfeezhDaysAbsent(parseInt(e.target.value) || 0)} />
+                    </div>
                   </div>
-                  <div>
-                    <label style={styles.label}>Days Present</label>
-                    <input type="number" value={tahfeezhDaysPresent} onChange={e => setTahfeezhDaysPresent(parseInt(e.target.value) || 0)} />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Days Absent</label>
-                    <input type="number" value={tahfeezhDaysAbsent} onChange={e => setTahfeezhDaysAbsent(parseInt(e.target.value) || 0)} />
-                  </div>
-                </div>
 
-                <div className="grid-cols-3" style={{ gap: '1rem' }}>
-                  <div>
-                    <label style={styles.label}>From Surah</label>
-                    <select 
-                      value={tahfeezhFromSurah} 
-                      onChange={e => setTahfeezhFromSurah(e.target.value)}
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', outline: 'none', width: '100%' }}
-                    >
-                      {SURAHS.map(s => (
-                        <option key={s.number} value={s.arabic}>
-                          {s.number}. {s.english} ({s.arabic})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={styles.label}>To Surah</label>
-                    <select 
-                      value={tahfeezhToSurah} 
-                      onChange={e => setTahfeezhToSurah(e.target.value)}
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', outline: 'none', width: '100%' }}
-                    >
-                      {SURAHS.map(s => (
-                        <option key={s.number} value={s.arabic}>
-                          {s.number}. {s.english} ({s.arabic})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={styles.label}>Memorized Pages Count</label>
-                    <input type="number" value={tahfeezhMemorizedPages} onChange={e => setTahfeezhMemorizedPages(parseInt(e.target.value) || 0)} />
+                  <div className="grading-tahfeezh-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
+                    <div>
+                      <label style={styles.label}>From Surah</label>
+                      <select 
+                        value={tahfeezhFromSurah} 
+                        onChange={e => setTahfeezhFromSurah(e.target.value)}
+                      >
+                        {SURAHS.map(s => (
+                          <option key={s.number} value={s.arabic}>
+                            {s.number}. {s.english} ({s.arabic})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.label}>To Surah</label>
+                      <select 
+                        value={tahfeezhToSurah} 
+                        onChange={e => setTahfeezhToSurah(e.target.value)}
+                      >
+                        {SURAHS.map(s => (
+                          <option key={s.number} value={s.arabic}>
+                            {s.number}. {s.english} ({s.arabic})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.label}>Memorized Pages Count</label>
+                      <input type="number" value={tahfeezhMemorizedPages} onChange={e => setTahfeezhMemorizedPages(parseInt(e.target.value) || 0)} />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* SUBJECT SCORE INPUTS */}
               <div style={{ marginBottom: '2rem' }}>
-                <h4 style={styles.formSectionHeader}>Academic & Core Subject Marks</h4>
+                <h4 style={styles.formSectionHeader} className="grading-section-header">Academic & Core Subject Marks</h4>
                 <div style={styles.tableWrapper}>
-                  <table style={styles.table}>
+                  <table className="grading-scores-table">
                     <thead>
                       <tr>
                         <th>Subject Name</th>
@@ -1309,133 +1388,137 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
                       </tr>
                     </thead>
                     <tbody>
-                      {subjectGrades.map((s, idx) => (
-                        <tr key={s.subjectName}>
-                          <td>
-                            <div>{s.subjectName}</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
-                          </td>
-                          <td>
-                            <input 
-                              type="number" 
-                              min={0} 
-                              max={20}
-                              value={s.score20_1} 
-                              onChange={e => handleScoreChange(idx, 'score20_1', Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
-                              style={{ padding: '0.4rem', textAlign: 'center' }}
-                            />
-                          </td>
-                          <td>
-                            <input 
-                              type="number" 
-                              min={0} 
-                              max={20}
-                              value={s.score20_2} 
-                              onChange={e => handleScoreChange(idx, 'score20_2', Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
-                              style={{ padding: '0.4rem', textAlign: 'center' }}
-                            />
-                          </td>
-                          <td>
-                            <input 
-                              type="number" 
-                              min={0} 
-                              max={60}
-                              value={s.score60} 
-                              onChange={e => handleScoreChange(idx, 'score60', Math.min(60, Math.max(0, parseInt(e.target.value) || 0)))}
-                              style={{ padding: '0.4rem', textAlign: 'center' }}
-                            />
-                          </td>
-                          <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{s.score100}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade || '-'}</td>
-                        </tr>
-                      ))}
+                      {subjectGrades.map((s, idx) => {
+                        if (!showAll && s.subjectName !== subjectName) return null;
+                        return (
+                          <tr key={s.subjectName}>
+                            <td className="subject-name-cell">
+                              <div className="subject-name-en">{s.subjectName}</div>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
+                            </td>
+                            <td data-label="CA 1 (20)">
+                              <input 
+                                type="number" 
+                                min={0} 
+                                max={20}
+                                className="score-input"
+                                value={s.score20_1} 
+                                onChange={e => handleScoreChange(idx, 'score20_1', Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
+                              />
+                            </td>
+                            <td data-label="CA 2 (20)">
+                              <input 
+                                type="number" 
+                                min={0} 
+                                max={20}
+                                className="score-input"
+                                value={s.score20_2} 
+                                onChange={e => handleScoreChange(idx, 'score20_2', Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
+                              />
+                            </td>
+                            <td data-label="Exam (60)">
+                              <input 
+                                type="number" 
+                                min={0} 
+                                max={60}
+                                className="score-input"
+                                value={s.score60} 
+                                onChange={e => handleScoreChange(idx, 'score60', Math.min(60, Math.max(0, parseInt(e.target.value) || 0)))}
+                              />
+                            </td>
+                            <td data-label="Total" className="total-cell" style={{ textAlign: 'center', fontWeight: 'bold' }}>{s.score100}</td>
+                            <td data-label="Grade" className="grade-cell" style={{ textAlign: 'center', fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade || '-'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
 
               {/* EVALUATION RATINGS */}
-              <div style={{ marginBottom: '2rem' }}>
-                <h4 style={styles.formSectionHeader}>Manners & Performance Ratings</h4>
-                <div style={styles.tableWrapper}>
-                  <table style={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Metric Element</th>
-                        <th>Arabic</th>
-                        <th>Rating Selection</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {evaluations.map((ev, idx) => (
-                        <tr key={ev.elementLabel}>
-                          <td>{ev.elementLabel}</td>
-                          <td style={{ fontFamily: 'var(--font-arabic)' }}>{ev.elementLabelArabic}</td>
-                          <td>
-                            <select value={ev.rating} onChange={e => handleEvaluationRatingChange(idx, e.target.value)}>
-                              <option value="ممتاز جدا">ممتاز جدا (Excellent +)</option>
-                              <option value="ممتاز">ممتاز (Excellent)</option>
-                              <option value="جيد جدا">جيد جدا (Very Good)</option>
-                              <option value="جيد">جيد (Good)</option>
-                              <option value="مقبول">مقبول (Satisfactory)</option>
-                            </select>
-                          </td>
+              {isTahfeezhSubject && (
+                <div style={{ marginBottom: '2rem' }}>
+                  <h4 style={styles.formSectionHeader} className="grading-section-header">Manners & Performance Ratings</h4>
+                  <div style={styles.tableWrapper}>
+                    <table className="grading-eval-table">
+                      <thead>
+                        <tr>
+                          <th>Metric Element</th>
+                          <th>Arabic</th>
+                          <th>Rating Selection</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {evaluations.map((ev, idx) => (
+                          <tr key={ev.elementLabel}>
+                            <td className="eval-label-cell">{ev.elementLabel}</td>
+                            <td className="eval-arabic-cell" style={{ fontFamily: 'var(--font-arabic)' }}>{ev.elementLabelArabic}</td>
+                            <td className="eval-rating-cell">
+                              <select value={ev.rating} onChange={e => handleEvaluationRatingChange(idx, e.target.value)}>
+                                <option value="ممتاز جدا">ممتاز جدا (Excellent +)</option>
+                                <option value="ممتاز">ممتاز (Excellent)</option>
+                                <option value="جيد جدا">جيد جدا (Very Good)</option>
+                                <option value="جيد">جيد (Good)</option>
+                                <option value="مقبول">مقبول (Satisfactory)</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* COMMENDATIONS & COMMENTS */}
               <div style={{ marginBottom: '2rem' }}>
-                <div className="flex-between" style={{ marginBottom: '0.75rem' }}>
-                  <h4 style={styles.formSectionHeader}><Brain size={16} color="var(--primary)" style={{ marginRight: '0.4rem', display: 'inline' }} /> AI Assistant & Recommendations</h4>
-                  <button 
-                    type="button" 
-                    disabled={aiLoading}
-                    onClick={handleGenerateAiComments}
-                    style={{
-                      ...styles.navButton,
-                      backgroundColor: 'hsl(46, 65%, 45%)',
-                      borderColor: 'hsl(46, 65%, 45%)',
-                      color: '#fff',
-                      fontSize: '0.8rem',
-                      padding: '0.4rem 0.8rem'
-                    }}
-                  >
-                    {aiLoading ? 'Analyzing Performance...' : 'Generate AI Teacher Remarks'}
-                  </button>
-                </div>
+                {isAcademicSubject && (
+                  <div className="grading-ai-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <h4 style={styles.formSectionHeader} className="grading-section-header"><Brain size={16} color="var(--primary)" style={{ marginRight: '0.4rem', display: 'inline' }} /> AI Assistant & Recommendations</h4>
+                    <button 
+                      type="button" 
+                      disabled={aiLoading}
+                      onClick={handleGenerateAiComments}
+                      style={{
+                        ...styles.navButton,
+                        backgroundColor: 'hsl(46, 65%, 45%)',
+                        borderColor: 'hsl(46, 65%, 45%)',
+                        color: '#fff',
+                        fontSize: '0.8rem',
+                        padding: '0.4rem 0.8rem',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {aiLoading ? 'Analyzing Performance...' : 'Generate AI Teacher Remarks'}
+                    </button>
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  <div>
-                    <label style={styles.label}>Teacher's General Remarks</label>
-                    <textarea 
-                      rows={3} 
-                      value={teacherRecommendations} 
-                      onChange={e => setTeacherRecommendations(e.target.value)} 
-                      placeholder="Comment on memory retentiveness, reading stability, focus and classroom habits..." 
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Supervisor / Coordinator Recommendations</label>
-                    <textarea 
-                      rows={2} 
-                      value={supervisorRecommendations} 
-                      onChange={e => setSupervisorRecommendations(e.target.value)} 
-                      placeholder="e.g. Masha Allah Barakallah Feeki" 
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Head Teacher Endorsement Comments</label>
-                    <input 
-                      type="text" 
-                      value={headTeacherComments} 
-                      onChange={e => setHeadTeacherComments(e.target.value)} 
-                      placeholder="e.g. Outstanding performance. Keep it up." 
-                    />
-                  </div>
+                  {isAcademicSubject && (
+                    <div>
+                      <label style={styles.label}>Teacher's General Remarks</label>
+                      <textarea 
+                        rows={3} 
+                        value={teacherRecommendations} 
+                        onChange={e => setTeacherRecommendations(e.target.value)} 
+                        placeholder="Comment on memory retentiveness, reading stability, focus and classroom habits..." 
+                      />
+                    </div>
+                  )}
+                  
+                  {isTahfeezhSubject && (
+                    <div>
+                      <label style={styles.label}>Supervisor / Coordinator Recommendations</label>
+                      <textarea 
+                        rows={2} 
+                        value={supervisorRecommendations} 
+                        onChange={e => setSupervisorRecommendations(e.target.value)} 
+                        placeholder="e.g. Masha Allah Barakallah Feeki" 
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2369,7 +2452,7 @@ function FinanceLedgerView({ showControls, activeTabOverride }: FinanceLedgerVie
                           <option value="">Select Class</option>
                           {Object.entries(sectionGroups).map(([sec, classes]) => (
                             <optgroup key={sec} label={sec}>
-                              {classes.map(c => (
+                              {(classes as any[]).map((c: any) => (
                                 <option key={c._id} value={c.className}>{c.className}</option>
                               ))}
                             </optgroup>
