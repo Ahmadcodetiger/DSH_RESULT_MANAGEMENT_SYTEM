@@ -7,7 +7,7 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined' && window.location.hostname) {
     return `http://${window.location.hostname}:5000/api`;
   }
-  return 'https://dsh-backend-ahmadcodetigers-projects.vercel.app/api';
+  return 'https://dsh-backend-xi.vercel.app/api';
 };
 
 export const BASE_URL = getApiUrl();
