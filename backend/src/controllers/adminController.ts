@@ -139,7 +139,7 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
     const skippedStudents = [];
 
     for (const stud of students) {
-      const { admissionNumber, name, level, section, academicYear, parentPin, schoolFees } = stud;
+      const { admissionNumber, name, level, section, academicYear, parentPin, schoolFees, picture } = stud;
 
       if (!admissionNumber || !name || !level || !section || !academicYear) {
         skippedStudents.push({ ...stud, reason: 'Missing required fields' });
@@ -188,6 +188,7 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
         academicYear,
         parentPin: generatedPin, // Plain text PIN
         schoolFees: parsedSchoolFees,
+        picture: picture || '',
       });
 
       await newStudent.save();
@@ -264,7 +265,7 @@ export const deleteStudent = async (req: AuthRequest, res: Response) => {
 export const updateStudent = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees } = req.body;
+    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees, picture } = req.body;
 
     const student = await Student.findById(id);
     if (!student) {
@@ -288,6 +289,7 @@ export const updateStudent = async (req: AuthRequest, res: Response) => {
     if (academicYear !== undefined) student.academicYear = academicYear;
     if (parentPin !== undefined) student.parentPin = parentPin;
     if (schoolFees !== undefined) student.schoolFees = Number(schoolFees) || 0;
+    if (picture !== undefined) (student as any).picture = picture;
 
     await student.save();
 
@@ -317,13 +319,31 @@ export const deleteResult = async (req: AuthRequest, res: Response) => {
 export const toggleResultApproval = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const { isApproved, headTeacherComments, nextTermBegins, nextTermSchoolFees } = req.body;
     const result = await Result.findById(id);
     if (!result) {
       return res.status(404).json({ message: 'Result not found' });
     }
     
-    // Toggle status
-    result.status = result.status === 'approved' ? 'draft' : 'approved';
+    // Toggle status or set based on isApproved boolean
+    if (isApproved !== undefined) {
+      result.status = isApproved ? 'approved' : 'draft';
+    } else {
+      result.status = result.status === 'approved' ? 'draft' : 'approved';
+    }
+    
+    if (headTeacherComments !== undefined) {
+      result.headTeacherComments = headTeacherComments;
+    }
+    
+    if (nextTermBegins !== undefined) {
+      result.nextTermBegins = nextTermBegins;
+    }
+    
+    if (nextTermSchoolFees !== undefined) {
+      result.nextTermSchoolFees = nextTermSchoolFees;
+    }
+    
     await result.save();
     
     return res.status(200).json({ message: 'Result status updated', result });
@@ -395,7 +415,7 @@ export const getResults = async (req: AuthRequest, res: Response) => {
 
     const total = await Result.countDocuments(query);
     const results = await Result.find(query)
-      .populate('studentId', 'name admissionNumber level section isDeleted')
+      .populate('studentId', 'name admissionNumber level section isDeleted picture')
       .sort({ createdAt: -1 })
       .skip(skipNum)
       .limit(limitNum);
@@ -526,6 +546,8 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
   try {
     const {
       schoolName,
+      schoolNameArabic,
+      schoolSubHeader,
       address,
       phoneNumbers,
       email,
@@ -534,6 +556,7 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
       accountNumber,
       currentAcademicYear,
       currentTerm,
+      accountantWhatsApp,
     } = req.body;
 
     let settings = await Settings.findOne({ key: 'school_info' });
@@ -542,6 +565,8 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
     }
 
     if (schoolName !== undefined) settings.schoolName = schoolName;
+    if (schoolNameArabic !== undefined) (settings as any).schoolNameArabic = schoolNameArabic;
+    if (schoolSubHeader !== undefined) (settings as any).schoolSubHeader = schoolSubHeader;
     if (address !== undefined) settings.address = address;
     if (phoneNumbers !== undefined) settings.phoneNumbers = phoneNumbers;
     if (email !== undefined) settings.email = email;
@@ -550,6 +575,7 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
     if (accountNumber !== undefined) settings.accountNumber = accountNumber;
     if (currentAcademicYear !== undefined) settings.currentAcademicYear = currentAcademicYear;
     if (currentTerm !== undefined) settings.currentTerm = currentTerm;
+    if (accountantWhatsApp !== undefined) (settings as any).accountantWhatsApp = accountantWhatsApp;
 
     await settings.save();
     return res.status(200).json({ message: 'School settings updated successfully', settings });

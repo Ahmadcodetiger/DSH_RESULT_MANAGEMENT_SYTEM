@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, Users, DollarSign, Brain, FileText, Check, X, 
   Lock, Bell, LogOut, ArrowRight, Download, Award, TrendingUp, Info, Menu, Calendar,
-  Sun, Moon, CreditCard
+  Sun, Moon, CreditCard, MessageCircle, Phone, Building, Layers
 } from 'lucide-react';
 import api, { authService, BASE_URL, classService, subjectService } from './services/api';
 import { SURAHS } from './utils/surahs';
@@ -213,8 +213,8 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
       : { name: 'Unknown Student', admissionNumber: '—' });
 
   return (
-    <div style={styles.reportModalOverlay}>
-      <div className="glass" style={styles.reportCardSheet}>
+    <div className="report-modal-overlay" style={styles.reportModalOverlay}>
+      <div className="glass report-card-sheet" style={styles.reportCardSheet}>
         <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
           <h3 style={{ fontSize: '1.5rem' }}>Result Sheet Viewer</h3>
           <div className="flex-row">
@@ -248,14 +248,42 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
             <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{schoolSettings?.address || 'Abuja, Nigeria'} | Academic Term Result Assessment</div>
           </div>
 
-          {/* STUDENT META INFO */}
-          <div className="report-meta-grid">
-            <div><strong>Admission No:</strong> {student.admissionNumber}</div>
-            <div><strong>Student Name:</strong> {student.name}</div>
-            <div><strong>Class Level:</strong> {result.level} - {result.section}</div>
-            <div><strong>Term Period:</strong> {result.term}</div>
-            <div><strong>Academic Year:</strong> {result.academicYear}</div>
-            <div><strong>Date Issued:</strong> {result.dateIssued}</div>
+          {/* STUDENT META INFO & PASSPORT ROW */}
+          <div className="report-meta-container" style={{ display: 'flex', justifyContent: 'space-between', gap: '1.5rem', marginBottom: '1.25rem', borderBottom: '1.5px solid var(--primary)', paddingBottom: '0.75rem' }}>
+            <div className="report-meta-grid" style={{ flex: 1, borderBottom: 'none', paddingBottom: 0, marginBottom: 0 }}>
+              <div><strong>Admission No:</strong> {student.admissionNumber}</div>
+              <div><strong>Student Name:</strong> {student.name}</div>
+              <div><strong>Class:</strong> {result.level} - {result.section}</div>
+              <div><strong>Term Period:</strong> {result.term}</div>
+              <div><strong>Academic Year:</strong> {result.academicYear}</div>
+              <div><strong>Date Issued:</strong> {result.dateIssued}</div>
+            </div>
+            
+            {/* Passport Photo */}
+            <div style={{
+              width: '100px',
+              height: '120px',
+              border: '2.5px solid var(--primary)',
+              padding: '2px',
+              borderRadius: '4px',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#f9f9f9',
+              alignSelf: 'center',
+              flexShrink: 0,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }} className="report-passport-photo">
+              {(student as any).picture ? (
+                <img src={(student as any).picture} alt="Student Passport" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#97a69c', textAlign: 'center', padding: '0.25rem' }}>
+                  <Users size={24} color="var(--primary)" style={{ opacity: 0.6 }} />
+                  <span style={{ fontSize: '0.55rem', marginTop: '0.35rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>PASSPORT PHOTO</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* REPORT CARD DUAL GRID */}
@@ -460,8 +488,7 @@ export default function App() {
   const [token, setToken] = useState<string | null>(authService.getToken());
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
 
-  // Public Announcements state
-  const [publicNotifications, setPublicNotifications] = useState<Notification[]>([]);
+
   const [curriculumTab, setCurriculumTab] = useState<'tahfeezh' | 'academic' | 'about'>('tahfeezh');
 
   // Dynamic School Settings
@@ -503,10 +530,7 @@ export default function App() {
 
 
 
-  // Fetch Public Announcements on start
-  useEffect(() => {
-    fetchPublicNotifications();
-  }, []);
+
 
   // Check auth logout event
   useEffect(() => {
@@ -529,14 +553,7 @@ export default function App() {
     }
   }, [currentUser]);
 
-  const fetchPublicNotifications = async () => {
-    try {
-      const res = await api.get('/public/notifications');
-      setPublicNotifications(res.data || []);
-    } catch (err) {
-      console.error('Failed to load public notifications:', err);
-    }
-  };
+
 
 
 
@@ -660,23 +677,7 @@ export default function App() {
         </header>
       )}
 
-      {/* PUBLIC NOTIFICATIONS MARQUEE */}
-      {publicNotifications.length > 0 && (
-        <div style={styles.marqueeContainer}>
-          <div style={styles.marqueeHeader}>
-            <Bell size={14} style={{ marginRight: '0.4rem' }} /> Announcements:
-          </div>
-          <div style={styles.marqueeBody}>
-            <div style={styles.marqueeText}>
-              {publicNotifications.map((n) => (
-                <span key={n._id} style={{ marginRight: '4rem' }}>
-                  <strong>{n.title}</strong>: {n.message}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* MAIN VIEW CONTROLLER */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -1233,85 +1234,103 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
       </h2>
 
       {/* TEACHER DASHBOARD TABS */}
-      <div style={{ ...styles.curriculumTabs, marginBottom: '1.5rem' }}>
-        <button style={activeTeacherTab === 'grading' ? styles.curriculumTabActive : styles.curriculumTab} onClick={() => setActiveTeacherTab('grading')}>
-          Student Grading Panel
+      <div className="teacher-tabs-container">
+        <button 
+          className={`teacher-tab-btn ${activeTeacherTab === 'grading' ? 'active' : ''}`}
+          onClick={() => setActiveTeacherTab('grading')}
+        >
+          <BookOpen size={16} /> Student Grading Panel
         </button>
-        <button style={activeTeacherTab === 'salaries' ? styles.curriculumTabActive : styles.curriculumTab} onClick={() => setActiveTeacherTab('salaries')}>
-          My Salary & Payout History
+        <button 
+          className={`teacher-tab-btn ${activeTeacherTab === 'salaries' ? 'active' : ''}`}
+          onClick={() => setActiveTeacherTab('salaries')}
+        >
+          <DollarSign size={16} /> My Payout & Salary Logs
         </button>
       </div>
 
       {activeTeacherTab === 'grading' && (
         <>
-          {/* FILTER HEADER */}
-      <div style={styles.dashboardStatsRow} className="grid-cols-4">
-        <div>
-          <label style={styles.label}>Class Section</label>
-          <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
-            {teacher.assignedClasses?.map(c => (
-              <option key={`${c.level}-${c.section}-${c.subjectName}`} value={`${c.level}-${c.section}-${c.subjectName}`}>
-                Level {c.level} - {c.section} ({c.subjectName})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={styles.label}>Term</label>
-          <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)}>
-            <option value="First Term">First Term</option>
-            <option value="Second Term">Second Term</option>
-            <option value="Third Term">Third Term</option>
-          </select>
-        </div>
-        <div>
-          <label style={styles.label}>Academic Year</label>
-          <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
-            <option value="2025/2026">2025/2026</option>
-            <option value="2026/2027">2026/2027</option>
-          </select>
-        </div>
-      </div>
-
-      <div style={{ marginTop: '2rem' }} className="grid-cols-3">
-        {/* STUDENTS ROLL CALL */}
-        <div>
-          <h3 style={styles.cardHeader}>Student Grading List</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1rem' }}>
-            {students.map(s => (
-              <div 
-                key={s._id} 
-                onClick={() => handleSelectStudentForGrading(s)}
-                style={{
-                  ...styles.studentListItem,
-                  borderColor: activeStudent?._id === s._id ? 'var(--primary)' : 'var(--border)',
-                  backgroundColor: activeStudent?._id === s._id ? 'var(--primary-glow)' : 'var(--bg-card)'
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: '600' }}>{s.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{s.admissionNumber}</div>
-                </div>
-                <div>
-                  {s.hasResult ? (
-                    <span style={styles.statusBadgeApproved}>Graded</span>
-                  ) : (
-                    <span style={styles.statusBadgePending}>Ungraded</span>
-                  )}
-                </div>
-              </div>
-            ))}
+          {/* FILTER HEADER CARD */}
+          <div className="teacher-filters-card">
+            <div className="filter-group">
+              <label><Layers size={14} /> Class Section</label>
+              <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
+                {teacher.assignedClasses?.map(c => (
+                  <option key={`${c.level}-${c.section}-${c.subjectName}`} value={`${c.level}-${c.section}-${c.subjectName}`}>
+                    Class {c.level} - {c.section} ({c.subjectName})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="filter-group">
+              <label><Calendar size={14} /> Academic Term</label>
+              <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)}>
+                <option value="First Term">First Term</option>
+                <option value="Second Term">Second Term</option>
+                <option value="Third Term">Third Term</option>
+              </select>
+            </div>
+            <div className="filter-group">
+              <label><TrendingUp size={14} /> Academic Year</label>
+              <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
+                <option value="2025/2026">2025/2026</option>
+                <option value="2026/2027">2026/2027</option>
+              </select>
+            </div>
           </div>
-        </div>
 
-        {/* GRADING FORM */}
-        <div className="span-2-desktop">
-          {activeStudent ? (
+          <div style={{ marginTop: '1.5rem' }} className="grid-cols-3">
+            {/* STUDENTS ROSTER COLUMN */}
+            <div className="teacher-roster-column">
+              <h3 className="panel-sub-header">
+                <Users size={18} /> Student Roster
+              </h3>
+              <div className="teacher-roster-list">
+                {students.map(s => {
+                  const nameParts = s.name.split(' ');
+                  const initials = nameParts.length > 1 ? `${nameParts[0][0]}${nameParts[1][0]}` : nameParts[0][0];
+                  const isGraded = s.hasResult;
+                  const isActive = activeStudent?._id === s._id;
+                  return (
+                    <div 
+                      key={s._id} 
+                      onClick={() => handleSelectStudentForGrading(s)}
+                      className={`teacher-roster-item ${isActive ? 'active' : ''}`}
+                    >
+                      <div className="roster-avatar">
+                        {initials.toUpperCase()}
+                      </div>
+                      <div className="roster-details">
+                        <div className="roster-name">{s.name}</div>
+                        <div className="roster-admission">{s.admissionNumber}</div>
+                      </div>
+                      <div className="roster-status">
+                        {isGraded ? (
+                          <span className="roster-badge badge-graded">Graded</span>
+                        ) : (
+                          <span className="roster-badge badge-ungraded">Pending</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {students.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                    No students enrolled in this section.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* GRADING WORKSPACE */}
+            <div className="span-2-desktop">
+              {activeStudent ? (
             <form onSubmit={handleSubmitGrades} className="glass grading-form" style={{ padding: '2rem', borderRadius: 'var(--radius-md)' }}>
               <div className="grading-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1.5px solid var(--border)', paddingBottom: '1rem' }}>
                 <div>
                   <h3 style={{ fontSize: '1.5rem' }}>Grading: {activeStudent.name}</h3>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Adm: {activeStudent.admissionNumber} | Class Level: {activeStudent.level}-{activeStudent.section}</p>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Adm: {activeStudent.admissionNumber} | Class: {activeStudent.level}-{activeStudent.section}</p>
                 </div>
                 <button type="button" style={styles.closeBtn} onClick={() => setActiveStudent(null)}>
                   <X size={20} />
@@ -1437,7 +1456,7 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
               </div>
 
               {/* EVALUATION RATINGS */}
-              {isTahfeezhSubject && (
+              {isTahfeezhOnly && (
                 <div style={{ marginBottom: '2rem' }}>
                   <h4 style={styles.formSectionHeader} className="grading-section-header">Manners & Performance Ratings</h4>
                   <div style={styles.tableWrapper}>
@@ -1525,9 +1544,10 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
               <button type="submit" style={styles.submitBtn}>Submit Grading Sheet</button>
             </form>
           ) : (
-            <div style={styles.emptyContainer}>
-              <Award size={48} color="var(--text-muted)" />
-              <h3>Select a student from the sidebar to grade or review results</h3>
+            <div className="teacher-empty-grading-state">
+              <Award size={48} color="var(--primary)" style={{ marginBottom: '1rem' }} />
+              <h4>Select a Student from Roster</h4>
+              <p>Choose any student from the sidebar roster on the left to review their marks, enter term grades, select evaluation metrics, and get AI recommendations.</p>
             </div>
           )}
         </div>
@@ -1612,9 +1632,13 @@ function TeacherDashboardView({ teacher, schoolSettings }: { teacher: User; scho
 function ParentDashboardView({ parent, token, schoolSettings }: { parent: Student; token: string | null; schoolSettings: any }) {
   const [results, setResults] = useState<Result[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [parentNotifications, setParentNotifications] = useState<Notification[]>([]);
+  const [paymentInfo, setPaymentInfo] = useState<{
+    bankName: string; accountName: string; accountNumber: string; accountantWhatsApp: string; schoolPhone: string;
+  }>({ bankName: '', accountName: '', accountNumber: '', accountantWhatsApp: '', schoolPhone: '' });
   const [activeResult, setActiveResult] = useState<Result | null>(null);
   const [showResultSheet, setShowResultSheet] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<'results' | 'finances'>('results');
+  const [activeSubTab, setActiveSubTab] = useState<'results' | 'finances' | 'announcements'>('results');
   const baseUrl = BASE_URL;
 
   const [selectedTerm, setSelectedTerm] = useState(schoolSettings?.currentTerm || 'Second Term');
@@ -1629,10 +1653,20 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
 
   useEffect(() => {
     fetchParentResults();
+    fetchNotifications();
   }, []);
 
   useEffect(() => {
     fetchInvoices();
+  }, [selectedTerm, selectedYear]);
+
+  // Poll invoices & notifications every 30 seconds so updates appear in real time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchInvoices();
+      fetchNotifications();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [selectedTerm, selectedYear]);
 
   const fetchParentResults = async () => {
@@ -1646,13 +1680,22 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
 
   const fetchInvoices = async () => {
     try {
-      // Invoices for this child
-      const res = await api.get(`/finance/invoices?term=${selectedTerm}&academicYear=${selectedYear}`);
-      // Filter for this child's invoices
-      const filtered = (res.data?.invoices || []).filter((inv: any) => inv.studentId && inv.studentId._id === parent._id);
-      setInvoices(filtered);
+      const res = await api.get(`/parent/invoices?term=${encodeURIComponent(selectedTerm)}&academicYear=${encodeURIComponent(selectedYear)}`);
+      setInvoices(res.data?.invoices || []);
+      if (res.data?.paymentInfo) {
+        setPaymentInfo(res.data.paymentInfo);
+      }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get('/notifications');
+      setParentNotifications(res.data || []);
+    } catch (err) {
+      console.error('Failed to load parent notifications:', err);
     }
   };
 
@@ -1662,47 +1705,85 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
   };
 
   const filteredResults = results.filter(r => r.term === selectedTerm && r.academicYear === selectedYear);
-  const filteredInvoices = invoices.filter(inv => inv.term === selectedTerm && inv.academicYear === selectedYear);
 
   const calculateTotalOutstanding = () => {
-    return filteredInvoices.reduce((acc, curr) => acc + (curr.amount - (curr.paidAmount || 0)), 0);
+    return invoices.reduce((acc, curr) => acc + (curr.amount - (curr.paidAmount || 0)), 0);
+  };
+
+  const calculateTotalPaid = () => {
+    return invoices.reduce((acc, curr) => acc + (curr.paidAmount || 0), 0);
+  };
+
+  // Build WhatsApp link with pre-filled message
+  const getWhatsAppLink = () => {
+    const phone = (paymentInfo.accountantWhatsApp || '').replace(/[^0-9+]/g, '');
+    if (!phone) return null;
+    const cleanPhone = phone.startsWith('+') ? phone.slice(1) : phone;
+    const message = encodeURIComponent(
+      `Assalamu Alaikum,\nI have made payment for my child:\n• Name: ${parent.name}\n• Admission No: ${parent.admissionNumber}\n• Class: ${parent.level}\n\nPlease confirm receipt. Jazakallahu Khairan.`
+    );
+    return `https://wa.me/${cleanPhone}?text=${message}`;
   };
 
   return (
-    <div className="container" style={{ padding: '2rem 1.5rem' }}>
+    <div className="container parent-dashboard-container" style={{ padding: '2rem 1.5rem' }}>
       <h2 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <Users size={28} color="var(--secondary)" /> Guardian & Parent Portal
       </h2>
-      <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: '500' }}>Student Profile: {parent.name}</h3>
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-          Admission No: <strong>{parent.admissionNumber}</strong> | Level: <strong>{parent.level}</strong> | Section: <strong>{parent.section}</strong>
-        </p>
+      {/* Premium Student Profile Banner */}
+      <div className="parent-profile-banner">
+        {/* Subtle background decorative shapes */}
+        <div style={{
+          position: 'absolute',
+          top: '-20%',
+          right: '-10%',
+          width: '300px',
+          height: '300px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(212,175,55,0.15) 0%, rgba(0,0,0,0) 70%)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', zIndex: 1 }}>
+          {/* Avatar circle with student initials */}
+          <div className="parent-profile-avatar">
+            {parent.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+          </div>
+          <div>
+            <h3 className="parent-profile-name">
+              {parent.name}
+              <span className="parent-profile-badge">Active Student</span>
+            </h3>
+            <p className="parent-profile-subtitle">
+              Home of Young Huffaz Academy • Student Portal
+            </p>
+          </div>
+        </div>
+
+        <div className="profile-banner-stats">
+          <div>
+            <div className="stat-label">Admission No</div>
+            <div className="stat-val stat-val-highlight">{parent.admissionNumber}</div>
+          </div>
+          <div style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '1.5rem' }}>
+            <div className="stat-label">Class</div>
+            <div className="stat-val">{parent.level} - {parent.section}</div>
+          </div>
+        </div>
       </div>
 
       {/* SESSION FILTER SELECTOR */}
-      <div className="glass" style={{
-        padding: '0.75rem 1.25rem',
-        borderRadius: 'var(--radius-md)',
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '1.5rem',
-        border: '1px solid var(--border)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div className="glass parent-selector-card">
+        <div className="selector-title-wrapper">
           <Calendar size={18} color="var(--secondary)" />
-          <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+          <span className="selector-title-text">
             Select Term to View Results & Fees:
           </span>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-          <div>
-            <label style={{ fontSize: '0.7rem', fontWeight: 'bold', display: 'block', marginBottom: '0.1rem', color: 'var(--text-muted)' }}>Academic Year</label>
+        <div className="selector-dropdowns-wrapper">
+          <div className="select-group">
+            <label>Academic Year</label>
             <select
-              style={{ padding: '0.35rem 0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.8rem', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
             >
@@ -1711,10 +1792,9 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
               <option value="2024/2025">2024/2025</option>
             </select>
           </div>
-          <div>
-            <label style={{ fontSize: '0.7rem', fontWeight: 'bold', display: 'block', marginBottom: '0.1rem', color: 'var(--text-muted)' }}>Term</label>
+          <div className="select-group">
+            <label>Term</label>
             <select
-              style={{ padding: '0.35rem 0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.8rem', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
               value={selectedTerm}
               onChange={(e) => setSelectedTerm(e.target.value)}
             >
@@ -1727,12 +1807,24 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
       </div>
 
       {/* PARENT TABS */}
-      <div style={styles.curriculumTabs}>
-        <button style={activeSubTab === 'results' ? styles.curriculumTabActive : styles.curriculumTab} onClick={() => setActiveSubTab('results')}>
+      <div className="parent-tabs-bar">
+        <button 
+          className={`parent-tab-btn ${activeSubTab === 'results' ? 'active' : ''}`} 
+          onClick={() => setActiveSubTab('results')}
+        >
           Report Cards & Grades
         </button>
-        <button style={activeSubTab === 'finances' ? styles.curriculumTabActive : styles.curriculumTab} onClick={() => setActiveSubTab('finances')}>
-          Finances & Fees ({filteredInvoices.length} Bills)
+        <button 
+          className={`parent-tab-btn ${activeSubTab === 'finances' ? 'active' : ''}`} 
+          onClick={() => setActiveSubTab('finances')}
+        >
+          <CreditCard size={14} /> Fees & Billing ({invoices.length})
+        </button>
+        <button 
+          className={`parent-tab-btn ${activeSubTab === 'announcements' ? 'active' : ''}`} 
+          onClick={() => setActiveSubTab('announcements')}
+        >
+          <Bell size={14} /> Announcements ({parentNotifications.length})
         </button>
       </div>
 
@@ -1747,29 +1839,42 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
                 <p>No results sheets are currently published or approved for this student.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
                 {filteredResults.map(r => (
-                  <div key={r._id} className="glass flex-between" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
-                    <div>
-                      <h4 style={{ fontWeight: 'bold' }}>{r.term}</h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Academic Year: {r.academicYear} | Average: {r.finalAverage}%</p>
+                  <div key={r._id} className="glass parent-result-card">
+                    <div className="result-card-info-side">
+                      {/* Circular average indicator */}
+                      <div className="result-average-circle">
+                        <span className="result-average-label">AVG</span>
+                        <span className="result-average-val">{r.finalAverage}%</span>
+                      </div>
+                      <div className="result-card-details">
+                        <h4>
+                          {r.term} Result Card
+                          <span style={{
+                            fontSize: '0.65rem',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: 'var(--radius-full)',
+                            backgroundColor: 'var(--success-glow)',
+                            color: 'var(--success)',
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap'
+                          }}>✓ Approved</span>
+                        </h4>
+                        <p>
+                          Academic Year: <strong>{r.academicYear}</strong> | Class: <strong>{r.level}</strong> | Issued by <strong>{r.teacherName || 'Class Teacher'}</strong>
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-row">
-                      <button style={styles.navButton} onClick={() => openResultSheet(r)}>
-                        View Report Card
+                    <div className="parent-actions-row">
+                      <button className="btn-view-sheet" onClick={() => openResultSheet(r)}>
+                        <FileText size={14} /> View Details
                       </button>
                       <a 
                         href={`${BASE_URL}/results/${r._id}/pdf?token=${token}`}
                         target="_blank"
                         rel="noreferrer"
-                        style={{
-                          ...styles.submitBtn,
-                          padding: '0.5rem 1rem',
-                          fontSize: '0.875rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.25rem'
-                        }}
+                        className="btn-download-pdf"
                       >
                         <Download size={14} /> PDF
                       </a>
@@ -1795,7 +1900,8 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
         <div style={{ marginTop: '1.5rem' }} className="grid-cols-3">
           <div className="span-2-desktop">
             <h3 style={styles.cardHeader}>Academy Invoices Ledger</h3>
-            <div style={styles.tableWrapper}>
+            {/* Desktop Table View */}
+            <div className="desktop-only-invoices" style={styles.tableWrapper}>
               <table style={styles.table}>
                 <thead>
                   <tr>
@@ -1810,7 +1916,7 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredInvoices.map(inv => (
+                  {invoices.map(inv => (
                     <tr key={inv._id}>
                       <td>{new Date(inv.createdAt).toLocaleDateString()}</td>
                       <td>{inv.description}</td>
@@ -1824,7 +1930,7 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
                           inv.status === 'PARTIALLY_PAID' ? styles.statusBadgePending : 
                           styles.statusBadgeUnpaid
                         }>
-                          {inv.status}
+                          {inv.status === 'PAID' ? '✓ PAID' : inv.status === 'PARTIALLY_PAID' ? '◐ PARTIAL' : '✕ UNPAID'}
                         </span>
                       </td>
                       <td>
@@ -1876,7 +1982,7 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
                       </td>
                     </tr>
                   ))}
-                  {filteredInvoices.length === 0 && (
+                  {invoices.length === 0 && (
                     <tr>
                       <td colSpan={8} style={{ textAlign: 'center' }}>No billing statements found for {selectedTerm} ({selectedYear}).</td>
                     </tr>
@@ -1884,15 +1990,236 @@ function ParentDashboardView({ parent, token, schoolSettings }: { parent: Studen
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Card View */}
+            <div className="mobile-only-invoices" style={{ display: 'none', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              {invoices.map(inv => (
+                <div key={inv._id} className="glass" style={{ padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Billed: {new Date(inv.createdAt).toLocaleDateString()}
+                    </span>
+                    <span style={
+                      inv.status === 'PAID' ? styles.statusBadgeApproved : 
+                      inv.status === 'PARTIALLY_PAID' ? styles.statusBadgePending : 
+                      styles.statusBadgeUnpaid
+                    }>
+                      {inv.status === 'PAID' ? '✓ PAID' : inv.status === 'PARTIALLY_PAID' ? '◐ PARTIAL' : '✕ UNPAID'}
+                    </span>
+                  </div>
+                  <h4 style={{ fontWeight: 'bold', fontSize: '1rem', marginBottom: '0.5rem', color: 'var(--text-main)' }}>{inv.description}</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', fontSize: '0.85rem', marginBottom: '0.75rem', backgroundColor: 'var(--bg-base)', padding: '0.5rem', borderRadius: 'var(--radius-sm)' }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Total</div>
+                      <div style={{ fontWeight: 'bold' }}>₦{inv.amount.toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Paid</div>
+                      <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>₦{(inv.paidAmount || 0).toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Balance</div>
+                      <div style={{ fontWeight: 'bold', color: (inv.amount - (inv.paidAmount || 0)) > 0 ? '#dc2626' : 'var(--primary)' }}>₦{(inv.amount - (inv.paidAmount || 0)).toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>
+                      Due: {new Date(inv.dueDate).toLocaleDateString()}
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <a
+                        href={`${baseUrl}/finance/invoices/${inv._id}/pdf?token=${token}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn"
+                        style={{
+                          padding: '0.35rem 0.6rem',
+                          fontSize: '0.75rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.2rem',
+                          backgroundColor: 'var(--primary)',
+                          color: '#fff',
+                          borderRadius: '4px',
+                          textDecoration: 'none'
+                        }}
+                      >
+                        <Download size={11} /> Bill
+                      </a>
+                      {inv.payments && inv.payments.map((p, idx) => (
+                        <a
+                          key={p._id || idx}
+                          href={`${baseUrl}/finance/invoices/${inv._id}/payments/${p._id}/pdf?token=${token}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn"
+                          style={{
+                            padding: '0.35rem 0.6rem',
+                            fontSize: '0.75rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.2rem',
+                            backgroundColor: 'var(--secondary)',
+                            color: '#fff',
+                            borderRadius: '4px',
+                            textDecoration: 'none'
+                          }}
+                        >
+                          <Download size={11} /> Receipt {idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {invoices.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                  No billing statements found for {selectedTerm} ({selectedYear}).
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SIDEBAR: Financial Summary + Bank Details + WhatsApp */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Outstanding Balance */}
+            <div className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--secondary)' }}>
+              <h3 style={styles.cardHeader}><DollarSign size={16} style={{ display: 'inline', marginRight: '0.25rem' }} /> Financial Summary</h3>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem' }}>
+                <div className="financial-stat-box">
+                  <div className="financial-stat-title">Outstanding</div>
+                  <div className="financial-stat-val outstanding">
+                    ₦{calculateTotalOutstanding().toLocaleString()}
+                  </div>
+                </div>
+                <div className="financial-stat-box">
+                  <div className="financial-stat-title">Paid</div>
+                  <div className="financial-stat-val paid">
+                    ₦{calculateTotalPaid().toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bank Payment Details */}
+            {(paymentInfo.bankName || paymentInfo.accountNumber) && (
+              <div className="glass" style={{
+                padding: '1.5rem',
+                borderRadius: 'var(--radius-md)',
+                borderLeft: '4px solid var(--primary)',
+                background: 'var(--bg-card)'
+              }}>
+                <h3 style={{ ...styles.cardHeader, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Building size={16} color="var(--primary)" /> Payment Account Details
+                </h3>
+                <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div className="bank-detail-item">
+                    <div className="label">Bank Name</div>
+                    <div className="value">{paymentInfo.bankName || '—'}</div>
+                  </div>
+                  <div className="bank-detail-item">
+                    <div className="label">Account Name</div>
+                    <div className="value">{paymentInfo.accountName || '—'}</div>
+                  </div>
+                  <div className="bank-detail-item account-number">
+                    <div className="label">Account Number</div>
+                    <div className="value number">{paymentInfo.accountNumber || '—'}</div>
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem', lineHeight: '1.5' }}>
+                  Make a bank transfer to the above account. After payment, notify the school accountant via WhatsApp below for confirmation.
+                </p>
+              </div>
+            )}
+
+            {/* WhatsApp Contact Button */}
+            {getWhatsAppLink() ? (
+              <a
+                href={getWhatsAppLink()!}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.6rem',
+                  padding: '1rem 1.5rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'linear-gradient(135deg, #25d366, #128c7e)',
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  fontSize: '0.95rem',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  letterSpacing: '0.25px',
+                }}
+                onMouseEnter={(e) => { (e.target as HTMLElement).style.transform = 'translateY(-2px)'; (e.target as HTMLElement).style.boxShadow = '0 6px 20px rgba(37, 211, 102, 0.4)'; }}
+                onMouseLeave={(e) => { (e.target as HTMLElement).style.transform = 'translateY(0)'; (e.target as HTMLElement).style.boxShadow = '0 4px 15px rgba(37, 211, 102, 0.3)'; }}
+              >
+                <MessageCircle size={20} /> Contact Accountant via WhatsApp
+              </a>
+            ) : paymentInfo.schoolPhone ? (
+              <a
+                href={`tel:${paymentInfo.schoolPhone.split(',')[0].trim()}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  padding: '0.85rem 1.25rem',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  fontWeight: 'bold',
+                  fontSize: '0.9rem',
+                  textDecoration: 'none',
+                }}
+              >
+                <Phone size={16} /> Call School: {paymentInfo.schoolPhone.split(',')[0].trim()}
+              </a>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* ANNOUNCEMENTS & NOTIFICATIONS TAB */}
+      {activeSubTab === 'announcements' && (
+        <div style={{ marginTop: '1.5rem' }} className="grid-cols-3 animate-fade-in">
+          <div className="span-2-desktop">
+            <h3 style={styles.cardHeader}>Academy Announcements</h3>
+            {parentNotifications.length === 0 ? (
+              <div style={styles.emptyContainer}>
+                <Bell size={36} />
+                <p>No announcements or notifications found for you at this time.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                {parentNotifications.map(n => (
+                  <div key={n._id} className="glass" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--secondary)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                      <h4 style={{ fontWeight: 'bold', color: 'var(--primary-dark)', fontSize: '1.05rem' }}>{n.title}</h4>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {new Date(n.createdAt).toLocaleDateString()} at {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.925rem', color: 'var(--text-main)', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                      {n.message}
+                    </p>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'right', fontStyle: 'italic' }}>
+                      Issued by: {n.createdBy || 'Academy Administration'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div>
-            <div className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--secondary)' }}>
-              <h3 style={styles.cardHeader}>Financial Summary</h3>
-              <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--primary)', margin: '1rem 0' }}>
-                ₦{calculateTotalOutstanding().toLocaleString()}
-              </div>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Total outstanding billing fees due. Payments can be settled directly via bank transfer or at the Academy Accountant accounts office.
+            <div className="glass" style={{ padding: '1.5rem', borderRadius: 'var(--radius-md)' }}>
+              <h3 style={styles.cardHeader}><Info size={16} style={{ display: 'inline', marginRight: '0.25rem' }} /> Notice Board</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                This tab displays official notifications, holidays, exam notices, fee deadlines, and general announcements broadcasted to guardians and parents by the Academy.
               </p>
             </div>
           </div>

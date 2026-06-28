@@ -12,6 +12,14 @@ const SettingsSchema = new Schema(
       type: String,
       default: 'Home of Young Huffaz Academy',
     },
+    schoolNameArabic: {
+      type: String,
+      default: 'أكاديمية دار صغار الحفاظ',
+    },
+    schoolSubHeader: {
+      type: String,
+      default: 'Early Years · Elementary · Islamic/Tahfeezh (Dual Curriculum)',
+    },
     address: {
       type: String,
       default: 'Address complex, Takushara, Abuja, Nigeria',
@@ -48,6 +56,11 @@ const SettingsSchema = new Schema(
       type: [String],
       default: [],
       // List of school branches/annexes, e.g. ["Main Campus", "Takushara Annex"]
+    },
+    accountantWhatsApp: {
+      type: String,
+      default: '',
+      // WhatsApp phone number for the school accountant (international format, e.g. "+2348012345678")
     },
   },
   {

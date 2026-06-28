@@ -72,6 +72,7 @@ const ResultSchema = new Schema(
     
     dateIssued: { type: String, default: '' }, // e.g. "11-3-2026"
     nextTermBegins: { type: String, default: '' }, // e.g. "13-4-2026"
+    nextTermSchoolFees: { type: String, default: '' },
 
     status: {
       type: String,

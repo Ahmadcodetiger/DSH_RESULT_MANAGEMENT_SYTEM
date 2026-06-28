@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, DollarSign, Bell, X, Shield, Award, Settings as SettingsIcon, Menu, LogOut,
-  Sun, Moon, BookOpen, Sliders
+  Sun, Moon, BookOpen, Sliders, Sparkles
 } from 'lucide-react';
 import api, { authService, classService, subjectService } from '../services/api';
 
@@ -44,6 +44,8 @@ interface Result {
   teacherName: string;
   dateIssued: string;
   nextTermBegins: string;
+  nextTermSchoolFees?: string;
+  status: string;
   isApproved: boolean;
 }
 
@@ -114,6 +116,15 @@ export default function AdminDashboardView({
   const [newTeacherSection, setNewTeacherSection] = useState('ALLO');
   const [newTeacherSubject, setNewTeacherSubject] = useState("Al-Qur'an Karem (Hifz)");
 
+  // Approval Modal states
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [selectedResultForApproval, setSelectedResultForApproval] = useState<Result | null>(null);
+  const [headTeacherComments, setHeadTeacherComments] = useState('');
+  const [nextTermBegins, setNextTermBegins] = useState('2026-09-15');
+  const [nextTermSchoolFees, setNextTermSchoolFees] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [approvingResult, setApprovingResult] = useState(false);
+
   const [studentCsvFile, setStudentCsvFile] = useState<string>('');
   const [uploadStatus, setUploadStatus] = useState('');
   const [studentAddMode, setStudentAddMode] = useState<'csv' | 'manual'>('csv');
@@ -124,7 +135,8 @@ export default function AdminDashboardView({
     section: '',
     academicYear: schoolSettings?.currentAcademicYear || '2025/2026',
     parentPin: '',
-    schoolFees: ''
+    schoolFees: '',
+    picture: ''
   });
 
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -135,7 +147,8 @@ export default function AdminDashboardView({
     section: '',
     academicYear: '',
     parentPin: '',
-    schoolFees: 0
+    schoolFees: 0,
+    picture: ''
   });
 
   const [newNotifTitle, setNewNotifTitle] = useState('');
@@ -144,12 +157,15 @@ export default function AdminDashboardView({
 
   // School Settings form states
   const [settingsSchoolName, setSettingsSchoolName] = useState(schoolSettings?.schoolName || '');
+  const [settingsSchoolNameArabic, setSettingsSchoolNameArabic] = useState((schoolSettings as any)?.schoolNameArabic || '');
+  const [settingsSchoolSubHeader, setSettingsSchoolSubHeader] = useState((schoolSettings as any)?.schoolSubHeader || '');
   const [settingsAddress, setSettingsAddress] = useState(schoolSettings?.address || '');
   const [settingsPhone, setSettingsPhone] = useState(schoolSettings?.phoneNumbers || '');
   const [settingsEmail, setSettingsEmail] = useState(schoolSettings?.email || '');
   const [settingsBankName, setSettingsBankName] = useState(schoolSettings?.bankName || '');
   const [settingsAccountName, setSettingsAccountName] = useState(schoolSettings?.accountName || '');
   const [settingsAccountNumber, setSettingsAccountNumber] = useState(schoolSettings?.accountNumber || '');
+  const [settingsAccountantWhatsApp, setSettingsAccountantWhatsApp] = useState(schoolSettings?.accountantWhatsApp || '');
   const [settingsTerm, setSettingsTerm] = useState(schoolSettings?.currentTerm || 'Second Term');
   const [settingsYear, setSettingsYear] = useState(schoolSettings?.currentAcademicYear || '2025/2026');
 
@@ -203,17 +219,55 @@ export default function AdminDashboardView({
   useEffect(() => {
     if (schoolSettings) {
       setSettingsSchoolName(schoolSettings.schoolName || '');
+      setSettingsSchoolNameArabic((schoolSettings as any).schoolNameArabic || '');
+      setSettingsSchoolSubHeader((schoolSettings as any).schoolSubHeader || '');
       setSettingsAddress(schoolSettings.address || '');
       setSettingsPhone(schoolSettings.phoneNumbers || '');
       setSettingsEmail(schoolSettings.email || '');
       setSettingsBankName(schoolSettings.bankName || '');
       setSettingsAccountName(schoolSettings.accountName || '');
       setSettingsAccountNumber(schoolSettings.accountNumber || '');
+      setSettingsAccountantWhatsApp(schoolSettings.accountantWhatsApp || '');
       setSettingsTerm(schoolSettings.currentTerm || 'Second Term');
       setSettingsYear(schoolSettings.currentAcademicYear || '2025/2026');
       setAnnexes(schoolSettings.annexes || []);
     }
   }, [schoolSettings]);
+  const processImageFile = (file: File, callback: (base64: string) => void) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.src = reader.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 300;
+        const MAX_HEIGHT = 300;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        callback(dataUrl);
+      };
+    };
+    reader.readAsDataURL(file);
+  };
 
   const fetchTeachers = async () => {
     try {
@@ -452,12 +506,78 @@ export default function AdminDashboardView({
     }
   };
 
-  const handleToggleResult = async (id: string, currentStatus: boolean) => {
+  const triggerAiCommentGen = async (resultObj: Result) => {
+    setAiGenerating(true);
     try {
-      await api.patch(`/admin/results/${id}/status`, { isApproved: !currentStatus });
-      fetchResults();
+      const studentName = typeof resultObj.studentId === 'object' && resultObj.studentId ? resultObj.studentId.name : 'Student';
+      const response = await api.post('/ai/head-teacher-feedback', {
+        studentName,
+        finalAverage: resultObj.finalAverage,
+        generalGrade: resultObj.generalGrade,
+        subjects: resultObj.subjects
+      });
+      if (response.data && response.data.comment) {
+        setHeadTeacherComments(response.data.comment);
+      }
     } catch (err) {
-      alert('Failed to update result status');
+      setHeadTeacherComments("An Outstanding Performance. Keep it up.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleTriggerApproval = (resultObj: Result) => {
+    setSelectedResultForApproval(resultObj);
+    setNextTermBegins(resultObj.nextTermBegins || '2026-09-15');
+    setNextTermSchoolFees(resultObj.nextTermSchoolFees || '₦45,000');
+    setHeadTeacherComments(resultObj.headTeacherComments || '');
+    setApprovalModalOpen(true);
+    
+    // Automatically trigger AI remark generation if there is no comment already
+    if (!resultObj.headTeacherComments) {
+      triggerAiCommentGen(resultObj);
+    }
+  };
+
+  const handleConfirmApproval = async () => {
+    if (!selectedResultForApproval) return;
+    setApprovingResult(true);
+    try {
+      await api.patch(`/admin/results/${selectedResultForApproval._id}/status`, { 
+        isApproved: true,
+        headTeacherComments,
+        nextTermBegins,
+        nextTermSchoolFees
+      });
+      setApprovalModalOpen(false);
+      setSelectedResultForApproval(null);
+      fetchResults();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Unknown error';
+      const details = err.response?.data?.error || '';
+      alert(`Failed to approve result sheet: ${msg} ${details}`);
+    } finally {
+      setApprovingResult(false);
+    }
+  };
+
+  const handleToggleResult = async (id: string, currentStatus: boolean) => {
+    if (!currentStatus) {
+      // Find the result object to trigger the approval dialog
+      const rObj = results.find(r => r._id === id);
+      if (rObj) {
+        handleTriggerApproval(rObj);
+        return;
+      }
+    }
+    
+    // If revoking (currentStatus is true), just do it directly
+    try {
+      await api.patch(`/admin/results/${id}/status`, { isApproved: false });
+      fetchResults();
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Unknown error';
+      alert(`Failed to update result status: ${msg}`);
     }
   };
 
@@ -497,7 +617,8 @@ export default function AdminDashboardView({
       section: s.section,
       academicYear: s.academicYear,
       parentPin: s.parentPin,
-      schoolFees: s.schoolFees || 0
+      schoolFees: s.schoolFees || 0,
+      picture: (s as any).picture || ''
     });
   };
 
@@ -529,7 +650,7 @@ export default function AdminDashboardView({
 
   const handleAddStudentManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees } = manualStudent;
+    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees, picture } = manualStudent;
     if (!name.trim() || !admissionNumber.trim() || !level.trim() || !section.trim() || !academicYear.trim()) {
       alert('Please fill all required fields');
       return;
@@ -545,7 +666,8 @@ export default function AdminDashboardView({
             section: section.trim(),
             academicYear: academicYear.trim(),
             parentPin: parentPin.trim() || undefined,
-            schoolFees: schoolFees ? Number(schoolFees) : 0
+            schoolFees: schoolFees ? Number(schoolFees) : 0,
+            picture: picture.trim() || undefined
           }
         ]
       };
@@ -560,7 +682,8 @@ export default function AdminDashboardView({
           section: '',
           academicYear: schoolSettings?.currentAcademicYear || '2025/2026',
           parentPin: '',
-          schoolFees: ''
+          schoolFees: '',
+          picture: ''
         });
         fetchStudents();
       } else if (skipped && skipped.length > 0) {
@@ -604,12 +727,15 @@ export default function AdminDashboardView({
     try {
       await api.put('/admin/settings', {
         schoolName: settingsSchoolName,
+        schoolNameArabic: settingsSchoolNameArabic,
+        schoolSubHeader: settingsSchoolSubHeader,
         address: settingsAddress,
         phoneNumbers: settingsPhone,
         email: settingsEmail,
         bankName: settingsBankName,
         accountName: settingsAccountName,
         accountNumber: settingsAccountNumber,
+        accountantWhatsApp: settingsAccountantWhatsApp,
         currentTerm: settingsTerm,
         currentAcademicYear: settingsYear
       });
@@ -689,7 +815,7 @@ export default function AdminDashboardView({
             <SettingsIcon size={16} /> School Settings
           </button>
           <button className={`sidebar-btn ${activeAdminSubTab === 'results' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('results'); setIsMobileSidebarOpen(false); }}>
-            <Award size={16} /> Result Approval ({results.filter(r => !r.isApproved).length})
+            <Award size={16} /> Result Approval ({results.filter(r => r.status !== 'approved').length})
           </button>
           <button className={`sidebar-btn ${activeAdminSubTab === 'announcements' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('announcements'); setIsMobileSidebarOpen(false); }}>
             <Bell size={16} /> Announcements
@@ -1240,6 +1366,56 @@ export default function AdminDashboardView({
                             onChange={e => setManualStudent({ ...manualStudent, schoolFees: e.target.value })}
                           />
                         </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Passport Photo</label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <input 
+                              type="file" 
+                              accept="image/*"
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  processImageFile(file, (base64) => {
+                                    setManualStudent({ ...manualStudent, picture: base64 });
+                                  });
+                                }
+                              }}
+                              style={{ width: 'auto' }}
+                            />
+                            {manualStudent.picture && (
+                              <div style={{ position: 'relative' }}>
+                                <img 
+                                  src={manualStudent.picture} 
+                                  alt="Preview" 
+                                  style={{ width: '40px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)' }} 
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setManualStudent({ ...manualStudent, picture: '' })}
+                                  style={{
+                                    position: 'absolute',
+                                    top: '-6px',
+                                    right: '-6px',
+                                    background: 'var(--danger)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '14px',
+                                    height: '14px',
+                                    fontSize: '9px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0
+                                  }}
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         <button type="submit" style={{ ...styles.submitBtn, marginTop: '0.5rem' }}>Add Student</button>
                       </form>
                     )}
@@ -1342,6 +1518,56 @@ export default function AdminDashboardView({
                         onChange={e => setEditStudentForm({ ...editStudentForm, schoolFees: Number(e.target.value) || 0 })}
                       />
                     </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Passport Photo</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              processImageFile(file, (base64) => {
+                                setEditStudentForm({ ...editStudentForm, picture: base64 });
+                              });
+                            }
+                          }}
+                          style={{ width: 'auto' }}
+                        />
+                        {editStudentForm.picture && (
+                          <div style={{ position: 'relative' }}>
+                            <img 
+                              src={editStudentForm.picture} 
+                              alt="Preview" 
+                              style={{ width: '40px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)' }} 
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setEditStudentForm({ ...editStudentForm, picture: '' })}
+                              style={{
+                                position: 'absolute',
+                                top: '-6px',
+                                right: '-6px',
+                                background: 'var(--danger)',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '14px',
+                                height: '14px',
+                                fontSize: '9px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: 0
+                              }}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                       <button type="submit" style={{ ...styles.submitBtn, flex: 1 }}>Save Changes</button>
                       <button 
@@ -1356,6 +1582,8 @@ export default function AdminDashboardView({
                 </div>
               </div>
             )}
+
+
           </div>
         )}
 
@@ -1389,13 +1617,34 @@ export default function AdminDashboardView({
 
                 <h4 style={{ color: 'var(--primary)', fontWeight: 'bold', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Branding & Contact Info</h4>
                 <div>
-                  <label style={styles.label}>School Name</label>
+                  <label style={styles.label}>School Name (English)</label>
                   <input 
                     type="text" 
                     required 
                     value={settingsSchoolName} 
                     onChange={e => setSettingsSchoolName(e.target.value)} 
-                    placeholder="School Name" 
+                    placeholder="English School Name" 
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>School Name (Arabic)</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={settingsSchoolNameArabic} 
+                    onChange={e => setSettingsSchoolNameArabic(e.target.value)} 
+                    placeholder="أكاديمية دار صغار الحفاظ" 
+                    dir="rtl"
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>School Sub-Header (PDF Curriculum/Annexes line)</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={settingsSchoolSubHeader} 
+                    onChange={e => setSettingsSchoolSubHeader(e.target.value)} 
+                    placeholder="Early Years · Elementary · Islamic/Tahfeezh (Dual Curriculum)" 
                   />
                 </div>
                 <div>
@@ -1463,6 +1712,19 @@ export default function AdminDashboardView({
                       placeholder="Account Number" 
                     />
                   </div>
+                </div>
+
+                <div style={{ marginTop: '1rem' }}>
+                  <label style={styles.label}>Accountant WhatsApp Number</label>
+                  <input 
+                    type="text" 
+                    value={settingsAccountantWhatsApp} 
+                    onChange={e => setSettingsAccountantWhatsApp(e.target.value)} 
+                    placeholder="e.g. +2348012345678" 
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
+                    Enter with international prefix (e.g. +234...) so the parent WhatsApp button links correctly.
+                  </span>
                 </div>
 
                 <button type="submit" style={{ ...styles.submitBtn, marginTop: '1rem' }}>Save & Apply Settings</button>
@@ -2103,18 +2365,18 @@ export default function AdminDashboardView({
                         <td>{r.term} ({r.academicYear})</td>
                         <td>{r.finalAverage}%</td>
                         <td>
-                          <span style={r.isApproved ? styles.statusBadgeApproved : styles.statusBadgePending}>
-                            {r.isApproved ? 'Approved' : 'Pending Approval'}
+                          <span style={r.status === 'approved' ? styles.statusBadgeApproved : styles.statusBadgePending}>
+                            {r.status === 'approved' ? 'Approved' : 'Pending Approval'}
                           </span>
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button style={styles.navButton} onClick={() => openResultSheet(r)}>View</button>
                             <button 
-                              style={r.isApproved ? styles.rejectBtn : styles.approveBtn}
-                              onClick={() => handleToggleResult(r._id, r.isApproved)}
+                              style={r.status === 'approved' ? styles.rejectBtn : styles.approveBtn}
+                              onClick={() => handleToggleResult(r._id, r.status === 'approved')}
                             >
-                              {r.isApproved ? 'Revoke' : 'Approve'}
+                              {r.status === 'approved' ? 'Revoke' : 'Approve'}
                             </button>
                             <button style={styles.deleteBtn} onClick={() => handleDeleteResult(r._id)}>Delete</button>
                           </div>
@@ -2188,6 +2450,123 @@ export default function AdminDashboardView({
           </div>
         )}
       </main>
+
+      {approvalModalOpen && selectedResultForApproval && (
+        <div className="modal-overlay-blur">
+          <div className="modal-card modal-card-sm animate-scale-in" style={{ maxWidth: '500px' }}>
+            <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Award size={20} /> Approve Student Report
+              </h3>
+              <button 
+                type="button" 
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }} 
+                onClick={() => { setApprovalModalOpen(false); setSelectedResultForApproval(null); }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Student Name:</span>
+              <strong style={{ display: 'block', fontSize: '1rem', color: 'var(--text-main)', marginTop: '0.15rem' }}>
+                {typeof selectedResultForApproval.studentId === 'object' && selectedResultForApproval.studentId ? selectedResultForApproval.studentId.name : 'Student'}
+              </strong>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Head Teacher Comments */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <div className="flex-between">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                    Head Teacher's Remarks
+                  </label>
+                  <button 
+                    type="button"
+                    className="ai-remarks-btn"
+                    disabled={aiGenerating}
+                    onClick={() => triggerAiCommentGen(selectedResultForApproval)}
+                    style={{
+                      border: 'none',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px',
+                      fontSize: '0.7rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
+                  >
+                    <Sparkles size={11} /> {aiGenerating ? 'AI Generating...' : 'AI Remarks'}
+                  </button>
+                </div>
+                <textarea
+                  rows={3}
+                  value={headTeacherComments}
+                  onChange={e => setHeadTeacherComments(e.target.value)}
+                  placeholder="Write Head Teacher's remarks here or use the AI Sparks generator above..."
+                  style={{ width: '100%', padding: '0.6rem', fontSize: '0.9rem', borderRadius: '4px', border: '1px solid var(--border)', outline: 'none' }}
+                />
+              </div>
+
+              {/* Next Term Begins */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                  Next Term Begins
+                </label>
+                <input
+                  type="text"
+                  value={nextTermBegins}
+                  onChange={e => setNextTermBegins(e.target.value)}
+                  placeholder="e.g. 2026-09-15"
+                  style={{ width: '100%', padding: '0.6rem', fontSize: '0.9rem', borderRadius: '4px', border: '1px solid var(--border)', outline: 'none' }}
+                />
+              </div>
+
+              {/* Next Term School Fees */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                  Next Term School Fees
+                </label>
+                <input
+                  type="text"
+                  value={nextTermSchoolFees}
+                  onChange={e => setNextTermSchoolFees(e.target.value)}
+                  placeholder="e.g. ₦45,000 or ₦45,000.00"
+                  style={{ width: '100%', padding: '0.6rem', fontSize: '0.9rem', borderRadius: '4px', border: '1px solid var(--border)', outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem' }}>
+              <button 
+                type="button" 
+                className="btn" 
+                disabled={approvingResult}
+                onClick={handleConfirmApproval}
+                style={{
+                  flex: 1,
+                  backgroundColor: 'var(--primary)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '0.65rem',
+                  fontWeight: 'bold',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {approvingResult ? 'Approving...' : 'Confirm Approval'}
+              </button>
+              <button 
+                type="button" 
+                onClick={() => { setApprovalModalOpen(false); setSelectedResultForApproval(null); }}
+                style={{ ...styles.deleteBtn, flex: 1, margin: 0, padding: '0.65rem' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showResultSheet && activeResult && (
         <ResultSheetViewerModal 

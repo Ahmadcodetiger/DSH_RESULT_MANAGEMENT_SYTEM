@@ -69,19 +69,45 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
             <span class="en">${escapeHtml(sub.subjectName)}</span>
             <span class="ar">${escapeHtml(sub.subjectNameArabic)}</span>
           </td>
-          <td class="center font-bold grade-cell">${escapeHtml(sub.grade || 'F')}</td>
-          <td class="center">${escapeHtml(sub.score100)}</td>
-          <td class="center">${escapeHtml(sub.score60)}</td>
           <td class="center">${escapeHtml(sub.score20_1)}</td>
           <td class="center">${escapeHtml(sub.score20_2)}</td>
+          <td class="center">${escapeHtml(sub.score60)}</td>
+          <td class="center font-bold">${escapeHtml(sub.score100)}</td>
+          <td class="center font-bold grade-cell">${escapeHtml(sub.grade || 'F')}</td>
         </tr>
       `;
     }).join('');
   };
 
+  const calculateSectionMetrics = (subjects: any[]) => {
+    const sectionSubjects = subjects.filter(s => s.isGraded);
+    if (sectionSubjects.length === 0) {
+      return { total: '—', grade: '—' };
+    }
+    
+    let total = 0;
+    sectionSubjects.forEach(s => {
+      total += s.score100 || 0;
+    });
+    
+    const average = Math.round(total / sectionSubjects.length);
+    
+    let grade = 'F';
+    if (average >= 80) grade = 'A';
+    else if (average >= 70) grade = 'B';
+    else if (average >= 60) grade = 'C';
+    else if (average >= 50) grade = 'D';
+    
+    return { total, grade };
+  };
+
   const tahfeezhSubjects = result.subjects.filter((s: any) => s.section === 'tahfeezh');
   const islamicSubjects = result.subjects.filter((s: any) => s.section === 'islamic');
   const academicSubjects = result.subjects.filter((s: any) => s.section === 'academic');
+
+  const tahfeezhMetrics = calculateSectionMetrics(tahfeezhSubjects);
+  const islamicMetrics = calculateSectionMetrics(islamicSubjects);
+  const academicMetrics = calculateSectionMetrics(academicSubjects);
 
   const tahfeezhRows = renderSubjectRows(tahfeezhSubjects);
   const islamicRows = renderSubjectRows(islamicSubjects);
@@ -114,21 +140,30 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           margin: 0;
           padding: 0;
         }
+        @page {
+          size: A4;
+          margin: 6mm;
+        }
         body {
           font-family: 'Inter', 'Cairo', sans-serif;
           color: #1a1a1a;
           background: #ffffff;
-          padding: 8px;
-          font-size: 10.5px;
-          line-height: 1.35;
+          padding: 0;
+          margin: 0;
+          width: 100%;
+          height: 100%;
+          font-size: 10px;
+          line-height: 1.2;
           -webkit-print-color-adjust: exact;
         }
         .outer-border {
           border: 3px solid #1E5631;
-          padding: 14px;
+          padding: 10px;
           width: 100%;
-          min-height: 275mm;
+          height: calc(297mm - 12mm);
+          box-sizing: border-box;
           position: relative;
+          overflow: hidden;
         }
         
         /* ── Header ── */
@@ -137,12 +172,12 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           justify-content: space-between;
           align-items: center;
           border-bottom: 2.5px solid #1E5631;
-          padding-bottom: 10px;
-          margin-bottom: 10px;
+          padding-bottom: 6px;
+          margin-bottom: 6px;
         }
         .header-logo {
-          width: 68px;
-          height: 68px;
+          width: 70px;
+          height: 70px;
           object-fit: contain;
           border-radius: 6px;
         }
@@ -153,17 +188,17 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         }
         .header-text h1 {
           font-family: 'Cairo', sans-serif;
-          font-size: 20px;
+          font-size: 18px;
           color: #1E5631;
           margin-bottom: 1px;
           font-weight: 700;
         }
         .header-text h2 {
-          font-size: 14px;
+          font-size: 12.5px;
           color: #1a1a1a;
-          margin-bottom: 2px;
+          margin-bottom: 1px;
           font-weight: 700;
-          letter-spacing: 1px;
+          letter-spacing: 0.5px;
           text-transform: uppercase;
         }
         .header-text p.sub {
@@ -171,8 +206,8 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           font-weight: 600;
           color: #555;
           text-transform: uppercase;
-          margin-bottom: 2px;
-          letter-spacing: 0.3px;
+          margin-bottom: 1px;
+          letter-spacing: 0.2px;
         }
         .header-text p.contact {
           font-size: 7px;
@@ -183,11 +218,11 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         .info-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 8px;
+          margin-bottom: 0px;
         }
         .info-table td {
           border: 1px solid #b8c9b8;
-          padding: 5px 7px;
+          padding: 4px 6px;
           width: 33.33%;
           vertical-align: middle;
           background: #fafcfa;
@@ -201,34 +236,34 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         .en {
           font-family: 'Inter', sans-serif;
           text-align: left;
-          font-size: 10px;
+          font-size: 8.5px;
         }
         .ar {
           font-family: 'Cairo', sans-serif;
           text-align: right;
           direction: rtl;
-          font-size: 10px;
+          font-size: 8.5px;
           color: #555;
         }
         .val-text {
           font-weight: 700;
           color: #1E5631;
           margin-left: 4px;
-          font-size: 12px;
+          font-size: 10px;
         }
         .muted {
           color: #bbb;
-          font-size: 10px;
+          font-size: 8.5px;
         }
 
         /* ── Section headers ── */
         .section-heading {
           background: #1E5631;
           color: #fff;
-          padding: 5px 10px;
+          padding: 3px 6px;
           font-weight: 700;
-          font-size: 10.5px;
-          margin-bottom: 4px;
+          font-size: 9px;
+          margin-bottom: 3px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -238,11 +273,11 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         }
         .sub-heading {
           color: #1E5631;
-          font-size: 11px;
+          font-size: 9px;
           font-weight: 700;
-          margin-bottom: 3px;
-          margin-top: 6px;
-          padding-bottom: 2px;
+          margin-bottom: 2px;
+          margin-top: 4px;
+          padding-bottom: 1px;
           border-bottom: 1px solid #d4af37;
           display: inline-block;
         }
@@ -251,23 +286,23 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         .results-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 8px;
+          margin-bottom: 5px;
         }
         .results-table th, .results-table td {
           border: 1px solid #c5d5c5;
-          padding: 4px 5px;
+          padding: 2.2px 4px;
         }
         .results-table th {
           background: #eef4ee;
           color: #1E5631;
-          font-size: 9px;
-          font-weight: 700;
+          font-size: 11px;
           text-align: center;
+          font-weight: 700;
           text-transform: uppercase;
           letter-spacing: 0.2px;
         }
         .results-table td {
-          font-size: 10.5px;
+          font-size: 11.5px;
         }
         .results-table td.center {
           text-align: center;
@@ -277,7 +312,7 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         }
         .grade-cell {
           color: #1E5631;
-          font-size: 12px;
+          font-size: 13px;
         }
 
         /* ── Tahfeezh Progress block ── */
@@ -286,13 +321,13 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           grid-template-columns: 1fr 1fr 2fr 1fr;
           gap: 0;
           border: 1px solid #c5d5c5;
-          margin-bottom: 8px;
+          margin-bottom: 5px;
           border-radius: 2px;
           overflow: hidden;
         }
         .tahfeezh-col {
           border-right: 1px solid #c5d5c5;
-          padding: 5px;
+          padding: 3.5px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
@@ -301,13 +336,13 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           border-right: none;
         }
         .tahfeezh-title {
-          font-size: 8px;
+          font-size: 9px;
           color: #1E5631;
           font-weight: 700;
           text-align: center;
           border-bottom: 1px solid #e8ede8;
-          padding-bottom: 3px;
-          margin-bottom: 4px;
+          padding-bottom: 2px;
+          margin-bottom: 3px;
         }
         .tahfeezh-val {
           text-align: center;
@@ -321,13 +356,13 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           display: grid;
           grid-template-columns: 2fr 1fr 1fr;
           border: 1px solid #c5d5c5;
-          margin-bottom: 8px;
+          margin-bottom: 5px;
           border-radius: 2px;
           overflow: hidden;
         }
         .total-box {
           border-right: 1px solid #c5d5c5;
-          padding: 6px;
+          padding: 3.5px;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
@@ -336,26 +371,26 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           border-right: none;
         }
         .total-title {
-          font-size: 8px;
+          font-size: 9px;
           color: #1E5631;
           font-weight: 700;
           text-align: center;
           border-bottom: 1px solid #e8ede8;
-          padding-bottom: 3px;
-          margin-bottom: 4px;
+          padding-bottom: 2px;
+          margin-bottom: 3px;
         }
         .total-val {
           text-align: center;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
           color: #1E5631;
         }
         .recommendation-text {
           font-family: 'Amiri', serif;
-          font-size: 14px;
+          font-size: 12px;
           color: #1E5631;
           text-align: center;
-          margin-top: 4px;
+          margin-top: 2px;
           font-style: italic;
         }
 
@@ -363,8 +398,8 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         .eval-criteria-container {
           display: grid;
           grid-template-columns: 1.5fr 1fr;
-          gap: 8px;
-          margin-bottom: 8px;
+          gap: 6px;
+          margin-bottom: 5px;
         }
         .eval-table, .criteria-table {
           width: 100%;
@@ -372,20 +407,20 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         }
         .eval-table th, .eval-table td, .criteria-table th, .criteria-table td {
           border: 1px solid #c5d5c5;
-          padding: 3px 5px;
+          padding: 2.2px 4px;
         }
         .eval-table th, .criteria-table th {
           background: #eef4ee;
           color: #1E5631;
-          font-size: 8.5px;
+          font-size: 9.5px;
           text-align: center;
           font-weight: 700;
         }
         .small-text {
-          font-size: 9px;
+          font-size: 9.5px;
         }
         .criteria-table td {
-          font-size: 9px;
+          font-size: 9.5px;
         }
         .criteria-grade {
           background: #f8f4e8;
@@ -395,17 +430,17 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         .footer-grid {
           border: 1px solid #c5d5c5;
           border-top: 2px solid #d4af37;
-          padding: 8px;
+          padding: 5px;
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 10px;
+          gap: 8px;
           border-radius: 0 0 2px 2px;
         }
         .footer-field {
-          margin-bottom: 4px;
+          margin-bottom: 3px;
         }
         .footer-label {
-          font-size: 9px;
+          font-size: 9.5px;
           color: #555;
         }
         .footer-val {
@@ -417,29 +452,29 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           display: inline;
         }
         .sign-text {
-          height: 22px;
+          height: 18px;
           display: flex;
           align-items: center;
           font-family: 'Amiri', serif;
-          font-size: 13px;
+          font-size: 12px;
           color: #1E5631;
           font-style: italic;
         }
         .reco-text {
           font-family: 'Amiri', serif;
-          font-size: 12px;
+          font-size: 11.5px;
           color: #1E5631;
           font-style: italic;
-          min-height: 22px;
+          min-height: 18px;
           margin-top: 2px;
         }
 
         /* ── Watermark ── */
         .watermark {
           text-align: center;
-          margin-top: 8px;
+          margin-top: 5px;
           font-family: 'Amiri', serif;
-          font-size: 11px;
+          font-size: 10.5px;
           color: #c5d5c5;
           font-style: italic;
           letter-spacing: 0.5px;
@@ -451,23 +486,29 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
         
         <!-- Header -->
         <div class="header-container">
-          <img src="${SCHOOL_LOGO_BASE64}" class="header-logo" alt="School Logo" />
+          ${student.picture ? `
+            <img src="${escapeHtml(student.picture)}" class="header-logo" style="width: 60px; height: 75px; object-fit: cover; border: 1.5px solid #1E5631;" alt="Student Passport" />
+          ` : `
+            <div style="width: 60px; height: 75px; border: 1.5px solid #1E5631; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #fafafa; color: #888; font-size: 6px; text-align: center; padding: 2px; flex-shrink: 0;" class="header-logo">
+              <span style="font-weight: bold; line-height: 1.1; font-size: 7px;">PASSPORT<br>PHOTO</span>
+            </div>
+          `}
           <div class="header-text">
-            <h1>أكاديمية دار صغار الحفاظ</h1>
+            <h1>${escapeHtml(settings.schoolNameArabic || 'أكاديمية دار صغار الحفاظ')}</h1>
             <h2>${escapeHtml(settings.schoolName)}</h2>
-            <p class="sub">Early Years · Elementary · Islamic/Tahfeezh (Dual Curriculum)</p>
+            <p class="sub">${escapeHtml(settings.schoolSubHeader || 'Early Years · Elementary · Islamic/Tahfeezh (Dual Curriculum)')}</p>
             <p class="contact">${escapeHtml(settings.address)} | Tel: ${escapeHtml(settings.phoneNumbers)} | Email: ${escapeHtml(settings.email)}</p>
           </div>
           <img src="${SCHOOL_LOGO_BASE64}" class="header-logo" alt="School Logo" />
         </div>
 
         <!-- Student Info Table -->
-        <table class="info-table">
+        <table class="info-table" style="margin-bottom: 6px;">
           <tr>
             <td>
               <div class="bilingual-cell">
-                <span class="en">Level: <span class="val-text">${escapeHtml(student.level)}</span></span>
-                <span class="ar">المستوى</span>
+                <span class="en">Class: <span class="val-text">${escapeHtml(student.level)}</span></span>
+                <span class="ar">الصف</span>
               </div>
             </td>
             <td>
@@ -490,16 +531,10 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
                 <span class="ar">القسم</span>
               </div>
             </td>
-            <td>
+            <td colspan="2">
               <div class="bilingual-cell">
                 <span class="en">Academic Year: <span class="val-text">${escapeHtml(result.academicYear)}</span></span>
                 <span class="ar">العام الدراسي</span>
-              </div>
-            </td>
-            <td>
-              <div class="bilingual-cell">
-                <span class="en">General Grade: <span class="val-text" style="font-size: 14px;">${escapeHtml(result.generalGrade)}</span></span>
-                <span class="ar">التقدير العام</span>
               </div>
             </td>
           </tr>
@@ -521,59 +556,25 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
                   <span class="ar">المواد</span>
                 </div>
               </th>
-              <th style="width: 10%;">Grade</th>
-              <th style="width: 11%;">100%</th>
+              <th style="width: 11%;">20% (CA1)</th>
+              <th style="width: 11%;">20% (CA2)</th>
               <th style="width: 11%;">60% (Exam)</th>
-              <th style="width: 20% (CA1)">20% (CA1)</th>
-              <th style="width: 12%;">20% (CA2)</th>
+              <th style="width: 11%;">100% (Total)</th>
+              <th style="width: 11%;">Grade</th>
             </tr>
           </thead>
           <tbody>
             ${tahfeezhRows}
-          </tbody>
-        </table>
-
-        <div class="sub-heading">Islamic Studies / الدراسات الإسلامية</div>
-        <table class="results-table">
-          <thead>
-            <tr>
-              <th style="width: 45%;">
+            <tr style="background-color: #f4faf4; font-weight: bold; border-top: 1.5px solid #1E5631;">
+              <td colspan="4" style="text-align: left; padding: 3px 5px;">
                 <div class="bilingual-cell">
-                  <span class="en">Subjects</span>
-                  <span class="ar">المواد</span>
+                  <span class="en" style="font-size: 8px;">Section Total Marks & Grade</span>
+                  <span class="ar" style="font-size: 8px;">إجمالي درجات القسم والتقدير للمواد</span>
                 </div>
-              </th>
-              <th style="width: 10%;">Grade</th>
-              <th style="width: 11%;">100%</th>
-              <th style="width: 11%;">60% (Exam)</th>
-              <th style="width: 20% (CA1)">20% (CA1)</th>
-              <th style="width: 12%;">20% (CA2)</th>
+              </td>
+              <td class="center" style="color: #1E5631; font-size: 9px; font-weight: 700;">${tahfeezhMetrics.total}</td>
+              <td class="center grade-cell" style="color: #1E5631; font-size: 10px; font-weight: 700;">${tahfeezhMetrics.grade}</td>
             </tr>
-          </thead>
-          <tbody>
-            ${islamicRows}
-          </tbody>
-        </table>
-
-        <div class="sub-heading">Academic Subjects / المواد الأكاديمية</div>
-        <table class="results-table">
-          <thead>
-            <tr>
-              <th style="width: 45%;">
-                <div class="bilingual-cell">
-                  <span class="en">Subjects</span>
-                  <span class="ar">المواد</span>
-                </div>
-              </th>
-              <th style="width: 10%;">Grade</th>
-              <th style="width: 11%;">100%</th>
-              <th style="width: 11%;">60% (Exam)</th>
-              <th style="width: 20% (CA1)">20% (CA1)</th>
-              <th style="width: 12%;">20% (CA2)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${academicRows}
           </tbody>
         </table>
 
@@ -615,14 +616,78 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           </div>
         </div>
 
+        <div class="sub-heading">Islamic Studies / الدراسات الإسلامية</div>
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">
+                <div class="bilingual-cell">
+                  <span class="en">Subjects</span>
+                  <span class="ar">المواد</span>
+                </div>
+              </th>
+              <th style="width: 11%;">20% (CA1)</th>
+              <th style="width: 11%;">20% (CA2)</th>
+              <th style="width: 11%;">60% (Exam)</th>
+              <th style="width: 11%;">100% (Total)</th>
+              <th style="width: 11%;">Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${islamicRows}
+            <tr style="background-color: #f4faf4; font-weight: bold; border-top: 1.5px solid #1E5631;">
+              <td colspan="4" style="text-align: left; padding: 3px 5px;">
+                <div class="bilingual-cell">
+                  <span class="en" style="font-size: 8px;">Section Total Marks & Grade</span>
+                  <span class="ar" style="font-size: 8px;">إجمالي درجات القسم والتقدير للمواد</span>
+                </div>
+              </td>
+              <td class="center" style="color: #1E5631; font-size: 9px; font-weight: 700;">${islamicMetrics.total}</td>
+              <td class="center grade-cell" style="color: #1E5631; font-size: 10px; font-weight: 700;">${islamicMetrics.grade}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="sub-heading">Academic Subjects / المواد الأكاديمية</div>
+        <table class="results-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">
+                <div class="bilingual-cell">
+                  <span class="en">Subjects</span>
+                  <span class="ar">المواد</span>
+                </div>
+              </th>
+              <th style="width: 11%;">20% (CA1)</th>
+              <th style="width: 11%;">20% (CA2)</th>
+              <th style="width: 11%;">60% (Exam)</th>
+              <th style="width: 11%;">100% (Total)</th>
+              <th style="width: 11%;">Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${academicRows}
+            <tr style="background-color: #f4faf4; font-weight: bold; border-top: 1.5px solid #1E5631;">
+              <td colspan="4" style="text-align: left; padding: 3px 5px;">
+                <div class="bilingual-cell">
+                  <span class="en" style="font-size: 8px;">Section Total Marks & Grade</span>
+                  <span class="ar" style="font-size: 8px;">إجمالي درجات القسم والتقدير للمواد</span>
+                </div>
+              </td>
+              <td class="center" style="color: #1E5631; font-size: 9px; font-weight: 700;">${academicMetrics.total}</td>
+              <td class="center grade-cell" style="color: #1E5631; font-size: 10px; font-weight: 700;">${academicMetrics.grade}</td>
+            </tr>
+          </tbody>
+        </table>
+
         <!-- Totals Block -->
-        <div class="totals-section">
+        <div class="totals-section" style="grid-template-columns: 1fr 1fr; margin-bottom: 5px;">
           <div class="total-box">
             <div class="total-title bilingual-cell">
-              <span class="en">Supervisor's Recommendations</span>
-              <span class="ar">توصيات المشرف التربوي</span>
+              <span class="en">Total Mark</span>
+              <span class="ar">الدرجة الإجمالية</span>
             </div>
-            <div class="recommendation-text">${escapeHtml(result.supervisorRecommendations || 'Masha Allah Barakallahu Feeh')}</div>
+            <div class="total-val">${escapeHtml(result.totalMark)}</div>
           </div>
           <div class="total-box">
             <div class="total-title bilingual-cell">
@@ -630,13 +695,6 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
               <span class="ar">المعدل النهائي</span>
             </div>
             <div class="total-val">${escapeHtml(result.finalAverage)}</div>
-          </div>
-          <div class="total-box">
-            <div class="total-title bilingual-cell">
-              <span class="en">Total Mark</span>
-              <span class="ar">الدرجة الإجمالية</span>
-            </div>
-            <div class="total-val">${escapeHtml(result.totalMark)}</div>
           </div>
         </div>
 
@@ -710,6 +768,17 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
           </div>
         </div>
 
+        <!-- Supervisor's Recommendations (Standalone Block at the Bottom) -->
+        <div class="recommendations-section" style="border: 1px solid #c5d5c5; border-radius: 2px; margin-bottom: 5px; background: #fafcfa; padding: 4px;">
+          <div class="bilingual-cell" style="font-weight: 700; color: #1E5631; font-size: 8px; border-bottom: 1px solid #e8ede8; padding-bottom: 2px; margin-bottom: 3px;">
+            <span class="en">Supervisor's Recommendations</span>
+            <span class="ar">توصيات المشرف التربوي</span>
+          </div>
+          <div class="recommendation-text" style="font-family: 'Amiri', serif; font-size: 11.5px; color: #1E5631; text-align: center; font-style: italic; min-height: 18px; line-height: 1.3; margin-top: 2px;">
+            ${escapeHtml(result.supervisorRecommendations || 'Masha Allah Barakallahu Feeh')}
+          </div>
+        </div>
+
         <!-- Footer Grid -->
         <div class="footer-grid">
           <div>
@@ -722,8 +791,13 @@ const generateReportHtml = (result: any, student: any, settings: any) => {
                 ${escapeHtml(result.teacherRecommendations || 'A good and disciplined student. Keep it up.')}
               </div>
             </div>
-            <div class="footer-field" style="margin-top: 6px;">
-              <span class="footer-label">Next Term Begins:</span> <span class="footer-val">${escapeHtml(result.nextTermBegins)}</span>
+            <div class="footer-field" style="margin-top: 6px; display: flex; justify-content: space-between; gap: 15px;">
+              <div>
+                <span class="footer-label">Next Term Begins:</span> <span class="footer-val">${escapeHtml(result.nextTermBegins || '—')}</span>
+              </div>
+              <div style="margin-right: 15px;">
+                <span class="footer-label">Next Term Fees:</span> <span class="footer-val">${escapeHtml(result.nextTermSchoolFees || '—')}</span>
+              </div>
             </div>
           </div>
           
@@ -821,10 +895,10 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       format: 'A4',
       printBackground: true,
       margin: {
-        top: '8mm',
-        bottom: '8mm',
-        left: '8mm',
-        right: '8mm'
+        top: '0mm',
+        bottom: '0mm',
+        left: '0mm',
+        right: '0mm'
       }
     });
 
@@ -892,7 +966,7 @@ const generateInvoiceHtml = (invoice: any, student: any, settings: any) => {
             <h3>Billed To (Student Details)</h3>
             <p><b>Name:</b> ${escapeHtml(student.name)}</p>
             <p><b>Admission Number:</b> ${escapeHtml(student.admissionNumber)}</p>
-            <p><b>Class Level:</b> Level ${escapeHtml(student.level)} - ${escapeHtml(student.section)}</p>
+            <p><b>Class:</b> ${escapeHtml(student.level)} - ${escapeHtml(student.section)}</p>
           </div>
           <div class="details-block">
             <h3>Invoice Overview</h3>
@@ -996,7 +1070,7 @@ const generateReceiptHtml = (invoice: any, student: any, payment: any, settings:
             <h3>Student Details</h3>
             <p><b>Name:</b> ${escapeHtml(student.name)}</p>
             <p><b>Admission Number:</b> ${escapeHtml(student.admissionNumber)}</p>
-            <p><b>Class Level:</b> Level ${escapeHtml(student.level)} - ${escapeHtml(student.section)}</p>
+            <p><b>Class:</b> ${escapeHtml(student.level)} - ${escapeHtml(student.section)}</p>
           </div>
           <div class="details-block">
             <h3>Transaction Details</h3>

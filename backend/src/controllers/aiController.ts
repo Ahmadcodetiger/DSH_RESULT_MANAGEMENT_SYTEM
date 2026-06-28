@@ -258,3 +258,41 @@ export const generateExecutiveBriefing = async (req: AuthRequest, res: Response)
     return res.status(500).json({ message: 'Server error generating executive briefing', error: error.message });
   }
 };
+
+// 3. Auto-generate Head Teacher / Principal feedback comments
+export const generateHeadTeacherFeedback = async (req: AuthRequest, res: Response) => {
+  try {
+    const settings = await getSchoolSettings();
+    const { studentName, finalAverage, generalGrade, subjects } = req.body;
+    
+    let subjectsList = '';
+    if (subjects && Array.isArray(subjects)) {
+      subjectsList = subjects
+        .map((sub: any) => `- ${sub.subjectName}: Grade ${sub.grade || 'F'} (Score ${sub.score100 || 0}/100)`)
+        .join('\n');
+    }
+
+    const prompt = `
+      You are an AI assistant helping the Head Teacher / Principal of ${settings.schoolName}, an Islamic dual-curriculum school.
+      Generate a professional, warm, and authoritative Head Teacher report card comment (strictly maximum 25 words) for the student based on their final average performance.
+      The comment must be written in English, sound encouraging yet academic, include short Islamic blessings (e.g. "Masha Allah", "Barakallah Feek/Feeki", "May Allah bless your efforts"), and give a brief recommendation to keep up or improve their scores.
+      It MUST be extremely brief (strictly maximum 25 words) so that the printed report sheet fits on a single A4 page.
+
+      Student Details:
+      - Name: ${studentName}
+      - Final average: ${finalAverage}%
+      - General grade: ${generalGrade}
+      
+      Grades:
+      ${subjectsList}
+
+      Provide ONLY the raw comment text, with no extra quotes or introduction.
+    `;
+
+    const responseText = await callOpenRouter(prompt);
+    return res.status(200).json({ comment: responseText });
+  } catch (error: any) {
+    console.error('AI Head Teacher Feedback Error:', error);
+    return res.status(500).json({ message: 'Server error generating head teacher feedback', error: error.message });
+  }
+};

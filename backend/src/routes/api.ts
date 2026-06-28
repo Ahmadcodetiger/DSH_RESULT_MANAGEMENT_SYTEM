@@ -52,12 +52,14 @@ import {
   paySalary,
   getSalaries,
   getMySalaries,
+  getParentInvoices,
 } from '../controllers/financeController';
 import { getExecutiveOverview } from '../controllers/directorController';
 import {
   generateReportFeedback,
   generateFinancialForecast,
   generateExecutiveBriefing,
+  generateHeadTeacherFeedback,
 } from '../controllers/aiController';
 import { generateResultPdf, generateInvoicePdf, generateReceiptPdf } from '../controllers/pdfController';
 import { SURAHS } from '../utils/surahs';
@@ -142,6 +144,7 @@ router.get('/director/overview', authenticateToken, requireRole(['DIRECTOR']), g
 
 // --- AI Generation Routes ---
 router.post('/ai/feedback', authenticateToken, requireRole(['ADMIN', 'TEACHER']), generateReportFeedback);
+router.post('/ai/head-teacher-feedback', authenticateToken, requireRole(['ADMIN']), generateHeadTeacherFeedback);
 router.get('/ai/finance-forecast', authenticateToken, requireRole(['ADMIN', 'ACCOUNTANT']), generateFinancialForecast);
 router.get('/ai/director-briefing', authenticateToken, requireRole(['DIRECTOR']), generateExecutiveBriefing);
 
@@ -153,6 +156,7 @@ router.get('/finance/invoices/:invoiceId/payments/:paymentId/pdf', authenticateT
 
 // --- Parent Portal Routes ---
 router.get('/parent/results', authenticateToken, requireRole(['PARENT']), getParentStudentResults);
+router.get('/parent/invoices', authenticateToken, requireRole(['PARENT']), getParentInvoices);
 
 // --- Notification Routes ---
 // Admin: send, list, delete

@@ -415,3 +415,56 @@ export const getMySalaries = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: 'Server error fetching personal salary payments', error: error.message });
   }
 };
+
+// Parent Portal: Fetch all invoices for the parent's child along with payment info
+export const getParentInvoices = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== 'PARENT') {
+      return res.status(403).json({ message: 'Access denied: parent only' });
+    }
+
+    // Find the student by admission number (same pattern as getParentStudentResults)
+    const student = await Student.findOne({
+      admissionNumber: req.user.admissionNumber,
+      isDeleted: { $ne: true },
+    });
+    if (!student) {
+      return res.status(404).json({ message: 'Student details not found' });
+    }
+
+    // Optional term/year filtering from query params
+    const { term, academicYear } = req.query;
+    const filter: any = { studentId: student._id };
+    if (term) filter.term = String(term);
+    if (academicYear) filter.academicYear = String(academicYear);
+
+    const invoices = await Invoice.find(filter)
+      .populate('studentId', 'name admissionNumber level section')
+      .sort({ createdAt: -1 });
+
+    const mappedInvoices = invoices.map((inv) => {
+      const obj = inv.toObject() as any;
+      return {
+        ...obj,
+        description: obj.description || obj.title,
+        status: (obj.status || 'unpaid').toUpperCase(),
+      };
+    });
+
+    // Fetch school settings for bank payment details and accountant WhatsApp
+    let settings = await Settings.findOne({ key: 'school_info' });
+
+    return res.status(200).json({
+      invoices: mappedInvoices,
+      paymentInfo: {
+        bankName: settings?.bankName || '',
+        accountName: settings?.accountName || '',
+        accountNumber: settings?.accountNumber || '',
+        accountantWhatsApp: (settings as any)?.accountantWhatsApp || '',
+        schoolPhone: settings?.phoneNumbers || '',
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error fetching parent invoices', error: error.message });
+  }
+};

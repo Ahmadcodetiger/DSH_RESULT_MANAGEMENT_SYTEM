@@ -34,6 +34,10 @@ const StudentSchema = new Schema(
       type: Number,
       default: 0,
     },
+    picture: {
+      type: String,
+      default: '',
+    },
     isDeleted: {
       type: Boolean,
       default: false,
