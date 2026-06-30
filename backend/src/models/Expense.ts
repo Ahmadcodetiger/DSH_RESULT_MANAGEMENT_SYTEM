@@ -2,6 +2,12 @@ import { Schema, model } from 'mongoose';
 
 const ExpenseSchema = new Schema(
   {
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tenant',
+      required: true,
+      index: true,
+    },
     title: {
       type: String,
       required: true,
@@ -36,5 +42,8 @@ const ExpenseSchema = new Schema(
     timestamps: true,
   }
 );
+
+ExpenseSchema.index({ tenantId: 1, term: 1, academicYear: 1 });
+ExpenseSchema.index({ tenantId: 1, category: 1 });
 
 export default model('Expense', ExpenseSchema);

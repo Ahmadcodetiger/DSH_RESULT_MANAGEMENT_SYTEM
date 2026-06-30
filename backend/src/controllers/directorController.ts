@@ -6,36 +6,42 @@ import Invoice from '../models/Invoice';
 import Expense from '../models/Expense';
 import Result from '../models/Result';
 import Notification from '../models/Notification';
-import Settings from '../models/Settings';
+import Tenant from '../models/Tenant';
 
 export const getExecutiveOverview = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { term, academicYear } = req.query;
-    const settings = await Settings.findOne({ key: 'school_info' });
-    const filterTerm = (term as string) || settings?.currentTerm || 'First Term';
-    const filterYear = (academicYear as string) || settings?.currentAcademicYear || '2025/2026';
+    const tenant = await Tenant.findById(tenantId);
+    
+    const filterTerm = (term as string) || tenant?.academicConfig.currentTerm || 'First Term';
+    const filterYear = (academicYear as string) || tenant?.academicConfig.currentAcademicYear || '2025/2026';
 
     // 1. Core Counts
-    const activeStudentsCount = await Student.countDocuments({ isDeleted: { $ne: true } });
-    const teachersCount = await User.countDocuments({ role: 'TEACHER' });
+    const activeStudentsCount = await Student.countDocuments({ tenantId, isDeleted: { $ne: true } });
+    const teachersCount = await User.countDocuments({ tenantId, role: 'TEACHER' });
 
-    const activeStudents = await Student.find({ isDeleted: { $ne: true }, academicYear: filterYear });
+    const activeStudents = await Student.find({ tenantId, isDeleted: { $ne: true }, academicYear: filterYear });
     const totalInvoiced = activeStudents.reduce((sum, s: any) => sum + (s.schoolFees || 0), 0);
 
-    const invoices = await Invoice.find({ term: filterTerm, academicYear: filterYear });
+    const invoices = await Invoice.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalPaid = 0;
     invoices.forEach((inv) => {
       totalPaid += inv.paidAmount;
     });
 
-    const expenses = await Expense.find({ term: filterTerm, academicYear: filterYear });
+    const expenses = await Expense.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalExpenses = 0;
     expenses.forEach((exp) => {
       totalExpenses += exp.amount;
     });
 
     // 3. School Average Score
-    const results = await Result.find({ term: filterTerm, academicYear: filterYear });
+    const results = await Result.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalGPA = 0;
     results.forEach((r) => {
       totalGPA += r.finalAverage;
@@ -44,13 +50,14 @@ export const getExecutiveOverview = async (req: AuthRequest, res: Response) => {
 
     // 4. Pending Results approvals list
     const pendingResults = await Result.find({ 
+      tenantId,
       status: { $ne: 'approved' },
       term: filterTerm,
       academicYear: filterYear
     }).populate('studentId');
 
     // 5. Recent notifications mapped to audit logs
-    const notifications = await Notification.find({}).sort({ createdAt: -1 }).limit(5);
+    const notifications = await Notification.find({ tenantId }).sort({ createdAt: -1 }).limit(5);
     const recentLogs = notifications.map((n) => ({
       user: n.createdBy,
       action: `Sent broadcast notification: "${n.title}"`,
@@ -75,4 +82,3 @@ export const getExecutiveOverview = async (req: AuthRequest, res: Response) => {
     return res.status(500).json({ message: 'Server error retrieving executive overview', error: error.message });
   }
 };
-

@@ -39,7 +39,7 @@
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Outfit', sans-serif;
+  --font-display: 'Times New Roman', 'Times', 'Outfit', sans-serif;
   --font-arabic: 'Amiri', serif;
 
   /* Elevation */

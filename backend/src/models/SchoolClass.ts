@@ -2,6 +2,12 @@ import { Schema, model } from 'mongoose';
 
 const SchoolClassSchema = new Schema(
   {
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tenant',
+      required: true,
+      index: true,
+    },
     className: {
       type: String,
       required: true,
@@ -35,7 +41,8 @@ const SchoolClassSchema = new Schema(
   }
 );
 
-// Compound index for fast lookups and preventing duplicates within same annex
-SchoolClassSchema.index({ className: 1, section: 1, annex: 1 }, { unique: true });
+// Compound index: prevent duplicates within same tenant + annex
+SchoolClassSchema.index({ tenantId: 1, className: 1, section: 1, annex: 1 }, { unique: true });
+SchoolClassSchema.index({ tenantId: 1, isActive: 1 });
 
 export default model('SchoolClass', SchoolClassSchema);

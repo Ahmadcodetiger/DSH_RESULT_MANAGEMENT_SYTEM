@@ -2,6 +2,12 @@ import { Schema, model } from 'mongoose';
 
 const SalarySchema = new Schema(
   {
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tenant',
+      required: true,
+      index: true,
+    },
     staffId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -37,5 +43,9 @@ const SalarySchema = new Schema(
     timestamps: true,
   }
 );
+
+// Prevent duplicate salary payments per staff per month within a tenant
+SalarySchema.index({ tenantId: 1, staffId: 1, month: 1, year: 1 }, { unique: true });
+SalarySchema.index({ tenantId: 1, year: 1 });
 
 export default model('Salary', SalarySchema);

@@ -2,6 +2,12 @@ import { Schema, model } from 'mongoose';
 
 const InvoiceSchema = new Schema(
   {
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tenant',
+      required: true,
+      index: true,
+    },
     studentId: {
       type: Schema.Types.ObjectId,
       ref: 'Student',
@@ -51,5 +57,9 @@ const InvoiceSchema = new Schema(
     timestamps: true,
   }
 );
+
+InvoiceSchema.index({ tenantId: 1, studentId: 1 });
+InvoiceSchema.index({ tenantId: 1, term: 1, academicYear: 1 });
+InvoiceSchema.index({ tenantId: 1, status: 1 });
 
 export default model('Invoice', InvoiceSchema);

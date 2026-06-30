@@ -3,13 +3,19 @@ import { AuthRequest } from '../middleware/auth';
 import Invoice from '../models/Invoice';
 import Expense from '../models/Expense';
 import Student from '../models/Student';
-import Settings from '../models/Settings';
+import Tenant from '../models/Tenant';
 import User from '../models/User';
 import Salary from '../models/Salary';
+import AuditLog from '../models/AuditLog';
 
 // Create fee invoices (specific student or level-wide batch)
 export const createInvoice = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { studentId, level, section, amount, dueDate, term, academicYear } = req.body;
     const title = req.body.title || req.body.description;
 
@@ -19,18 +25,23 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
 
     const due = new Date(dueDate);
 
-    // Fetch school settings to use as defaults
-    let settings = await Settings.findOne({ key: 'school_info' });
-    const invoiceTerm = term || settings?.currentTerm || 'First Term';
-    const invoiceYear = academicYear || settings?.currentAcademicYear || '2025/2026';
+    // Fetch school settings from Tenant model to use as defaults
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) {
+      return res.status(404).json({ message: 'School not found' });
+    }
+
+    const invoiceTerm = term || tenant.academicConfig.currentTerm || 'First Term';
+    const invoiceYear = academicYear || tenant.academicConfig.currentAcademicYear || '2025/2026';
 
     if (studentId) {
-      const student = await Student.findOne({ _id: studentId, isDeleted: { $ne: true } });
+      const student = await Student.findOne({ tenantId, _id: studentId, isDeleted: { $ne: true } });
       if (!student) {
         return res.status(404).json({ message: 'Student not found' });
       }
 
       const invoice = new Invoice({
+        tenantId,
         studentId,
         title,
         amount,
@@ -46,11 +57,24 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
         description: invoiceObj.description || invoiceObj.title,
         status: (invoiceObj.status || 'unpaid').toUpperCase(),
       };
+
+      await AuditLog.create({
+        tenantId,
+        userId: req.user?.id,
+        userName: req.user?.name || 'Admin',
+        userRole: req.user?.role || 'ADMIN',
+        action: 'INVOICE_CREATED',
+        resource: 'Invoice',
+        resourceId: invoice._id,
+        description: `Invoice for student ${student.name} created: ₦${amount}`,
+        ipAddress: req.ip || '',
+        userAgent: req.headers['user-agent'] || '',
+      });
       
       return res.status(201).json({ message: 'Invoice created successfully', invoice: mappedInvoice });
     } else if (level) {
       // Batch billing for level (with optional section)
-      const query: any = { level, isDeleted: { $ne: true } };
+      const query: any = { tenantId, level, isDeleted: { $ne: true } };
       if (section) {
         query.section = section;
       }
@@ -60,6 +84,7 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       }
 
       const invoicesToInsert = students.map((s) => ({
+        tenantId,
         studentId: s._id,
         title,
         amount,
@@ -69,6 +94,19 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
       }));
 
       const result = await Invoice.insertMany(invoicesToInsert);
+
+      await AuditLog.create({
+        tenantId,
+        userId: req.user?.id,
+        userName: req.user?.name || 'Admin',
+        userRole: req.user?.role || 'ADMIN',
+        action: 'INVOICES_BATCH_CREATED',
+        resource: 'Invoice',
+        description: `Batch created ${result.length} invoices for level ${level}: ₦${amount} each`,
+        ipAddress: req.ip || '',
+        userAgent: req.headers['user-agent'] || '',
+      });
+
       return res.status(201).json({ message: `Invoiced ${result.length} students successfully.` });
     } else {
       return res.status(400).json({ message: 'Either Student ID or Level must be specified' });
@@ -81,19 +119,26 @@ export const createInvoice = async (req: AuthRequest, res: Response) => {
 // Record payment against an invoice
 export const recordPayment = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId;
     const { invoiceId } = req.params;
     const { amount } = req.body;
     const method = req.body.method || (req.body.reference ? 'bank_transfer' : 'cash');
     const transactionRef = req.body.transactionRef || req.body.reference || '';
 
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     if (!amount) {
       return res.status(400).json({ message: 'Amount is required' });
     }
 
-    const invoice = await Invoice.findById(invoiceId);
+    const invoice = await Invoice.findOne({ tenantId, _id: invoiceId }).populate('studentId', 'name');
     if (!invoice) {
       return res.status(404).json({ message: 'Invoice not found' });
     }
+
+    const oldState = invoice.toObject();
 
     // Add payment entry
     invoice.payments.push({
@@ -123,6 +168,22 @@ export const recordPayment = async (req: AuthRequest, res: Response) => {
       status: (invoiceObj.status || 'unpaid').toUpperCase(),
     };
 
+    const studentName = (invoice.studentId as any)?.name || 'Student';
+
+    await AuditLog.create({
+      tenantId,
+      userId: req.user?.id,
+      userName: req.user?.name || 'Admin',
+      userRole: req.user?.role || 'ADMIN',
+      action: 'PAYMENT_RECORDED',
+      resource: 'Invoice',
+      resourceId: invoice._id,
+      description: `Recorded payment of ₦${amount} via ${method} for student ${studentName}`,
+      changes: { before: oldState, after: invoice.toObject() },
+      ipAddress: req.ip || '',
+      userAgent: req.headers['user-agent'] || '',
+    });
+
     return res.status(200).json({ message: 'Payment recorded successfully', invoice: mappedInvoice });
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error', error: error.message });
@@ -132,8 +193,13 @@ export const recordPayment = async (req: AuthRequest, res: Response) => {
 // Get Invoices list (Paginated + Filterable)
 export const getInvoices = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { studentId, status, page, limit, term, academicYear } = req.query;
-    const filter: any = {};
+    const filter: any = { tenantId };
 
     if (req.user?.role === 'PARENT') {
       filter.studentId = req.user.id;
@@ -144,10 +210,10 @@ export const getInvoices = async (req: AuthRequest, res: Response) => {
       filter.status = String(status).toLowerCase();
     }
 
-    // Fetch active settings to determine default term and academic year if not provided in query
-    let settings = await Settings.findOne({ key: 'school_info' });
-    const queryTerm = (term as string) || settings?.currentTerm || 'First Term';
-    const queryYear = (academicYear as string) || settings?.currentAcademicYear || '2025/2026';
+    // Fetch active settings from Tenant to determine default term and academic year if not provided in query
+    const tenant = await Tenant.findById(tenantId);
+    const queryTerm = (term as string) || tenant?.academicConfig.currentTerm || 'First Term';
+    const queryYear = (academicYear as string) || tenant?.academicConfig.currentAcademicYear || '2025/2026';
 
     filter.term = queryTerm;
     filter.academicYear = queryYear;
@@ -189,6 +255,11 @@ export const getInvoices = async (req: AuthRequest, res: Response) => {
 // Record expenditure
 export const createExpense = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { amount, category, date, description, term, academicYear } = req.body;
     const title = req.body.title || req.body.description || req.body.category || 'Expense';
 
@@ -197,9 +268,9 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
     }
 
     // Fetch settings for default term and year fallbacks
-    let settings = await Settings.findOne({ key: 'school_info' });
-    const expenseTerm = term || settings?.currentTerm || 'First Term';
-    const expenseYear = academicYear || settings?.currentAcademicYear || '2025/2026';
+    const tenant = await Tenant.findById(tenantId);
+    const expenseTerm = term || tenant?.academicConfig.currentTerm || 'First Term';
+    const expenseYear = academicYear || tenant?.academicConfig.currentAcademicYear || '2025/2026';
 
     const categoryMap: { [key: string]: string } = {
       'salaries': 'salary',
@@ -216,6 +287,7 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
     const mappedCategory = categoryMap[catKey] || 'other';
 
     const expense = new Expense({
+      tenantId,
       title,
       amount: Number(amount),
       category: mappedCategory,
@@ -226,6 +298,20 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
     });
 
     await expense.save();
+
+    await AuditLog.create({
+      tenantId,
+      userId: req.user?.id,
+      userName: req.user?.name || 'Admin',
+      userRole: req.user?.role || 'ADMIN',
+      action: 'EXPENSE_CREATED',
+      resource: 'Expense',
+      resourceId: expense._id,
+      description: `Expenditure recorded: "${title}" - ₦${amount} (${category})`,
+      ipAddress: req.ip || '',
+      userAgent: req.headers['user-agent'] || '',
+    });
+
     return res.status(201).json({ message: 'Expense recorded successfully', expense });
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error', error: error.message });
@@ -235,13 +321,19 @@ export const createExpense = async (req: AuthRequest, res: Response) => {
 // List school expenses (Paginated)
 export const getExpenses = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { page, limit, term, academicYear } = req.query;
 
-    let settings = await Settings.findOne({ key: 'school_info' });
-    const queryTerm = (term as string) || settings?.currentTerm || 'First Term';
-    const queryYear = (academicYear as string) || settings?.currentAcademicYear || '2025/2026';
+    const tenant = await Tenant.findById(tenantId);
+    const queryTerm = (term as string) || tenant?.academicConfig.currentTerm || 'First Term';
+    const queryYear = (academicYear as string) || tenant?.academicConfig.currentAcademicYear || '2025/2026';
 
     const filter: any = {
+      tenantId,
       term: queryTerm,
       academicYear: queryYear
     };
@@ -273,17 +365,22 @@ export const getExpenses = async (req: AuthRequest, res: Response) => {
 // Get Financial Statistics Summary
 export const getFinanceSummary = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { term, academicYear } = req.query;
 
-    let settings = await Settings.findOne({ key: 'school_info' });
-    const filterTerm = (term as string) || settings?.currentTerm || 'First Term';
-    const filterYear = (academicYear as string) || settings?.currentAcademicYear || '2025/2026';
+    const tenant = await Tenant.findById(tenantId);
+    const filterTerm = (term as string) || tenant?.academicConfig.currentTerm || 'First Term';
+    const filterYear = (academicYear as string) || tenant?.academicConfig.currentAcademicYear || '2025/2026';
 
     // Calculate dynamic expected money based on students admitted in the selected academic year
-    const activeStudents = await Student.find({ isDeleted: { $ne: true }, academicYear: filterYear });
+    const activeStudents = await Student.find({ tenantId, isDeleted: { $ne: true }, academicYear: filterYear });
     const totalInvoiced = activeStudents.reduce((sum, s: any) => sum + (s.schoolFees || 0), 0);
 
-    const invoices = await Invoice.find({ term: filterTerm, academicYear: filterYear });
+    const invoices = await Invoice.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalPaid = 0;
 
     invoices.forEach((inv) => {
@@ -292,7 +389,7 @@ export const getFinanceSummary = async (req: AuthRequest, res: Response) => {
 
     const totalOutstanding = totalInvoiced - totalPaid;
 
-    const expenses = await Expense.find({ term: filterTerm, academicYear: filterYear });
+    const expenses = await Expense.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalExpenses = 0;
     const categoryBreakdown: { [key: string]: number } = {
       salary: 0,
@@ -329,7 +426,12 @@ export const getFinanceSummary = async (req: AuthRequest, res: Response) => {
 // Fetch all staff users (non-parents)
 export const getStaffList = async (req: AuthRequest, res: Response) => {
   try {
-    const staff = await User.find({ role: { $ne: 'PARENT' } }).select('-password');
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
+    const staff = await User.find({ tenantId, role: { $ne: 'PARENT' } }).select('-password');
     return res.status(200).json(staff);
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error fetching staff list', error: error.message });
@@ -339,6 +441,11 @@ export const getStaffList = async (req: AuthRequest, res: Response) => {
 // Record a salary payment
 export const paySalary = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { staffId, month, year, amount, transactionReference } = req.body;
 
     if (!staffId || !month || !year || !amount) {
@@ -346,12 +453,13 @@ export const paySalary = async (req: AuthRequest, res: Response) => {
     }
 
     // Check if salary payment already recorded for the same month & year to prevent duplicates
-    const existingPayment = await Salary.findOne({ staffId, month, year });
+    const existingPayment = await Salary.findOne({ tenantId, staffId, month, year });
     if (existingPayment) {
       return res.status(400).json({ message: `Salary payment for ${month} ${year} has already been recorded for this staff member.` });
     }
 
     const salary = new Salary({
+      tenantId,
       staffId,
       month,
       year,
@@ -364,15 +472,16 @@ export const paySalary = async (req: AuthRequest, res: Response) => {
     await salary.save();
     
     // Also record this as a school expense under Category "salary" automatically!
-    const staffUser = await User.findById(staffId);
+    const staffUser = await User.findOne({ tenantId, _id: staffId });
     const staffName = staffUser ? staffUser.name : 'Staff';
     
     // Fetch settings for default term and year fallbacks
-    let settings = await Settings.findOne({ key: 'school_info' });
-    const currentTerm = settings?.currentTerm || 'First Term';
-    const currentYear = settings?.currentAcademicYear || '2025/2026';
+    const tenant = await Tenant.findById(tenantId);
+    const currentTerm = tenant?.academicConfig.currentTerm || 'First Term';
+    const currentYear = tenant?.academicConfig.currentAcademicYear || '2025/2026';
 
     const expense = new Expense({
+      tenantId,
       title: `Salary Payment - ${staffName}`,
       amount: Number(amount),
       category: 'salary',
@@ -383,6 +492,19 @@ export const paySalary = async (req: AuthRequest, res: Response) => {
     });
     await expense.save();
 
+    await AuditLog.create({
+      tenantId,
+      userId: req.user?.id,
+      userName: req.user?.name || 'Admin',
+      userRole: req.user?.role || 'ADMIN',
+      action: 'SALARY_PAID',
+      resource: 'Salary',
+      resourceId: salary._id,
+      description: `Paid salary of ₦${amount} to staff member ${staffName} for ${month} ${year}`,
+      ipAddress: req.ip || '',
+      userAgent: req.headers['user-agent'] || '',
+    });
+
     return res.status(201).json({ message: 'Salary payment recorded and logged as expense successfully', salary });
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error recording salary payment', error: error.message });
@@ -392,8 +514,13 @@ export const paySalary = async (req: AuthRequest, res: Response) => {
 // Fetch all salary payments (Admin / Accountant / Director)
 export const getSalaries = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { year } = req.query;
-    const filter: any = {};
+    const filter: any = { tenantId };
     if (year) filter.year = String(year);
 
     const salaries = await Salary.find(filter).populate('staffId', 'name username role');
@@ -406,10 +533,11 @@ export const getSalaries = async (req: AuthRequest, res: Response) => {
 // Fetch my salary payments (Staff view)
 export const getMySalaries = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId || req.user?.tenantId;
     const staffId = req.user?.id;
-    if (!staffId) return res.status(401).json({ message: 'Unauthorized' });
+    if (!tenantId || !staffId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const salaries = await Salary.find({ staffId }).sort({ paymentDate: -1 });
+    const salaries = await Salary.find({ tenantId, staffId }).sort({ paymentDate: -1 });
     return res.status(200).json(salaries);
   } catch (error: any) {
     return res.status(500).json({ message: 'Server error fetching personal salary payments', error: error.message });
@@ -419,12 +547,14 @@ export const getMySalaries = async (req: AuthRequest, res: Response) => {
 // Parent Portal: Fetch all invoices for the parent's child along with payment info
 export const getParentInvoices = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user || req.user.role !== 'PARENT') {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId || !req.user || req.user.role !== 'PARENT') {
       return res.status(403).json({ message: 'Access denied: parent only' });
     }
 
     // Find the student by admission number (same pattern as getParentStudentResults)
     const student = await Student.findOne({
+      tenantId,
       admissionNumber: req.user.admissionNumber,
       isDeleted: { $ne: true },
     });
@@ -434,7 +564,7 @@ export const getParentInvoices = async (req: AuthRequest, res: Response) => {
 
     // Optional term/year filtering from query params
     const { term, academicYear } = req.query;
-    const filter: any = { studentId: student._id };
+    const filter: any = { tenantId, studentId: student._id };
     if (term) filter.term = String(term);
     if (academicYear) filter.academicYear = String(academicYear);
 
@@ -451,17 +581,17 @@ export const getParentInvoices = async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // Fetch school settings for bank payment details and accountant WhatsApp
-    let settings = await Settings.findOne({ key: 'school_info' });
+    // Fetch school settings from Tenant model for bank payment details and accountant WhatsApp
+    const tenant = await Tenant.findById(tenantId);
 
     return res.status(200).json({
       invoices: mappedInvoices,
       paymentInfo: {
-        bankName: settings?.bankName || '',
-        accountName: settings?.accountName || '',
-        accountNumber: settings?.accountNumber || '',
-        accountantWhatsApp: (settings as any)?.accountantWhatsApp || '',
-        schoolPhone: settings?.phoneNumbers || '',
+        bankName: tenant?.academicConfig.bankDetails.bankName || '',
+        accountName: tenant?.academicConfig.bankDetails.accountName || '',
+        accountNumber: tenant?.academicConfig.bankDetails.accountNumber || '',
+        accountantWhatsApp: tenant?.academicConfig.accountantWhatsApp || '',
+        schoolPhone: tenant?.contact.phoneNumbers || '',
       },
     });
   } catch (error: any) {

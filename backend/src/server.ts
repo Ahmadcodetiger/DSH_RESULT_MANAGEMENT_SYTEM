@@ -1,4 +1,9 @@
 import dotenv from 'dotenv';
+import dns from 'dns';
+
+// Force DNS lookup to prefer IPv4 over IPv6 to resolve connection timeout issues
+dns.setDefaultResultOrder('ipv4first');
+
 dotenv.config();
 
 import express from 'express';
@@ -6,6 +11,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db';
+import { resolveTenant } from './middleware/tenantResolver';
 import apiRouter from './routes/api';
 
 // Validate required environment variables at startup
@@ -40,7 +46,11 @@ const corsOptions = {
     if (process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    if (allowedOrigins.includes(origin)) {
+    // In production, allow configured origins AND any *.smartschool.africa subdomain
+    if (
+      allowedOrigins.includes(origin) ||
+      /\.smartschool\.africa$/.test(new URL(origin).hostname)
+    ) {
       return callback(null, true);
     } else {
       return callback(new Error('Not allowed by CORS'));
@@ -64,6 +74,10 @@ app.use('/api', async (req, res, next) => {
   }
 });
 
+// Tenant Resolution — resolves tenant from subdomain, custom domain, or X-Tenant-ID header
+// This runs on ALL /api requests so tenant context is always available
+app.use('/api', resolveTenant);
+
 // Route mounting
 app.use('/api', apiRouter);
 
@@ -77,6 +91,8 @@ app.get('/', async (req, res) => {
   }
   res.status(200).json({
     status: 'healthy',
+    service: 'SmartSchool Africa API',
+    version: '2.0.0',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
@@ -93,7 +109,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 if (process.env.VERCEL !== '1') {
   connectDB().then(() => {
     app.listen(process.env.PORT || 5000, () => {
-      console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${process.env.PORT || 5000}`);
+      console.log(`SmartSchool Africa API running in ${process.env.NODE_ENV || 'development'} mode on port ${process.env.PORT || 5000}`);
     });
   }).catch((err) => {
     console.error('Failed to start server:', err);

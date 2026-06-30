@@ -19,12 +19,16 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to automatically attach authorization tokens
+// Request interceptor to automatically attach authorization tokens and tenant context
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('huffaz_web_token');
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    const tenantSlug = localStorage.getItem('huffaz_tenant_slug');
+    if (tenantSlug && config.headers) {
+      config.headers['X-Tenant-ID'] = tenantSlug;
     }
     return config;
   },
@@ -51,6 +55,14 @@ api.interceptors.response.use(
 export const authService = {
   async loginStaff(username: string, password: string) {
     const response = await api.post('/auth/login-staff', { username, password });
+    const { token, user } = response.data;
+    localStorage.setItem('huffaz_web_token', token);
+    localStorage.setItem('huffaz_web_user', JSON.stringify(user));
+    return { token, user };
+  },
+
+  async loginPlatform(username: string, password: string) {
+    const response = await api.post('/auth/platform-login', { username, password });
     const { token, user } = response.data;
     localStorage.setItem('huffaz_web_token', token);
     localStorage.setItem('huffaz_web_user', JSON.stringify(user));
@@ -134,6 +146,23 @@ export const subjectService = {
     const response = await api.delete(`/admin/subjects/${id}`);
     return response.data;
   },
+};
+
+export const aiService = {
+  async pollJob(jobId: string, intervalMs = 1000, maxRetries = 20): Promise<string> {
+    for (let i = 0; i < maxRetries; i++) {
+      const res = await api.get(`/ai/job/${jobId}`);
+      if (res.data.status === 'completed') {
+        return res.data.result;
+      }
+      if (res.data.status === 'failed') {
+        throw new Error(res.data.error || 'AI generation failed');
+      }
+      // Wait before polling again
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new Error('AI Job timed out waiting for generation.');
+  }
 };
 
 export default api;

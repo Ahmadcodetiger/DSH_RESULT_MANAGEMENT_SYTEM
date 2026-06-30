@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
-import Invoice from '../models/Invoice';
-import Expense from '../models/Expense';
+import dns from 'dns';
+
+// Force DNS lookup to prefer IPv4 over IPv6 to resolve ENETUNREACH/ETIMEDOUT issues in some networks
+dns.setDefaultResultOrder('ipv4first');
 
 let connectionPromise: Promise<void> | null = null;
 
@@ -27,7 +29,7 @@ export const connectDB = async () => {
 };
 
 async function _connect() {
-  const connStr = process.env.MONGO_URI || 'mongodb://localhost:27017/huffaz_db';
+  const connStr = process.env.MONGO_URI || 'mongodb://localhost:27017/smartschool_db';
   // Mask password in logs
   console.log(`Connecting to MongoDB at: ${connStr.replace(/:([^:@]+)@/, ':***@')}`);
 
@@ -35,31 +37,10 @@ async function _connect() {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await mongoose.connect(connStr, {
-        serverSelectionTimeoutMS: 10000, // 10 seconds per attempt
+        serverSelectionTimeoutMS: 20000, // 20 seconds timeout
+        family: 4,                      // Force IPv4 only to avoid NAT64/IPv6 timeout issues
       });
       console.log('MongoDB connected successfully.');
-
-      // Run startup migrations to ensure historical invoices and expenses are term-scoped
-      try {
-        const invoiceMigration = await Invoice.updateMany(
-          { term: { $exists: false } },
-          { $set: { term: 'First Term', academicYear: '2025/2026' } }
-        );
-        if (invoiceMigration.modifiedCount > 0) {
-          console.log(`Migration: Scoped ${invoiceMigration.modifiedCount} legacy invoices to "First Term" / "2025/2026".`);
-        }
-
-        const expenseMigration = await Expense.updateMany(
-          { term: { $exists: false } },
-          { $set: { term: 'First Term', academicYear: '2025/2026' } }
-        );
-        if (expenseMigration.modifiedCount > 0) {
-          console.log(`Migration: Scoped ${expenseMigration.modifiedCount} legacy expenses to "First Term" / "2025/2026".`);
-        }
-      } catch (migrationErr: any) {
-        console.error('Database migration check failed:', migrationErr.message);
-      }
-
       return;
     } catch (error) {
       console.error(`MongoDB connection attempt ${attempt}/${maxAttempts} failed:`, error);

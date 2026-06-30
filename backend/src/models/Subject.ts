@@ -2,10 +2,15 @@ import { Schema, model } from 'mongoose';
 
 const SubjectSchema = new Schema(
   {
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tenant',
+      required: true,
+      index: true,
+    },
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       // e.g. "Science", "Numeracy", "Al-Qur'an Karem (Hifz)"
     },
@@ -30,5 +35,9 @@ const SubjectSchema = new Schema(
     timestamps: true,
   }
 );
+
+// Compound index: subject name unique within a tenant
+SubjectSchema.index({ tenantId: 1, name: 1 }, { unique: true });
+SubjectSchema.index({ tenantId: 1, section: 1, isActive: 1 });
 
 export default model('Subject', SubjectSchema);

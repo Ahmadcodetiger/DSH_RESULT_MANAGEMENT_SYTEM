@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, DollarSign, Bell, X, Shield, Award, Settings as SettingsIcon, Menu, LogOut,
-  Sun, Moon, BookOpen, Sliders, Sparkles
+  Sun, Moon, BookOpen, Sliders, Sparkles, CreditCard
 } from 'lucide-react';
-import api, { authService, classService, subjectService } from '../services/api';
+import api, { authService, classService, subjectService, aiService } from '../services/api';
+import { BillingPortalView } from './BillingPortalView';
 
 interface User {
   _id: string;
@@ -68,6 +69,7 @@ interface SchoolClass {
 }
 
 interface AdminDashboardViewProps {
+  tenant: any;
   schoolSettings: any;
   onUpdateSettings: () => void;
   styles: any;
@@ -80,6 +82,7 @@ interface AdminDashboardViewProps {
 }
 
 export default function AdminDashboardView({ 
+  tenant,
   schoolSettings, 
   onUpdateSettings, 
   styles, 
@@ -90,13 +93,15 @@ export default function AdminDashboardView({
   theme = 'light',
   onToggleTheme
 }: AdminDashboardViewProps) {
+  const isAlQalam = tenant?.slug === 'alqalam';
+  const isConventional = schoolSettings?.curriculumType === 'conventional';
   const [teachers, setTeachers] = useState<User[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [filterResultsTerm, setFilterResultsTerm] = useState('All');
   const [filterResultsYear, setFilterResultsYear] = useState('All');
   const [adminNotifications, setAdminNotifications] = useState<Notification[]>([]);
-  const [activeAdminSubTab, setActiveAdminSubTab] = useState<'users' | 'classes' | 'subjects' | 'settings' | 'results' | 'announcements' | 'finances'>('users');
+  const [activeAdminSubTab, setActiveAdminSubTab] = useState<'users' | 'classes' | 'subjects' | 'settings' | 'results' | 'announcements' | 'finances' | 'billing'>('users');
   const [userTab, setUserTab] = useState<'teachers' | 'students'>('teachers');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -112,6 +117,8 @@ export default function AdminDashboardView({
   const [newTeacherName, setNewTeacherName] = useState('');
   const [newTeacherUsername, setNewTeacherUsername] = useState('');
   const [newTeacherPassword, setNewTeacherPassword] = useState('');
+  const [newTeacherRole, setNewTeacherRole] = useState<'ADMIN' | 'TEACHER' | 'ACCOUNTANT' | 'DIRECTOR'>('TEACHER');
+  const [settingsLogo, setSettingsLogo] = useState(schoolSettings?.logo || '');
   const [newTeacherLevel, setNewTeacherLevel] = useState('5');
   const [newTeacherSection, setNewTeacherSection] = useState('ALLO');
   const [newTeacherSubject, setNewTeacherSubject] = useState("Al-Qur'an Karem (Hifz)");
@@ -136,7 +143,11 @@ export default function AdminDashboardView({
     academicYear: schoolSettings?.currentAcademicYear || '2025/2026',
     parentPin: '',
     schoolFees: '',
-    picture: ''
+    picture: '',
+    dob: '',
+    gender: '',
+    house: '',
+    club: ''
   });
 
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -148,7 +159,11 @@ export default function AdminDashboardView({
     academicYear: '',
     parentPin: '',
     schoolFees: 0,
-    picture: ''
+    picture: '',
+    dob: '',
+    gender: '',
+    house: '',
+    club: ''
   });
 
   const [newNotifTitle, setNewNotifTitle] = useState('');
@@ -168,6 +183,7 @@ export default function AdminDashboardView({
   const [settingsAccountantWhatsApp, setSettingsAccountantWhatsApp] = useState(schoolSettings?.accountantWhatsApp || '');
   const [settingsTerm, setSettingsTerm] = useState(schoolSettings?.currentTerm || 'Second Term');
   const [settingsYear, setSettingsYear] = useState(schoolSettings?.currentAcademicYear || '2025/2026');
+  const [settingsCurriculumType, setSettingsCurriculumType] = useState((schoolSettings as any)?.curriculumType || 'dual');
 
   // Promotions form states
   const [promoFromLevel, setPromoFromLevel] = useState('1');
@@ -202,7 +218,7 @@ export default function AdminDashboardView({
 
   // Teacher editing & multiple assignments states
   const [editingTeacher, setEditingTeacher] = useState<User | null>(null);
-  const [editTeacherForm, setEditTeacherForm] = useState({ name: '', username: '', password: '', assignedClasses: [] as { level: string; section: string; subjectName?: string }[] });
+  const [editTeacherForm, setEditTeacherForm] = useState({ name: '', username: '', role: 'TEACHER' as any, password: '', assignedClasses: [] as { level: string; section: string; subjectName?: string }[] });
   
   // Temp assignments for teacher creation form
   const [tempAssignments, setTempAssignments] = useState<{ level: string; section: string; subjectName?: string }[]>([]);
@@ -231,6 +247,8 @@ export default function AdminDashboardView({
       setSettingsTerm(schoolSettings.currentTerm || 'Second Term');
       setSettingsYear(schoolSettings.currentAcademicYear || '2025/2026');
       setAnnexes(schoolSettings.annexes || []);
+      setSettingsLogo(schoolSettings.logo || '');
+      setSettingsCurriculumType((schoolSettings as any).curriculumType || 'dual');
     }
   }, [schoolSettings]);
   const processImageFile = (file: File, callback: (base64: string) => void) => {
@@ -375,13 +393,14 @@ export default function AdminDashboardView({
         name: editTeacherForm.name,
         username: editTeacherForm.username,
         password: editTeacherForm.password || undefined,
-        assignedClasses: editTeacherForm.assignedClasses,
+        role: editTeacherForm.role,
+        assignedClasses: editTeacherForm.role === 'TEACHER' ? editTeacherForm.assignedClasses : [],
       });
       setEditingTeacher(null);
       fetchTeachers();
-      alert('Teacher updated successfully!');
+      alert('Staff updated successfully!');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update teacher');
+      alert(err.response?.data?.message || 'Failed to update staff');
     }
   };
 
@@ -474,7 +493,7 @@ export default function AdminDashboardView({
 
   const handleCreateTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (tempAssignments.length === 0) {
+    if (newTeacherRole === 'TEACHER' && tempAssignments.length === 0) {
       alert('Please add at least one class/subject assignment to this teacher.');
       return;
     }
@@ -483,21 +502,23 @@ export default function AdminDashboardView({
         name: newTeacherName,
         username: newTeacherUsername,
         password: newTeacherPassword,
-        assignedClasses: tempAssignments
+        role: newTeacherRole,
+        assignedClasses: newTeacherRole === 'TEACHER' ? tempAssignments : []
       });
       setNewTeacherName('');
       setNewTeacherUsername('');
       setNewTeacherPassword('');
+      setNewTeacherRole('TEACHER');
       setTempAssignments([]);
       fetchTeachers();
-      alert('Teacher created successfully!');
+      alert('Staff user created successfully!');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to create teacher');
+      alert(err.response?.data?.message || 'Failed to create staff user');
     }
   };
 
   const handleDeleteTeacher = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this teacher?')) return;
+    if (!confirm('Are you sure you want to delete this staff member?')) return;
     try {
       await api.delete(`/admin/teachers/${id}`);
       fetchTeachers();
@@ -516,7 +537,10 @@ export default function AdminDashboardView({
         generalGrade: resultObj.generalGrade,
         subjects: resultObj.subjects
       });
-      if (response.data && response.data.comment) {
+      if (response.status === 202 && response.data.jobId) {
+        const comment = await aiService.pollJob(response.data.jobId);
+        setHeadTeacherComments(comment);
+      } else if (response.data && response.data.comment) {
         setHeadTeacherComments(response.data.comment);
       }
     } catch (err) {
@@ -618,7 +642,11 @@ export default function AdminDashboardView({
       academicYear: s.academicYear,
       parentPin: s.parentPin,
       schoolFees: s.schoolFees || 0,
-      picture: (s as any).picture || ''
+      picture: (s as any).picture || '',
+      dob: (s as any).dob || '',
+      gender: (s as any).gender || '',
+      house: (s as any).house || '',
+      club: (s as any).club || ''
     });
   };
 
@@ -650,9 +678,13 @@ export default function AdminDashboardView({
 
   const handleAddStudentManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees, picture } = manualStudent;
+    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees, picture, dob, gender, house, club } = manualStudent;
     if (!name.trim() || !admissionNumber.trim() || !level.trim() || !section.trim() || !academicYear.trim()) {
       alert('Please fill all required fields');
+      return;
+    }
+    if ((isAlQalam || isConventional) && (!dob.trim() || !gender.trim() || !house.trim() || !club.trim())) {
+      alert('Please fill out all Al-Qalam student profile fields: Date of Birth, Gender, House, Club / Society');
       return;
     }
     try {
@@ -667,7 +699,11 @@ export default function AdminDashboardView({
             academicYear: academicYear.trim(),
             parentPin: parentPin.trim() || undefined,
             schoolFees: schoolFees ? Number(schoolFees) : 0,
-            picture: picture.trim() || undefined
+            picture: picture.trim() || undefined,
+            dob: dob.trim() || undefined,
+            gender: gender.trim() || undefined,
+            house: house.trim() || undefined,
+            club: club.trim() || undefined
           }
         ]
       };
@@ -683,7 +719,11 @@ export default function AdminDashboardView({
           academicYear: schoolSettings?.currentAcademicYear || '2025/2026',
           parentPin: '',
           schoolFees: '',
-          picture: ''
+          picture: '',
+          dob: '',
+          gender: '',
+          house: '',
+          club: ''
         });
         fetchStudents();
       } else if (skipped && skipped.length > 0) {
@@ -737,7 +777,9 @@ export default function AdminDashboardView({
         accountNumber: settingsAccountNumber,
         accountantWhatsApp: settingsAccountantWhatsApp,
         currentTerm: settingsTerm,
-        currentAcademicYear: settingsYear
+        currentAcademicYear: settingsYear,
+        logo: settingsLogo,
+        curriculumType: settingsCurriculumType,
       });
       alert('School settings updated successfully!');
       onUpdateSettings();
@@ -779,7 +821,7 @@ export default function AdminDashboardView({
           {isMobileSidebarOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
         <div className="mobile-admin-brand">
-          <img src="/logo.png" alt="DSH Logo" className="logo-circle" style={{ objectFit: 'cover', border: '1px solid var(--border)' }} />
+          <img src={schoolSettings?.logo || "/logo.png"} alt="School Logo" className="logo-circle" style={{ objectFit: 'cover', border: '1px solid var(--border)' }} />
           <span className="brand-title">{schoolSettings?.schoolName || 'Admin Portal'}</span>
         </div>
         <button 
@@ -794,9 +836,9 @@ export default function AdminDashboardView({
 
       <aside className={`dashboard-sidebar ${isMobileSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <img src="/logo.png" alt="DSH Logo" className="logo-circle" style={{ objectFit: 'cover', border: '1.5px solid var(--border)' }} />
+          <img src={schoolSettings?.logo || "/logo.png"} alt="School Logo" className="logo-circle" style={{ objectFit: 'cover', border: '1.5px solid var(--border)' }} />
           <div>
-            <div className="brand-arabic">دار صغار الحفاظ</div>
+            {schoolSettings?.schoolNameArabic && <div className="brand-arabic">{schoolSettings.schoolNameArabic}</div>}
             <h1 className="brand-title">{schoolSettings?.schoolName || 'Admin Portal'}</h1>
           </div>
         </div>
@@ -822,6 +864,9 @@ export default function AdminDashboardView({
           </button>
           <button className={`sidebar-btn ${activeAdminSubTab === 'finances' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('finances'); setIsMobileSidebarOpen(false); }}>
             <DollarSign size={16} /> Finance Ledger
+          </button>
+          <button className={`sidebar-btn ${activeAdminSubTab === 'billing' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('billing'); setIsMobileSidebarOpen(false); }}>
+            <CreditCard size={16} /> Billing & Subscriptions
           </button>
         </nav>
 
@@ -855,7 +900,8 @@ export default function AdminDashboardView({
             activeAdminSubTab === 'settings' ? 'School Settings & Calendar' :
             activeAdminSubTab === 'results' ? 'Result Sheets Queue' :
             activeAdminSubTab === 'announcements' ? 'Broadcasting & Notifications' :
-            'Finance & Reserves Ledger'
+            activeAdminSubTab === 'finances' ? 'Finance & Reserves Ledger' :
+            'Billing & Subscriptions'
           }
         </h2>
 
@@ -883,9 +929,9 @@ export default function AdminDashboardView({
               <>
                 <div className="grid-cols-3">
                 <div className="span-2-desktop glass dashboard-card">
-                  <h3 style={{ ...styles.cardHeader, marginBottom: '0.25rem' }}>Registered Faculty</h3>
+                  <h3 style={{ ...styles.cardHeader, marginBottom: '0.25rem' }}>Registered Staff & Faculty</h3>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                    Directory of registered teacher accounts and their assigned class levels.
+                    Directory of registered teacher and administrative staff accounts.
                   </p>
                   <div style={styles.tableWrapper}>
                     <table className="custom-table">
@@ -893,6 +939,7 @@ export default function AdminDashboardView({
                         <tr>
                           <th>Name</th>
                           <th>Username</th>
+                          <th>Role</th>
                           <th>Assigned Classes</th>
                           <th>Actions</th>
                         </tr>
@@ -903,7 +950,22 @@ export default function AdminDashboardView({
                             <td>{t.name}</td>
                             <td><code>{t.username}</code></td>
                             <td>
-                              {t.assignedClasses?.map(c => `Lvl ${c.level}-${c.section} (${c.subjectName || 'both'})`).join(', ') || 'None'}
+                              <span style={{
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '4px',
+                                fontSize: '0.7rem',
+                                fontWeight: 'bold',
+                                backgroundColor: t.role === 'ADMIN' ? 'var(--error-glow)' : t.role === 'ACCOUNTANT' ? 'var(--primary-glow)' : t.role === 'DIRECTOR' ? 'var(--warning-glow)' : 'var(--success-glow)',
+                                color: t.role === 'ADMIN' ? 'var(--error)' : t.role === 'ACCOUNTANT' ? 'var(--primary-dark)' : t.role === 'DIRECTOR' ? 'var(--warning)' : 'var(--success)',
+                                border: '1px solid currentColor'
+                              }}>
+                                {t.role || 'TEACHER'}
+                              </span>
+                            </td>
+                            <td>
+                              {(!t.role || t.role === 'TEACHER') ? (
+                                t.assignedClasses?.map(c => `Lvl ${c.level}-${c.section} (${c.subjectName || 'both'})`).join(', ') || 'None'
+                              ) : 'N/A'}
                             </td>
                             <td>
                               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -922,6 +984,7 @@ export default function AdminDashboardView({
                                     setEditTeacherForm({
                                       name: t.name,
                                       username: t.username,
+                                      role: t.role || 'TEACHER',
                                       password: '',
                                       assignedClasses: t.assignedClasses || []
                                     });
@@ -940,7 +1003,7 @@ export default function AdminDashboardView({
                 </div>
                 <div>
                   <div className="glass dashboard-card">
-                    <h3 style={styles.cardHeader}>Register New Teacher</h3>
+                    <h3 style={styles.cardHeader}>Register New Staff</h3>
                     <form onSubmit={handleCreateTeacher} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       <div>
                         <label style={styles.label}>Full Name</label>
@@ -954,61 +1017,75 @@ export default function AdminDashboardView({
                         <label style={styles.label}>Password</label>
                         <input type="password" required value={newTeacherPassword} onChange={e => setNewTeacherPassword(e.target.value)} placeholder="••••••••" />
                       </div>
-                      <div style={{ padding: '0.75rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)', marginBottom: '0.5rem' }}>
-                        <label style={{ ...styles.label, fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.5rem', display: 'block' }}>Add Class & Subject Assignment</label>
-                        <div className="form-row-responsive" style={{ marginBottom: '0.75rem' }}>
-                          <div>
-                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Class</label>
-                            <select value={newTeacherLevel} onChange={e => setNewTeacherLevel(e.target.value)}>
-                              <option value="">Select Class</option>
-                              {Object.entries(sectionGroups).map(([sec, classes]) => (
-                                <optgroup key={sec} label={sec}>
-                                  {classes.map(c => (
-                                    <option key={c._id} value={c.className}>{c.className}</option>
-                                  ))}
-                                </optgroup>
-                              ))}
-                              {activeClasses.length === 0 && <option disabled>No classes configured</option>}
-                            </select>
-                          </div>
-                          <div>
-                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Section</label>
-                            <select value={newTeacherSection} onChange={e => setNewTeacherSection(e.target.value)}>
-                              <option value="">Select Section</option>
-                              {uniqueSections.map(s => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                              {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
-                            </select>
-                          </div>
-                        </div>
-                        <div style={{ marginBottom: '0.75rem' }}>
-                          <label style={{ ...styles.label, fontSize: '0.75rem' }}>Assigned Subject</label>
-                          <select value={newTeacherSubject} onChange={e => setNewTeacherSubject(e.target.value)}>
-                            <option value="">Select Subject</option>
-                            {subjectsList.filter(s => s.isActive).map(s => (
-                              <option key={s._id} value={s.name}>{s.name} ({s.section})</option>
-                            ))}
-                            {subjectsList.filter(s => s.isActive).length === 0 && <option disabled>No subjects configured</option>}
-                          </select>
-                        </div>
-                        <button type="button" onClick={handleAddTempAssignment} style={{ ...styles.submitBtn, padding: '0.4rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}>
-                          + Add Assignment
-                        </button>
+                      <div>
+                        <label style={styles.label}>Staff Role</label>
+                        <select value={newTeacherRole} onChange={e => setNewTeacherRole(e.target.value as any)}>
+                          <option value="TEACHER">Teacher / Faculty</option>
+                          <option value="ADMIN">Administrator</option>
+                          <option value="ACCOUNTANT">Accountant</option>
+                          <option value="DIRECTOR">Director / Proprietor</option>
+                        </select>
                       </div>
 
-                      {tempAssignments.length > 0 && (
-                        <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)', marginBottom: '0.5rem' }}>
-                          <label style={{ ...styles.label, fontSize: '0.75rem', fontWeight: 'bold' }}>Teacher Assignments Stack ({tempAssignments.length})</label>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem', maxHeight: '120px', overflowY: 'auto' }}>
-                            {tempAssignments.map((a, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.3rem 0.5rem', backgroundColor: 'var(--bg-card)', borderRadius: '3px', border: '1px solid var(--border)' }}>
-                                <span>Lvl {a.level} - {a.section} ({a.subjectName})</span>
-                                <button type="button" onClick={() => setTempAssignments(tempAssignments.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>×</button>
+                      {newTeacherRole === 'TEACHER' && (
+                        <>
+                          <div style={{ padding: '0.75rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)', marginBottom: '0.5rem' }}>
+                            <label style={{ ...styles.label, fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.5rem', display: 'block' }}>Add Class & Subject Assignment</label>
+                            <div className="form-row-responsive" style={{ marginBottom: '0.75rem' }}>
+                              <div>
+                                <label style={{ ...styles.label, fontSize: '0.75rem' }}>Class</label>
+                                <select value={newTeacherLevel} onChange={e => setNewTeacherLevel(e.target.value)}>
+                                  <option value="">Select Class</option>
+                                  {Object.entries(sectionGroups).map(([sec, classes]) => (
+                                    <optgroup key={sec} label={sec}>
+                                      {classes.map(c => (
+                                        <option key={c._id} value={c.className}>{c.className}</option>
+                                      ))}
+                                    </optgroup>
+                                  ))}
+                                  {activeClasses.length === 0 && <option disabled>No classes configured</option>}
+                                </select>
                               </div>
-                            ))}
+                              <div>
+                                <label style={{ ...styles.label, fontSize: '0.75rem' }}>Section</label>
+                                <select value={newTeacherSection} onChange={e => setNewTeacherSection(e.target.value)}>
+                                  <option value="">Select Section</option>
+                                  {uniqueSections.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                  {uniqueSections.length === 0 && <option disabled>No sections configured</option>}
+                                </select>
+                              </div>
+                            </div>
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <label style={{ ...styles.label, fontSize: '0.75rem' }}>Assigned Subject</label>
+                              <select value={newTeacherSubject} onChange={e => setNewTeacherSubject(e.target.value)}>
+                                <option value="">Select Subject</option>
+                                {subjectsList.filter(s => s.isActive).map(s => (
+                                  <option key={s._id} value={s.name}>{s.name} ({s.section})</option>
+                                ))}
+                                {subjectsList.filter(s => s.isActive).length === 0 && <option disabled>No subjects configured</option>}
+                              </select>
+                            </div>
+                            <button type="button" onClick={handleAddTempAssignment} style={{ ...styles.submitBtn, padding: '0.4rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}>
+                              + Add Assignment
+                            </button>
                           </div>
-                        </div>
+
+                          {tempAssignments.length > 0 && (
+                            <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)', marginBottom: '0.5rem' }}>
+                              <label style={{ ...styles.label, fontSize: '0.75rem', fontWeight: 'bold' }}>Teacher Assignments Stack ({tempAssignments.length})</label>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem', maxHeight: '120px', overflowY: 'auto' }}>
+                                {tempAssignments.map((a, idx) => (
+                                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.3rem 0.5rem', backgroundColor: 'var(--bg-card)', borderRadius: '3px', border: '1px solid var(--border)' }}>
+                                    <span>Lvl {a.level} - {a.section} ({a.subjectName})</span>
+                                    <button type="button" onClick={() => setTempAssignments(tempAssignments.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}>×</button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                       
                       <button type="submit" style={{ ...styles.submitBtn, marginTop: '0.5rem' }}>Save Faculty Account</button>
@@ -1017,12 +1094,12 @@ export default function AdminDashboardView({
                 </div>
               </div>
 
-              {/* EDIT TEACHER MODAL */}
+              {/* EDIT STAFF MODAL */}
               {editingTeacher && (
                 <div className="modal-overlay-blur">
                   <div className="modal-card animate-scale-in" style={{ maxWidth: '550px' }}>
                     <div className="flex-between" style={{ marginBottom: '1.5rem' }}>
-                      <h3 style={{ margin: 0, color: 'var(--primary)' }}>Edit Teacher Details</h3>
+                      <h3 style={{ margin: 0, color: 'var(--primary)' }}>Edit Staff Details</h3>
                       <button
                         type="button"
                         style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
@@ -1059,91 +1136,104 @@ export default function AdminDashboardView({
                           placeholder="New Password" 
                         />
                       </div>
+                      <div>
+                        <label style={styles.label}>Role</label>
+                        <select value={editTeacherForm.role} onChange={e => setEditTeacherForm({ ...editTeacherForm, role: e.target.value as any })}>
+                          <option value="TEACHER">Teacher / Faculty</option>
+                          <option value="ADMIN">Administrator</option>
+                          <option value="ACCOUNTANT">Accountant</option>
+                          <option value="DIRECTOR">Director / Proprietor</option>
+                        </select>
+                      </div>
 
-                      <div style={{ padding: '0.75rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)' }}>
-                        <label style={{ ...styles.label, fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.5rem', display: 'block' }}>Add Class & Subject Assignment</label>
-                        <div className="form-row-responsive" style={{ marginBottom: '0.75rem' }}>
-                          <div>
-                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Class</label>
-                            <select id="edit-teacher-class-select">
-                              <option value="">Select Class</option>
-                              {Object.entries(sectionGroups).map(([sec, classes]) => (
-                                <optgroup key={sec} label={sec}>
-                                  {classes.map(c => (
-                                    <option key={c._id} value={c.className}>{c.className}</option>
+                      {editTeacherForm.role === 'TEACHER' && (
+                        <>
+                          <div style={{ padding: '0.75rem', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)' }}>
+                            <label style={{ ...styles.label, fontWeight: 'bold', color: 'var(--primary)', marginBottom: '0.5rem', display: 'block' }}>Add Class & Subject Assignment</label>
+                            <div className="form-row-responsive" style={{ marginBottom: '0.75rem' }}>
+                              <div>
+                                <label style={{ ...styles.label, fontSize: '0.75rem' }}>Class</label>
+                                <select id="edit-teacher-class-select">
+                                  <option value="">Select Class</option>
+                                  {Object.entries(sectionGroups).map(([sec, classes]) => (
+                                    <optgroup key={sec} label={sec}>
+                                      {classes.map(c => (
+                                        <option key={c._id} value={c.className}>{c.className}</option>
+                                      ))}
+                                    </optgroup>
                                   ))}
-                                </optgroup>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label style={{ ...styles.label, fontSize: '0.75rem' }}>Section</label>
-                            <select id="edit-teacher-section-select">
-                              <option value="">Select Section</option>
-                              {uniqueSections.map(s => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                        <div style={{ marginBottom: '0.75rem' }}>
-                          <label style={{ ...styles.label, fontSize: '0.75rem' }}>Assigned Subject</label>
-                          <select id="edit-teacher-subject-select">
-                            <option value="">Select Subject</option>
-                            {subjectsList.filter(s => s.isActive).map(s => (
-                              <option key={s._id} value={s.name}>{s.name} ({s.section})</option>
-                            ))}
-                          </select>
-                        </div>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            const classSel = document.getElementById('edit-teacher-class-select') as HTMLSelectElement;
-                            const secSel = document.getElementById('edit-teacher-section-select') as HTMLSelectElement;
-                            const subjSel = document.getElementById('edit-teacher-subject-select') as HTMLSelectElement;
-                            if (!classSel?.value || !secSel?.value || !subjSel?.value) {
-                              alert('Please select Class, Section, and Subject first');
-                              return;
-                            }
-                            // Check duplicates
-                            const exists = editTeacherForm.assignedClasses.some(a => a.level === classSel.value && a.section === secSel.value && a.subjectName === subjSel.value);
-                            if (exists) {
-                              alert('This class/subject assignment is already in the list.');
-                              return;
-                            }
-                            setEditTeacherForm({
-                              ...editTeacherForm,
-                              assignedClasses: [...editTeacherForm.assignedClasses, { level: classSel.value, section: secSel.value, subjectName: subjSel.value }]
-                            });
-                          }} 
-                          style={{ ...styles.submitBtn, padding: '0.4rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
-                        >
-                          + Add Assignment
-                        </button>
-                      </div>
-
-                      <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)' }}>
-                        <label style={{ ...styles.label, fontSize: '0.75rem', fontWeight: 'bold' }}>Current Assignments ({editTeacherForm.assignedClasses.length})</label>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem', maxHeight: '120px', overflowY: 'auto' }}>
-                          {editTeacherForm.assignedClasses.map((a, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.3rem 0.5rem', backgroundColor: 'var(--bg-card)', borderRadius: '3px', border: '1px solid var(--border)' }}>
-                              <span>Lvl {a.level} - {a.section} ({a.subjectName})</span>
-                              <button 
-                                type="button" 
-                                onClick={() => {
-                                  setEditTeacherForm({
-                                    ...editTeacherForm,
-                                    assignedClasses: editTeacherForm.assignedClasses.filter((_, i) => i !== idx)
-                                  });
-                                }} 
-                                style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}
-                              >
-                                ×
-                              </button>
+                                </select>
+                              </div>
+                              <div>
+                                <label style={{ ...styles.label, fontSize: '0.75rem' }}>Section</label>
+                                <select id="edit-teacher-section-select">
+                                  <option value="">Select Section</option>
+                                  {uniqueSections.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                            <div style={{ marginBottom: '0.75rem' }}>
+                              <label style={{ ...styles.label, fontSize: '0.75rem' }}>Assigned Subject</label>
+                              <select id="edit-teacher-subject-select">
+                                <option value="">Select Subject</option>
+                                {subjectsList.filter(s => s.isActive).map(s => (
+                                  <option key={s._id} value={s.name}>{s.name} ({s.section})</option>
+                                ))}
+                              </select>
+                            </div>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                const classSel = document.getElementById('edit-teacher-class-select') as HTMLSelectElement;
+                                const secSel = document.getElementById('edit-teacher-section-select') as HTMLSelectElement;
+                                const subjSel = document.getElementById('edit-teacher-subject-select') as HTMLSelectElement;
+                                if (!classSel?.value || !secSel?.value || !subjSel?.value) {
+                                  alert('Please select Class, Section, and Subject first');
+                                  return;
+                                }
+                                // Check duplicates
+                                const exists = editTeacherForm.assignedClasses.some(a => a.level === classSel.value && a.section === secSel.value && a.subjectName === subjSel.value);
+                                if (exists) {
+                                  alert('This class/subject assignment is already in the list.');
+                                  return;
+                                }
+                                setEditTeacherForm({
+                                  ...editTeacherForm,
+                                  assignedClasses: [...editTeacherForm.assignedClasses, { level: classSel.value, section: secSel.value, subjectName: subjSel.value }]
+                                });
+                              }} 
+                              style={{ ...styles.submitBtn, padding: '0.4rem 0.75rem', fontSize: '0.8rem', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}
+                            >
+                              + Add Assignment
+                            </button>
+                          </div>
+
+                          <div style={{ padding: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-base)' }}>
+                            <label style={{ ...styles.label, fontSize: '0.75rem', fontWeight: 'bold' }}>Current Assignments ({editTeacherForm.assignedClasses.length})</label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem', maxHeight: '120px', overflowY: 'auto' }}>
+                              {editTeacherForm.assignedClasses.map((a, idx) => (
+                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.3rem 0.5rem', backgroundColor: 'var(--bg-card)', borderRadius: '3px', border: '1px solid var(--border)' }}>
+                                  <span>Lvl {a.level} - {a.section} ({a.subjectName})</span>
+                                  <button 
+                                    type="button" 
+                                    onClick={() => {
+                                      setEditTeacherForm({
+                                        ...editTeacherForm,
+                                        assignedClasses: editTeacherForm.assignedClasses.filter((_, i) => i !== idx)
+                                      });
+                                    }} 
+                                    style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', fontWeight: 'bold', padding: 0 }}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
 
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                         <button type="submit" style={{ ...styles.submitBtn, flex: 1 }}>Save Changes</button>
@@ -1366,6 +1456,56 @@ export default function AdminDashboardView({
                             onChange={e => setManualStudent({ ...manualStudent, schoolFees: e.target.value })}
                           />
                         </div>
+                        {(isAlQalam || isConventional) && (
+                          <>
+                            <div className="form-row-responsive">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Date of Birth *</label>
+                                <input 
+                                  type="text" 
+                                  required
+                                  placeholder="e.g. Thu, 15-Jul-2010"
+                                  value={manualStudent.dob}
+                                  onChange={e => setManualStudent({ ...manualStudent, dob: e.target.value })}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Gender *</label>
+                                <select 
+                                  required
+                                  value={manualStudent.gender}
+                                  onChange={e => setManualStudent({ ...manualStudent, gender: e.target.value })}
+                                >
+                                  <option value="">Select Gender</option>
+                                  <option value="MALE">MALE</option>
+                                  <option value="FEMALE">FEMALE</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="form-row-responsive">
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>House *</label>
+                                <input 
+                                  type="text" 
+                                  required
+                                  placeholder="e.g. Yellow House"
+                                  value={manualStudent.house}
+                                  onChange={e => setManualStudent({ ...manualStudent, house: e.target.value })}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Club / Society *</label>
+                                <input 
+                                  type="text" 
+                                  required
+                                  placeholder="e.g. Press Club"
+                                  value={manualStudent.club}
+                                  onChange={e => setManualStudent({ ...manualStudent, club: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                           <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Passport Photo</label>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -1518,6 +1658,56 @@ export default function AdminDashboardView({
                         onChange={e => setEditStudentForm({ ...editStudentForm, schoolFees: Number(e.target.value) || 0 })}
                       />
                     </div>
+                    {(isAlQalam || isConventional) && (
+                      <>
+                        <div className="form-row-responsive">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Date of Birth *</label>
+                            <input 
+                              type="text" 
+                              required
+                              placeholder="e.g. Thu, 15-Jul-2010"
+                              value={editStudentForm.dob}
+                              onChange={e => setEditStudentForm({ ...editStudentForm, dob: e.target.value })}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Gender *</label>
+                            <select 
+                              required
+                              value={editStudentForm.gender}
+                              onChange={e => setEditStudentForm({ ...editStudentForm, gender: e.target.value })}
+                            >
+                              <option value="">Select Gender</option>
+                              <option value="MALE">MALE</option>
+                              <option value="FEMALE">FEMALE</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="form-row-responsive">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>House *</label>
+                            <input 
+                              type="text" 
+                              required
+                              placeholder="e.g. Yellow House"
+                              value={editStudentForm.house}
+                              onChange={e => setEditStudentForm({ ...editStudentForm, house: e.target.value })}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Club / Society *</label>
+                            <input 
+                              type="text" 
+                              required
+                              placeholder="e.g. Press Club"
+                              value={editStudentForm.club}
+                              onChange={e => setEditStudentForm({ ...editStudentForm, club: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Passport Photo</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -1616,6 +1806,68 @@ export default function AdminDashboardView({
                 </div>
 
                 <h4 style={{ color: 'var(--primary)', fontWeight: 'bold', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Branding & Contact Info</h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1rem' }}>
+                  <label style={styles.label}>School Logo</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-base)' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          processImageFile(file, (base64) => {
+                            setSettingsLogo(base64);
+                          });
+                        }
+                      }}
+                      style={{ width: 'auto' }}
+                    />
+                    {settingsLogo ? (
+                      <div style={{ position: 'relative' }}>
+                        <img 
+                          src={settingsLogo} 
+                          alt="School Logo Preview" 
+                          style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border)' }} 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSettingsLogo('')}
+                          style={{
+                            position: 'absolute',
+                            top: '-5px',
+                            right: '-5px',
+                            background: 'var(--error)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '18px',
+                            height: '18px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No logo selected (default: DSH Logo)</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={styles.label}>Curriculum Focus</label>
+                  <select value={settingsCurriculumType} onChange={e => setSettingsCurriculumType(e.target.value as any)}>
+                    <option value="dual">Islamic & Academic Dual Curriculum (Tahfeez)</option>
+                    <option value="conventional">Conventional Section / Academic Only</option>
+                  </select>
+                </div>
+
                 <div>
                   <label style={styles.label}>School Name (English)</label>
                   <input 
@@ -2447,6 +2699,14 @@ export default function AdminDashboardView({
           <div>
             <h3 style={styles.cardHeader}>Finance & Reserves Ledger</h3>
             <FinanceLedgerView showControls={false} />
+          </div>
+        )}
+
+        {/* 6. BILLING PORTAL TAB */}
+        {activeAdminSubTab === 'billing' && (
+          <div>
+            <h3 style={styles.cardHeader}>Billing & Subscriptions</h3>
+            <BillingPortalView />
           </div>
         )}
       </main>

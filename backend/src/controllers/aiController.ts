@@ -5,16 +5,25 @@ import Result from '../models/Result';
 import Invoice from '../models/Invoice';
 import Expense from '../models/Expense';
 import User from '../models/User';
-import Settings from '../models/Settings';
+import Tenant from '../models/Tenant';
+import AIJob from '../models/AIJob';
+import { enqueueAIJob } from '../services/aiQueueService';
 
-const getSchoolSettings = async () => {
+const getSchoolSettings = async (tenantId: string) => {
   try {
-    let settings = await Settings.findOne({ key: 'school_info' });
-    if (!settings) {
-      settings = new Settings({ key: 'school_info' });
-      await settings.save();
-    }
-    return settings;
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) throw new Error('Tenant not found');
+    return {
+      schoolName: tenant.name,
+      address: tenant.contact.address,
+      phoneNumbers: tenant.contact.phoneNumbers,
+      email: tenant.contact.email,
+      bankName: tenant.academicConfig.bankDetails.bankName,
+      accountName: tenant.academicConfig.bankDetails.accountName,
+      accountNumber: tenant.academicConfig.bankDetails.accountNumber,
+      currentAcademicYear: tenant.academicConfig.currentAcademicYear,
+      currentTerm: tenant.academicConfig.currentTerm
+    };
   } catch (err) {
     console.error('Settings lookup failed, using hardcoded defaults:', err);
     return {
@@ -24,7 +33,9 @@ const getSchoolSettings = async () => {
       email: 'info@younghuffaz.com',
       bankName: 'Huffaz Trust Bank',
       accountName: 'Home of Young Huffaz Academy',
-      accountNumber: '1023456789'
+      accountNumber: '1023456789',
+      currentAcademicYear: '2025/2026',
+      currentTerm: 'Second Term'
     };
   }
 };
@@ -41,7 +52,7 @@ const callOpenRouter = async (prompt: string): Promise<string> => {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'http://localhost:5000',
-      'X-Title': 'DSH Result Management System',
+      'X-Title': 'SmartSchool Africa SaaS Platform',
     },
     body: JSON.stringify({
       model: 'google/gemini-2.5-flash',
@@ -67,7 +78,12 @@ const callOpenRouter = async (prompt: string): Promise<string> => {
 // 1. Auto-generate report card feedback comments for Teachers
 export const generateReportFeedback = async (req: AuthRequest, res: Response) => {
   try {
-    const settings = await getSchoolSettings();
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
+    const settings = await getSchoolSettings(tenantId);
     let studentName = req.body.studentName || 'Student';
     let subjectsList = '';
     let averageGrade = 'C';
@@ -109,7 +125,7 @@ export const generateReportFeedback = async (req: AuthRequest, res: Response) =>
         return res.status(400).json({ message: 'Missing required student details or subjects list' });
       }
 
-      const result = await Result.findOne({ studentId, academicYear, term }).populate('studentId');
+      const result = await Result.findOne({ tenantId, studentId, academicYear, term }).populate('studentId');
       if (!result) {
         return res.status(404).json({ message: 'No graded results found for this student to analyze.' });
       }
@@ -148,8 +164,23 @@ export const generateReportFeedback = async (req: AuthRequest, res: Response) =>
       Provide ONLY the raw comment text, with no extra quotes or introduction.
     `;
 
-    const responseText = await callOpenRouter(prompt);
-    return res.status(200).json({ comment: responseText, feedback: responseText });
+    const job = await enqueueAIJob(
+      tenantId,
+      req.user?.id || null,
+      'report_feedback',
+      { studentName, averageGrade, finalAverage },
+      prompt,
+      () => callOpenRouter(prompt)
+    );
+
+    return res.status(202).json({
+      message: 'Report feedback generation job enqueued.',
+      jobId: job._id,
+      status: job.status,
+      // Backward compatibility fallbacks if cached/finished instantly
+      comment: job.status === 'completed' ? job.result : undefined,
+      feedback: job.status === 'completed' ? job.result : undefined
+    });
   } catch (error: any) {
     console.error('AI Report Feedback Error:', error);
     return res.status(500).json({ message: 'Server error generating feedback', error: error.message });
@@ -159,15 +190,21 @@ export const generateReportFeedback = async (req: AuthRequest, res: Response) =>
 // 2. Auto-generate financial briefing for Accountants
 export const generateFinancialForecast = async (req: AuthRequest, res: Response) => {
   try {
-    const { term, academicYear } = req.query;
-    const settings = await getSchoolSettings();
-    const filterTerm = (term as string) || (settings as any).currentTerm || 'First Term';
-    const filterYear = (academicYear as string) || (settings as any).currentAcademicYear || '2025/2026';
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
 
-    const activeStudents = await Student.find({ isDeleted: { $ne: true }, academicYear: filterYear });
+    const { term, academicYear } = req.query;
+    const settings = await getSchoolSettings(tenantId);
+    
+    const filterTerm = (term as string) || settings.currentTerm || 'First Term';
+    const filterYear = (academicYear as string) || settings.currentAcademicYear || '2025/2026';
+
+    const activeStudents = await Student.find({ tenantId, isDeleted: { $ne: true }, academicYear: filterYear });
     const totalExpected = activeStudents.reduce((sum, s: any) => sum + (s.schoolFees || 0), 0);
 
-    const invoices = await Invoice.find({ term: filterTerm, academicYear: filterYear });
+    const invoices = await Invoice.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalInvoiced = 0;
     let totalPaid = 0;
     invoices.forEach((inv) => {
@@ -175,7 +212,7 @@ export const generateFinancialForecast = async (req: AuthRequest, res: Response)
       totalPaid += inv.paidAmount;
     });
 
-    const expenses = await Expense.find({ term: filterTerm, academicYear: filterYear });
+    const expenses = await Expense.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalExpenses = 0;
     expenses.forEach((exp) => {
       totalExpenses += exp.amount;
@@ -185,7 +222,7 @@ export const generateFinancialForecast = async (req: AuthRequest, res: Response)
     const currentBalance = totalPaid - totalExpenses;
 
     const prompt = `
-      You are a senior financial AI advisor. Generate a concise financial briefing and cash flow outlook (150-200 words) for the accountant of ${(settings as any).schoolName} based on the following metrics:
+      You are a senior financial AI advisor. Generate a concise financial briefing and cash flow outlook (150-200 words) for the accountant of ${settings.schoolName} based on the following metrics:
       
       Financial Metrics (for ${filterTerm} / Academic Year ${filterYear}):
       - Total Expected Fees (from Student Files): ₦${totalExpected.toLocaleString()}
@@ -198,8 +235,21 @@ export const generateFinancialForecast = async (req: AuthRequest, res: Response)
       Write a structured advice briefing. Underline the current collection efficiency (Paid/Expected percentage), assess reserves vs expenses, and suggest 2 concrete actions to recover outstanding fees. Format with clear Markdown paragraphs.
     `;
 
-    const responseText = await callOpenRouter(prompt);
-    return res.status(200).json({ forecast: responseText });
+    const job = await enqueueAIJob(
+      tenantId,
+      req.user?.id || null,
+      'finance_forecast',
+      { term: filterTerm, academicYear: filterYear },
+      prompt,
+      () => callOpenRouter(prompt)
+    );
+
+    return res.status(202).json({
+      message: 'Financial forecast generation job enqueued.',
+      jobId: job._id,
+      status: job.status,
+      forecast: job.status === 'completed' ? job.result : undefined
+    });
   } catch (error: any) {
     console.error('AI Financial Forecast Error:', error);
     return res.status(500).json({ message: 'Server error generating financial forecast', error: error.message });
@@ -209,27 +259,33 @@ export const generateFinancialForecast = async (req: AuthRequest, res: Response)
 // 3. Auto-generate Executive Briefing for Director
 export const generateExecutiveBriefing = async (req: AuthRequest, res: Response) => {
   try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
     const { term, academicYear } = req.query;
-    const settings = await getSchoolSettings();
-    const filterTerm = (term as string) || (settings as any).currentTerm || 'First Term';
-    const filterYear = (academicYear as string) || (settings as any).currentAcademicYear || '2025/2026';
+    const settings = await getSchoolSettings(tenantId);
+    
+    const filterTerm = (term as string) || settings.currentTerm || 'First Term';
+    const filterYear = (academicYear as string) || settings.currentAcademicYear || '2025/2026';
 
-    const activeStudentsCount = await Student.countDocuments({ isDeleted: { $ne: true }, academicYear: filterYear });
-    const teachersCount = await User.countDocuments({ role: 'TEACHER' });
+    const activeStudentsCount = await Student.countDocuments({ tenantId, isDeleted: { $ne: true }, academicYear: filterYear });
+    const teachersCount = await User.countDocuments({ tenantId, role: 'TEACHER' });
 
-    const invoices = await Invoice.find({ term: filterTerm, academicYear: filterYear });
+    const invoices = await Invoice.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalPaid = 0;
     invoices.forEach((inv) => {
       totalPaid += inv.paidAmount;
     });
-    const expenses = await Expense.find({ term: filterTerm, academicYear: filterYear });
+    const expenses = await Expense.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalExpenses = 0;
     expenses.forEach((exp) => {
       totalExpenses += exp.amount;
     });
     const netBalance = totalPaid - totalExpenses;
 
-    const results = await Result.find({ term: filterTerm, academicYear: filterYear });
+    const results = await Result.find({ tenantId, term: filterTerm, academicYear: filterYear });
     let totalGPA = 0;
     results.forEach((r) => {
       totalGPA += r.finalAverage;
@@ -237,7 +293,7 @@ export const generateExecutiveBriefing = async (req: AuthRequest, res: Response)
     const averageScore = results.length > 0 ? (totalGPA / results.length).toFixed(1) : 'N/A';
 
     const prompt = `
-      You are a strategic education consultant AI. Write an executive briefing (150-200 words) for the Director/Proprietor of ${(settings as any).schoolName} using these school metrics for ${filterTerm} (Academic Year ${filterYear}):
+      You are a strategic education consultant AI. Write an executive briefing (150-200 words) for the Director/Proprietor of ${settings.schoolName} using these school metrics for ${filterTerm} (Academic Year ${filterYear}):
       
       School Overview:
       - Active Students: ${activeStudentsCount}
@@ -251,18 +307,36 @@ export const generateExecutiveBriefing = async (req: AuthRequest, res: Response)
       Outline key recommendations for resource allocation, class performance, and teacher workload optimization. Be professional, supportive, and strategic. Format in clean Markdown.
     `;
 
-    const responseText = await callOpenRouter(prompt);
-    return res.status(200).json({ briefing: responseText });
+    const job = await enqueueAIJob(
+      tenantId,
+      req.user?.id || null,
+      'director_briefing',
+      { term: filterTerm, academicYear: filterYear },
+      prompt,
+      () => callOpenRouter(prompt)
+    );
+
+    return res.status(202).json({
+      message: 'Director executive briefing generation job enqueued.',
+      jobId: job._id,
+      status: job.status,
+      briefing: job.status === 'completed' ? job.result : undefined
+    });
   } catch (error: any) {
     console.error('AI Executive Briefing Error:', error);
     return res.status(500).json({ message: 'Server error generating executive briefing', error: error.message });
   }
 };
 
-// 3. Auto-generate Head Teacher / Principal feedback comments
+// 4. Auto-generate Head Teacher / Principal feedback comments
 export const generateHeadTeacherFeedback = async (req: AuthRequest, res: Response) => {
   try {
-    const settings = await getSchoolSettings();
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
+    const settings = await getSchoolSettings(tenantId);
     const { studentName, finalAverage, generalGrade, subjects } = req.body;
     
     let subjectsList = '';
@@ -289,10 +363,226 @@ export const generateHeadTeacherFeedback = async (req: AuthRequest, res: Respons
       Provide ONLY the raw comment text, with no extra quotes or introduction.
     `;
 
-    const responseText = await callOpenRouter(prompt);
-    return res.status(200).json({ comment: responseText });
+    const job = await enqueueAIJob(
+      tenantId,
+      req.user?.id || null,
+      'head_teacher_feedback',
+      { studentName, finalAverage, generalGrade },
+      prompt,
+      () => callOpenRouter(prompt)
+    );
+
+    return res.status(202).json({
+      message: 'Head Teacher feedback generation job enqueued.',
+      jobId: job._id,
+      status: job.status,
+      comment: job.status === 'completed' ? job.result : undefined
+    });
   } catch (error: any) {
     console.error('AI Head Teacher Feedback Error:', error);
     return res.status(500).json({ message: 'Server error generating head teacher feedback', error: error.message });
+  }
+};
+
+/**
+ * GET /api/ai/job/:jobId
+ * Returns the status and result of a background AI generation job.
+ */
+export const getAIJobStatus = async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
+    const { jobId } = req.params;
+    const job = await AIJob.findOne({ _id: jobId, tenantId });
+    if (!job) {
+      return res.status(404).json({ message: 'AI Job not found' });
+    }
+
+    return res.status(200).json({
+      jobId: job._id,
+      status: job.status,
+      taskType: job.taskType,
+      result: job.result,
+      error: job.error
+    });
+  } catch (error: any) {
+    console.error('getAIJobStatus error:', error);
+    return res.status(500).json({ message: 'Failed to retrieve job status', error: error.message });
+  }
+};
+
+/**
+ * GET /api/ai/at-risk
+ * Scans students in the current term against their previous term averages to identify those
+ * whose grades dropped by more than 5%. Generates AI study recommendations.
+ */
+export const detectAtRiskStudents = async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
+    const settings = await getSchoolSettings(tenantId);
+    const currentYear = req.query.academicYear as string || settings.currentAcademicYear;
+    const currentTerm = req.query.term as string || settings.currentTerm;
+
+    // Determine previous term
+    let prevTerm = 'First Term';
+    if (currentTerm === 'Third Term') prevTerm = 'Second Term';
+    else if (currentTerm === 'Second Term') prevTerm = 'First Term';
+
+    // Find all results for current term
+    const currentResults = await Result.find({ tenantId, academicYear: currentYear, term: currentTerm }).populate('studentId');
+    const atRiskList: any[] = [];
+
+    for (const r of currentResults) {
+      const student: any = r.studentId;
+      if (!student) continue;
+
+      // Find previous term result for comparison
+      const prevResult = await Result.findOne({
+        tenantId,
+        studentId: student._id,
+        academicYear: currentYear,
+        term: prevTerm
+      });
+
+      if (prevResult) {
+        const diff = prevResult.finalAverage - r.finalAverage;
+        if (diff >= 5) { // Grade dropped by 5% or more
+          // Enqueue or return details
+          atRiskList.push({
+            studentId: student._id,
+            name: student.name,
+            admissionNumber: student.admissionNumber,
+            level: student.level,
+            section: student.section,
+            currentAverage: r.finalAverage,
+            previousAverage: prevResult.finalAverage,
+            dropPercentage: diff.toFixed(1)
+          });
+        }
+      }
+    }
+
+    if (atRiskList.length === 0) {
+      return res.status(200).json({
+        message: 'No students identified with declining grade trends of 5% or more.',
+        students: []
+      });
+    }
+
+    // Generate group advice block prompt
+    const studentsSummary = atRiskList.map(s => `- ${s.name} (Grade average dropped from ${s.previousAverage}% to ${s.currentAverage}%)`).join('\n');
+    const prompt = `
+      You are an expert educational psychologist and director consultant.
+      We have analyzed student report card statistics for this term and flagged the following students with declining performance trends:
+      
+      Flagged Students:
+      ${studentsSummary}
+
+      Draft a short, highly professional strategic overview (100-150 words) with 3 key actionable recommendations for teachers and counselors to support these struggling students.
+    `;
+
+    // Enqueue LLM job
+    const job = await enqueueAIJob(
+      tenantId,
+      req.user?.id || null,
+      'at_risk_detection',
+      { currentTerm, currentYear, count: atRiskList.length },
+      prompt,
+      () => callOpenRouter(prompt)
+    );
+
+    return res.status(202).json({
+      message: `Identified ${atRiskList.length} students at risk. AI recommendation strategy enqueued.`,
+      jobId: job._id,
+      status: job.status,
+      flaggedStudents: atRiskList
+    });
+  } catch (error: any) {
+    console.error('detectAtRiskStudents error:', error);
+    return res.status(500).json({ message: 'Failed to analyze at-risk students', error: error.message });
+  }
+};
+
+/**
+ * POST /api/ai/class-summary
+ * Compiles a class's result averages and enqueues a background summary briefing.
+ */
+export const generateClassScoreSummary = async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
+    const { level, section, term, academicYear } = req.body;
+    if (!level || !section || !term || !academicYear) {
+      return res.status(400).json({ message: 'Missing level, section, term or academicYear in request body' });
+    }
+
+    const settings = await getSchoolSettings(tenantId);
+    
+    // Find all results in this class section
+    const results = await Result.find({ tenantId, level, section, term, academicYear }).populate('studentId');
+    if (results.length === 0) {
+      return res.status(404).json({ message: 'No graded student results found in this class section' });
+    }
+
+    let totalScore = 0;
+    let highestAverage = 0;
+    let highestScorerName = 'N/A';
+
+    results.forEach((r) => {
+      totalScore += r.finalAverage;
+      if (r.finalAverage > highestAverage) {
+        highestAverage = r.finalAverage;
+        highestScorerName = typeof r.studentId === 'object' && r.studentId ? (r.studentId as any).name : 'Student';
+      }
+    });
+
+    const classAverage = (totalScore / results.length).toFixed(1);
+
+    const prompt = `
+      You are an academic auditor AI assisting the director of ${settings.schoolName}.
+      Provide a brief summary briefing (100-120 words) analyzing the performance of Level "${level}" Section "${section}" for "${term}" (${academicYear}):
+      
+      Class Metrics:
+      - Total graded students: ${results.length}
+      - Class Average Score: ${classAverage}%
+      - Highest Average: ${highestAverage}% achieved by ${highestScorerName}
+
+      Summarize general academic performance (are they doing well or average?), suggest which areas require review, and provide encouragement. Format in markdown.
+    `;
+
+    // Enqueue LLM job
+    const job = await enqueueAIJob(
+      tenantId,
+      req.user?.id || null,
+      'class_summary',
+      { level, section, term, academicYear },
+      prompt,
+      () => callOpenRouter(prompt)
+    );
+
+    return res.status(202).json({
+      message: 'Class performance summary enqueued successfully.',
+      jobId: job._id,
+      status: job.status,
+      metrics: {
+        totalStudents: results.length,
+        classAverage,
+        highestAverage,
+        highestScorerName
+      }
+    });
+  } catch (error: any) {
+    console.error('generateClassScoreSummary error:', error);
+    return res.status(500).json({ message: 'Failed to generate class score summary', error: error.message });
   }
 };

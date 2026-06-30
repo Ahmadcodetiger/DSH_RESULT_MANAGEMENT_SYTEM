@@ -13,31 +13,38 @@ const getJwtSecret = (): string => {
   return secret;
 };
 
-// Admin Registration (Initial setup)
+// Admin Registration (Initial setup within a tenant)
 export const registerAdmin = async (req: AuthRequest, res: Response) => {
   try {
     const { username, password, name } = req.body;
+    const tenantId = req.tenantId;
+
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
 
     if (password.length < 8) {
       return res.status(400).json({ message: 'Password must be at least 8 characters long' });
     }
 
-    // Bootstrap lock: block registration if an admin already exists in the database
-    const adminExists = await User.findOne({ role: 'ADMIN' });
+    // Bootstrap lock: block registration if an admin already exists for this tenant
+    const adminExists = await User.findOne({ tenantId, role: 'ADMIN' });
     if (adminExists) {
-      return res.status(403).json({ message: 'Access denied: Admin registration is locked after the first admin is created.' });
+      return res.status(403).json({ message: 'Access denied: Admin registration is locked for this school.' });
     }
 
-    const existingUser = await User.findOne({ username });
+    const formattedUsername = username.trim().toLowerCase();
+    const existingUser = await User.findOne({ tenantId, username: formattedUsername });
     if (existingUser) {
-      return res.status(400).json({ message: 'Username already exists' });
+      return res.status(400).json({ message: 'Username already exists for this school' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const admin = new User({
-      username,
+      tenantId,
+      username: formattedUsername,
       password: hashedPassword,
       name,
       role: 'ADMIN',
@@ -54,14 +61,20 @@ export const registerAdmin = async (req: AuthRequest, res: Response) => {
 export const loginUser = async (req: AuthRequest, res: Response) => {
   try {
     const { username, password } = req.body;
+    const tenantId = req.tenantId;
+
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required. Make sure you are using the correct school domain.' });
+    }
 
     if (!username || !password) {
       return res.status(400).json({ message: 'Please enter username and password' });
     }
 
-    const user = await User.findOne({ username });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+    const formattedUsername = username.trim().toLowerCase();
+    const user: any = await User.findOne({ tenantId, username: formattedUsername });
+    if (!user || !user.isActive) {
+      return res.status(400).json({ message: 'Invalid credentials or inactive account' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -70,9 +83,9 @@ export const loginUser = async (req: AuthRequest, res: Response) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, role: user.role, name: user.name },
+      { id: user._id, role: user.role, name: user.name, tenantId: user.tenantId.toString() },
       getJwtSecret(),
-      { expiresIn: '1h' } // Reduced to 1 hour for staff/admin security
+      { expiresIn: '10h' } // Increased to 10 hours for convenient daily usage in school
     );
 
     return res.status(200).json({
@@ -82,6 +95,7 @@ export const loginUser = async (req: AuthRequest, res: Response) => {
         username: user.username,
         name: user.name,
         role: user.role,
+        tenantId: user.tenantId,
         assignedClasses: user.assignedClasses,
       },
     });
@@ -94,6 +108,11 @@ export const loginUser = async (req: AuthRequest, res: Response) => {
 export const parentLogin = async (req: AuthRequest, res: Response) => {
   try {
     const { admissionNumber, pin } = req.body;
+    const tenantId = req.tenantId;
+
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
 
     if (!admissionNumber || !pin) {
       return res.status(400).json({ message: 'Please enter admission number and PIN' });
@@ -101,7 +120,7 @@ export const parentLogin = async (req: AuthRequest, res: Response) => {
 
     const formattedAdmissionNumber = admissionNumber.trim().toUpperCase();
 
-    const student: any = await Student.findOne({ admissionNumber: formattedAdmissionNumber, isDeleted: { $ne: true } });
+    const student: any = await Student.findOne({ tenantId, admissionNumber: formattedAdmissionNumber, isDeleted: { $ne: true } });
     if (!student) {
       return res.status(404).json({ message: 'Student not found with this admission number' });
     }
@@ -117,9 +136,10 @@ export const parentLogin = async (req: AuthRequest, res: Response) => {
         role: 'PARENT',
         admissionNumber: student.admissionNumber,
         name: student.name,
+        tenantId: student.tenantId.toString(),
       },
       getJwtSecret(),
-      { expiresIn: '2h' } // Reduced to 2 hours for parents security
+      { expiresIn: '12h' } // 12 hours session duration for parents
     );
 
     return res.status(200).json({
@@ -131,6 +151,49 @@ export const parentLogin = async (req: AuthRequest, res: Response) => {
         level: student.level,
         section: student.section,
         academicYear: student.academicYear,
+        tenantId: student.tenantId,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// SaaS Platform Admin Login (no tenant context required)
+export const platformLogin = async (req: AuthRequest, res: Response) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Please enter username and password' });
+    }
+
+    const formattedUsername = username.trim().toLowerCase();
+    // Find the user globally where role is SUPER_ADMIN
+    const user = await User.findOne({ username: formattedUsername, role: 'SUPER_ADMIN' });
+    if (!user || !user.isActive) {
+      return res.status(400).json({ message: 'Invalid platform credentials or inactive account' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role, name: user.name, tenantId: user.tenantId?.toString() || '' },
+      getJwtSecret(),
+      { expiresIn: '10h' }
+    );
+
+    return res.status(200).json({
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        tenantId: user.tenantId,
       },
     });
   } catch (error: any) {

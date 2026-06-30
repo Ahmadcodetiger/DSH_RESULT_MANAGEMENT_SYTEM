@@ -3,10 +3,15 @@ import bcrypt from 'bcryptjs';
 
 const StudentSchema = new Schema(
   {
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tenant',
+      required: true,
+      index: true,
+    },
     admissionNumber: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
       uppercase: true, // Auto uppercase to make lookup consistent e.g., dsh/123 -> DSH/123
     },
@@ -38,6 +43,22 @@ const StudentSchema = new Schema(
       type: String,
       default: '',
     },
+    dob: {
+      type: String,
+      default: '',
+    },
+    gender: {
+      type: String,
+      default: '',
+    },
+    house: {
+      type: String,
+      default: '',
+    },
+    club: {
+      type: String,
+      default: '',
+    },
     isDeleted: {
       type: Boolean,
       default: false,
@@ -56,5 +77,11 @@ StudentSchema.methods.comparePin = async function (enteredPin: string): Promise<
   }
   return enteredPin === this.parentPin;
 };
+
+// Compound unique index: admissionNumber unique WITHIN a tenant
+StudentSchema.index({ tenantId: 1, admissionNumber: 1 }, { unique: true });
+StudentSchema.index({ tenantId: 1, level: 1, section: 1 });
+StudentSchema.index({ tenantId: 1, isDeleted: 1 });
+StudentSchema.index({ tenantId: 1, academicYear: 1 });
 
 export default model('Student', StudentSchema);
