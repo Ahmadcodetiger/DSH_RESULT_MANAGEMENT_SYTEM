@@ -97,6 +97,7 @@ export const loginUser = async (req: AuthRequest, res: Response) => {
         role: user.role,
         tenantId: user.tenantId,
         assignedClasses: user.assignedClasses,
+        classTeacherClasses: user.classTeacherClasses || [],
       },
     });
   } catch (error: any) {

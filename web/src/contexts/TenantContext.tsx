@@ -129,17 +129,23 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           // Dynamically change page title
           document.title = `${res.data.schoolName} — Portal`;
           
-          // Dynamically inject custom property theme stylesheet link
-          let link = document.getElementById('tenant-theme-link') as HTMLLinkElement | null;
-          if (!link) {
-            link = document.createElement('link');
-            link.id = 'tenant-theme-link';
-            link.rel = 'stylesheet';
-            document.head.appendChild(link);
+          // Dynamically inject tenant theme by fetching CSS via API (ensures X-Tenant-ID header is attached)
+          let style = document.getElementById('tenant-theme-style') as HTMLStyleElement | null;
+          if (!style) {
+            style = document.createElement('style');
+            style.id = 'tenant-theme-style';
+            document.head.appendChild(style);
           }
-          // Point to backend theme route
-          const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api$/, '') || `http://${hostname}:5000`;
-          link.href = `${apiBaseUrl}/api/public/theme?t=${Date.now()}`;
+
+          // Use the API client so interceptors attach `X-Tenant-ID` header for tenant resolution
+          try {
+            // We intentionally do not include the full base URL so the axios instance's baseURL is used.
+            const res = await api.get(`/public/theme?t=${Date.now()}`, { responseType: 'text' });
+            style.innerHTML = res.data || '';
+          } catch (err: any) {
+            console.error('Failed to load tenant theme stylesheet:', err?.message || err);
+            style.innerHTML = '';
+          }
         }
       } else {
         localStorage.removeItem('huffaz_tenant_slug');

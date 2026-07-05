@@ -19,6 +19,10 @@ const StudentSchema = new Schema(
       type: String,
       required: true,
     },
+    nameArabic: {
+      type: String,
+      default: '',
+    },
     level: {
       type: String,
       required: true, // e.g. "5"

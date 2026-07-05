@@ -46,7 +46,8 @@ const ResultSchema = new Schema(
         subjectPosition: { type: String, default: '' },
         classAverage: { type: Number, default: 0 },
         prevTermScore: { type: Number, default: 0 },
-        subjectRemarks: { type: String, default: '' }
+        subjectRemarks: { type: String, default: '' },
+        teacherInitials: { type: String, default: '' }
       }
     ],
 
@@ -124,11 +125,12 @@ const ResultSchema = new Schema(
     
     dateIssued: { type: String, default: '' }, // e.g. "11-3-2026"
     nextTermBegins: { type: String, default: '' }, // e.g. "13-4-2026"
+    estimatedResumptionDate: { type: String, default: '' },
     nextTermSchoolFees: { type: String, default: '' },
 
     status: {
       type: String,
-      enum: ['draft', 'approved'],
+      enum: ['draft', 'submitted', 'approved'],
       default: 'draft'
     }
   },

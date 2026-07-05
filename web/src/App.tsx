@@ -24,6 +24,7 @@ interface Student {
   _id: string;
   admissionNumber: string;
   name: string;
+  nameArabic?: string;
   level: string;
   section: string;
   academicYear: string;
@@ -263,6 +264,13 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
   const { tenant } = useTenant();
   const tenantId = (tenant as any)?.tenantId || tenant?.id || (tenant as any)?._id || schoolSettings?.tenantId || '';
   const isAlQalam = tenant?.slug === 'alqalam';
+
+  const isConventional = schoolSettings?.curriculumType === 'conventional' || (tenant as any)?.curriculumType === 'conventional';
+  const sectionStr = (student?.section || result?.section || '').trim().toUpperCase();
+  const levelStr = (student?.level || result?.level || '').trim().toUpperCase();
+  const isTahfeezOrIslamic = 
+    sectionStr.includes('TAHFEEZ') || sectionStr.includes('ISLAMIC') || sectionStr.includes('QURAN') ||
+    levelStr.includes('TAHFEEZ') || levelStr.includes('ISLAMIC') || levelStr.includes('QURAN');
 
   // Edit states
   const [isEditing, setIsEditing] = useState(false);
@@ -508,58 +516,61 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                     </tr>
                   </thead>
                   <tbody>
-                    {editSubjects.map((s, idx) => (
-                      <tr key={s.subjectName} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: '0.5rem' }}>
-                          <strong>{s.subjectName}</strong>
-                          <div style={{ fontSize: '0.8rem', color: '#666' }}>{s.subjectNameArabic}</div>
-                        </td>
-                        {isAlQalam ? (
-                          <>
-                            <td style={{ padding: '0.5rem' }}>
-                              <input 
-                                type="number" 
-                                value={s.score60 || 0} 
-                                onChange={e => handleScoreEditChange(idx, 'score60', parseInt(e.target.value) || 0)} 
-                              />
-                            </td>
-                            <td style={{ padding: '0.5rem' }}>
-                              <input 
-                                type="number" 
-                                value={s.score40 || 0} 
-                                onChange={e => handleScoreEditChange(idx, 'score40', parseInt(e.target.value) || 0)} 
-                              />
-                            </td>
-                          </>
-                        ) : (
-                          <>
-                            <td style={{ padding: '0.5rem' }}>
-                              <input 
-                                type="number" 
-                                value={s.score20_1 || 0} 
-                                onChange={e => handleScoreEditChange(idx, 'score20_1', parseInt(e.target.value) || 0)} 
-                              />
-                            </td>
-                            <td style={{ padding: '0.5rem' }}>
-                              <input 
-                                type="number" 
-                                value={s.score20_2 || 0} 
-                                onChange={e => handleScoreEditChange(idx, 'score20_2', parseInt(e.target.value) || 0)} 
-                              />
-                            </td>
-                            <td style={{ padding: '0.5rem' }}>
-                              <input 
-                                type="number" 
-                                value={s.score60 || 0} 
-                                onChange={e => handleScoreEditChange(idx, 'score60', parseInt(e.target.value) || 0)} 
-                              />
-                            </td>
-                          </>
-                        )}
-                        <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>{s.score100}</td>
-                        <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
-                      </tr>
-                    ))}
+                    {editSubjects.map((s, idx) => {
+                      if (isTahfeezOrIslamic && s.section === 'academic') return null;
+                      return (
+                        <tr key={s.subjectName} style={{ borderBottom: '1px solid #eee' }}>
+                          <td style={{ padding: '0.5rem' }}>
+                            <strong>{s.subjectName}</strong>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>{s.subjectNameArabic}</div>
+                          </td>
+                          {isAlQalam ? (
+                            <>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score60 || 0} 
+                                  onChange={e => handleScoreEditChange(idx, 'score60', parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score40 || 0} 
+                                  onChange={e => handleScoreEditChange(idx, 'score40', parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score20_1 || 0} 
+                                  onChange={e => handleScoreEditChange(idx, 'score20_1', parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score20_2 || 0} 
+                                  onChange={e => handleScoreEditChange(idx, 'score20_2', parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score60 || 0} 
+                                  onChange={e => handleScoreEditChange(idx, 'score60', parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                            </>
+                          )}
+                          <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold' }}>{s.score100}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -665,8 +676,353 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
           ) : (
             <>
               {/* STATIC PREVIEW SHEET */}
-              {isAlQalam ? (
-                /* AL-QALAM REPORT SHEET INTERACTIVE PREVIEW */
+              {isTahfeezOrIslamic ? (
+                /* REDESIGNED BILINGUAL TAHFEEZ/ISLAMIC VIEW */
+                (() => {
+                  const primaryColor = '#334155'; // Dark Slate
+                  const secondaryColor = '#475569'; // Slate Grey
+                  const borderColor = '#cbd5e1'; // Light Grey border
+                  const textColor = '#1e293b';
+
+                  const translateTermToArabic = (termStr: string): string => {
+                    const t = termStr.toLowerCase();
+                    if (t.includes('first')) return 'الأولى';
+                    if (t.includes('second')) return 'الثانية';
+                    if (t.includes('third')) return 'الثالثة';
+                    return termStr;
+                  };
+
+                  const translateClassToArabic = (levelStr: string): string => {
+                    const l = levelStr.toLowerCase();
+                    if (l.includes('1')) return 'الأول';
+                    if (l.includes('2')) return 'الثاني';
+                    if (l.includes('3')) return 'الثالث';
+                    if (l.includes('4')) return 'الرابع';
+                    if (l.includes('5')) return 'الخامس';
+                    if (l.includes('6')) return 'السادس';
+                    return levelStr;
+                  };
+
+                  const arabicSubjectNames: Record<string, string> = {
+                    'quran': 'القرآن الكريم',
+                    'tajweed': 'التجويد/إملاء',
+                    'grammar': 'الحروف/النحو',
+                    'adhkar': 'الأذكار',
+                    'arabic': 'العربية',
+                    'writing': 'الكتابة',
+                    'hadith': 'الحديث',
+                    'sarf': 'الصرف/العدد',
+                    'tawhid': 'التوحيد',
+                    'sirah': 'السيرة',
+                    'fiqh': 'الفقه والسلوك',
+                    'quranic_sciences': 'علوم القرآن',
+                    'composition': 'الإنشاء'
+                  };
+
+                  const getSubjectBilingualName = (s: any): string => {
+                    const englishName = s.subjectName || '';
+                    let arabicName = s.subjectNameArabic || '';
+                    if (!arabicName) {
+                      const nameLower = englishName.toLowerCase();
+                      for (const [key, nameAr] of Object.entries(arabicSubjectNames)) {
+                        if (nameLower.includes(key)) {
+                          arabicName = nameAr;
+                          break;
+                        }
+                      }
+                    }
+                    if (arabicName && englishName && arabicName.toLowerCase() !== englishName.toLowerCase()) {
+                      return `${arabicName} / ${englishName}`;
+                    }
+                    return arabicName || englishName;
+                  };
+
+                  const getGradeArabic = (gradeStr: string): string => {
+                    const g = String(gradeStr || '').toUpperCase();
+                    if (g === 'A1' || g === 'A') return 'م / A';
+                    if (g === 'B2' || g === 'B3' || g === 'B') return 'جج / B';
+                    if (g === 'C4' || g === 'C5' || g === 'C6' || g === 'C') return 'ج / C';
+                    if (g === 'D7' || g === 'E8' || g === 'D' || g === 'E') return 'مق / D';
+                    return 'ر / F';
+                  };
+
+                  const termVal = result.term || '';
+                  const sessionVal = result.academicYear || '';
+                  const timesOpenedVal = Number(result.attendanceSummary?.timesOpened) || 0;
+                  const timesPresentVal = Number(result.attendanceSummary?.timesPresent) || 0;
+
+                  const rawSubjects = result.subjects || [];
+                  const filteredSubjects = rawSubjects.filter((s: any) => s.section === 'tahfeezh' || s.section === 'islamic');
+                  const finalSubjects = filteredSubjects.length > 0 ? filteredSubjects : rawSubjects;
+                  const gradedSubjects = finalSubjects.filter((s: any) => s.isGraded);
+                  const totalObtained = gradedSubjects.reduce((acc: number, curr: any) => acc + (Number(curr.score100) || 0), 0);
+                  const totalObtainable = finalSubjects.length * 100;
+                  const finalPercentage = totalObtainable > 0 ? (totalObtained / totalObtainable) * 100 : 0;
+
+                  const affData = result.affectiveDomain || {};
+                  const behaviorRatings = [
+                    { labelAr: 'النظافة', labelEn: 'Neatness', val: affData.neatness || 5 },
+                    { labelAr: 'المعاملة مع الآخرين', labelEn: 'Relationship', val: affData.relationship || 5 },
+                    { labelAr: 'الانتباه', labelEn: 'Attentiveness', val: affData.attentiveness || 5 },
+                    { labelAr: 'القيام بالعمل', labelEn: 'Responsibility', val: affData.responsibility || 5 },
+                    { labelAr: 'الشعور بالمسؤولية', labelEn: 'Self-Control', val: affData.selfControl || 5 }
+                  ];
+
+                  return (
+                    <div 
+                      className="report-card-print-target islamic-bilingual-reportsheet"
+                      style={{
+                        backgroundColor: '#ffffff',
+                        color: textColor,
+                        padding: '1.25rem',
+                        border: `2px solid ${primaryColor}`,
+                        borderRadius: '4px',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+                        width: '100%',
+                        maxWidth: '820px',
+                        margin: '0 auto',
+                        boxSizing: 'border-box',
+                        fontFamily: "'Cairo', 'Inter', sans-serif",
+                        lineHeight: 1.4,
+                        direction: 'rtl',
+                        textAlign: 'right'
+                      }}
+                    >
+                      {/* Header Section */}
+                      <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                        <img 
+                          src={schoolSettings?.logo || (tenant as any)?.branding?.logo || '/logo.png'} 
+                          style={{ maxWidth: '65px', maxHeight: '65px', objectFit: 'contain', marginBottom: '6px' }} 
+                          alt="Logo" 
+                        />
+                        <h1 style={{ fontSize: '20px', fontWeight: 800, color: primaryColor, margin: '0 0 2px 0', lineHeight: 1.2 }}>
+                          {(tenant as any)?.nameArabic || schoolSettings?.schoolNameArabic || 'أكاديمية القلم كدونا'}
+                        </h1>
+                        <h2 style={{ fontSize: '12px', fontWeight: 700, color: secondaryColor, margin: '0 0 4px 0', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                          {schoolSettings?.schoolName || (tenant as any)?.name || 'AL-QALAM ACADEMY'}
+                        </h2>
+                        <p style={{ fontSize: '9px', color: '#475569', margin: 0 }}>
+                          {schoolSettings?.address || (tenant as any)?.contact?.address || ''}
+                        </p>
+                        <p style={{ fontSize: '9px', color: '#475569', margin: '2px 0 0 0' }}>
+                          الهاتف / Tel: {schoolSettings?.phone || (tenant as any)?.contact?.phoneNumbers || ''} | البريد / Email: {schoolSettings?.email || (tenant as any)?.contact?.email || ''}
+                        </p>
+                        
+                        <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 'bold', color: primaryColor, borderBottom: `1px solid ${primaryColor}`, display: 'inline-block', paddingBottom: '2px' }}>
+                          قسم الدراسات الإسلامية - خطاطب الدرجات / Islamic Studies Department - Grade Sheet
+                        </div>
+                      </div>
+
+                      <div style={{ borderTop: `1px solid ${primaryColor}`, marginBottom: '10px' }}></div>
+
+                      {/* Student Metadata Table */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}`, marginBottom: '10px', fontSize: '10px' }}>
+                        <tbody>
+                          <tr style={{ height: '28px' }}>
+                            <td style={{ padding: '4px 8px', border: `1px solid ${borderColor}`, width: '45%' }}><span style={{ color: secondaryColor, fontWeight: 'bold' }}>اسم الطالب/ة / Name:</span> <strong style={{ color: primaryColor }}>{student.nameArabic || student.name}</strong></td>
+                            <td style={{ padding: '4px 8px', border: `1px solid ${borderColor}`, width: '30%' }}><span style={{ color: secondaryColor, fontWeight: 'bold' }}>الفترة / Term:</span> <strong style={{ color: primaryColor }}>{translateTermToArabic(termVal)} / {termVal}</strong></td>
+                            <td style={{ padding: '4px 8px', border: `1px solid ${borderColor}`, width: '25%' }}><span style={{ color: secondaryColor, fontWeight: 'bold' }}>العام الدراسي / Session:</span> <strong style={{ color: primaryColor }}>{sessionVal} م / AD</strong></td>
+                          </tr>
+                          <tr style={{ height: '28px' }}>
+                            <td style={{ padding: '4px 8px', border: `1px solid ${borderColor}` }}><span style={{ color: secondaryColor, fontWeight: 'bold' }}>رقم القبول / Adm No:</span> <strong style={{ color: primaryColor }}><code>{student.admissionNumber}</code></strong></td>
+                            <td style={{ padding: '4px 8px', border: `1px solid ${borderColor}` }}><span style={{ color: secondaryColor, fontWeight: 'bold' }}>الفصل / Class:</span> <strong style={{ color: primaryColor }}>{translateClassToArabic(student.level || result.level)} ({student.section || result.section})</strong></td>
+                            <td style={{ padding: '4px 8px', border: `1px solid ${borderColor}` }}><span style={{ color: secondaryColor, fontWeight: 'bold' }}>الحضور / Attendance:</span> <strong style={{ color: primaryColor }}>{timesPresentVal} / {timesOpenedVal}</strong></td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {/* Split Grid for Subjects Table and Behavior Chart */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '2.1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                        {/* Right Column: Subjects Table */}
+                        <div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}`, fontSize: '10px' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: primaryColor, color: '#ffffff', height: '26px' }}>
+                                <th style={{ width: '70px', textAlign: 'center', border: `1px solid ${borderColor}` }}>التقدير / Grade</th>
+                                <th style={{ width: '55px', textAlign: 'center', border: `1px solid ${borderColor}` }}>المركز / Pos</th>
+                                <th style={{ width: '60px', textAlign: 'center', border: `1px solid ${borderColor}`, backgroundColor: secondaryColor }}>المجموع / Total</th>
+                                <th style={{ width: '60px', textAlign: 'center', border: `1px solid ${borderColor}` }}>الامتحان / Exam</th>
+                                <th style={{ width: '60px', textAlign: 'center', border: `1px solid ${borderColor}` }}>المستمر / C.A.</th>
+                                <th style={{ textAlign: 'right', paddingRight: '10px', border: `1px solid ${borderColor}` }}>المواد / Subjects</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {finalSubjects.map((s: any) => {
+                                const ca = s.isGraded ? (s.score60 || 0) : '—';
+                                const exam = s.isGraded ? (s.score40 || 0) : '—';
+                                const total = s.isGraded ? (s.score100 || 0) : '—';
+                                const pos = s.isGraded ? (s.subjectPosition || '—') : '—';
+                                const grade = s.isGraded ? getGradeArabic(s.grade) : '—';
+                                return (
+                                  <tr key={s.subjectName} style={{ borderBottom: `1px solid ${borderColor}`, height: '26px' }}>
+                                    <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold', color: primaryColor }}>{grade}</td>
+                                    <td style={{ padding: '4px', textAlign: 'center' }}>{pos}</td>
+                                    <td style={{ padding: '4px', textAlign: 'center', fontWeight: 'bold', color: primaryColor }}>{total}</td>
+                                    <td style={{ padding: '4px', textAlign: 'center' }}>{exam}</td>
+                                    <td style={{ padding: '4px', textAlign: 'center' }}>{ca}</td>
+                                    <td style={{ padding: '4px 10px', fontWeight: 'bold', textAlign: 'right', color: textColor }}>{getSubjectBilingualName(s)}</td>
+                                  </tr>
+                                );
+                              })}
+                              {/* Total Row */}
+                              <tr style={{ backgroundColor: '#f8fafc', height: '26px', borderTop: `1.5px solid ${primaryColor}`, fontWeight: 'bold' }}>
+                                <td style={{ textAlign: 'center', color: primaryColor }}>{finalPercentage >= 80 ? 'ممتاز / Exc' : 'مقبول / Pass'}</td>
+                                <td style={{ textAlign: 'center' }}>—</td>
+                                <td style={{ textAlign: 'center', color: primaryColor }}>{totalObtained}</td>
+                                <td style={{ textAlign: 'center' }}>—</td>
+                                <td style={{ textAlign: 'center' }}>—</td>
+                                <td style={{ textAlign: 'right', paddingRight: '10px', color: primaryColor }}>المجموع / Grand Total</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Left Column: Tahfiz and Behavior */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {/* Tahfeez Progress */}
+                          {result.tahfeezhDetails && (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}`, backgroundColor: '#ffffff' }}>
+                              <thead>
+                                <tr style={{ background: secondaryColor, color: 'white', fontWeight: 'bold', fontSize: '10px', height: '24px' }}>
+                                  <th colSpan={2} style={{ textAlign: 'center', padding: '2px' }}>تقدم التحفيظ / Hifz Progress</th>
+                                </tr>
+                              </thead>
+                              <tbody style={{ fontSize: '9.5px' }}>
+                                <tr style={{ height: '24px', borderBottom: `1px solid ${borderColor}` }}>
+                                  <td style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 'bold', color: primaryColor }}>{result.tahfeezhDetails.fromSurah || 'البقرة'}</td>
+                                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: secondaryColor }}>من سورة / From Surah:</td>
+                                </tr>
+                                <tr style={{ height: '24px', borderBottom: `1px solid ${borderColor}` }}>
+                                  <td style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 'bold', color: primaryColor }}>{result.tahfeezhDetails.toSurah || 'الكهف'}</td>
+                                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: secondaryColor }}>إلى سورة / To Surah:</td>
+                                </tr>
+                                <tr style={{ height: '24px' }}>
+                                  <td style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 'bold', color: primaryColor }}>{result.tahfeezhDetails.memorizedPages || 0}</td>
+                                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: secondaryColor }}>الصفحات / Pages:</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          )}
+
+                          {/* Behavior Evaluation Ratings */}
+                          <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${borderColor}`, backgroundColor: '#ffffff' }}>
+                            <thead>
+                              <tr style={{ background: primaryColor, color: 'white', fontWeight: 'bold', fontSize: '10px', height: '24px' }}>
+                                <th colSpan={6} style={{ textAlign: 'center' }}>تقويم السلوك / Student Behavior</th>
+                              </tr>
+                              <tr style={{ background: '#f8fafc', fontSize: '8.5px', borderBottom: `1px solid ${borderColor}`, height: '20px' }}>
+                                <th style={{ width: '16px', textAlign: 'center' }}>1</th>
+                                <th style={{ width: '16px', textAlign: 'center' }}>2</th>
+                                <th style={{ width: '16px', textAlign: 'center' }}>3</th>
+                                <th style={{ width: '16px', textAlign: 'center' }}>4</th>
+                                <th style={{ width: '16px', textAlign: 'center' }}>5</th>
+                                <th style={{ textAlign: 'right', paddingRight: '6px' }}>السلوك / Trait</th>
+                              </tr>
+                            </thead>
+                            <tbody style={{ fontSize: '9px' }}>
+                              {behaviorRatings.map((b, idx) => (
+                                <tr key={idx} style={{ borderBottom: `1px solid ${borderColor}`, height: '23px' }}>
+                                  <td style={{ textalign: 'center', color: primaryColor, fontWeight: 'bold' }}>{b.val === 1 ? '✓' : ''}</td>
+                                  <td style={{ textalign: 'center', color: primaryColor, fontWeight: 'bold' }}>{b.val === 2 ? '✓' : ''}</td>
+                                  <td style={{ textalign: 'center', color: primaryColor, fontWeight: 'bold' }}>{b.val === 3 ? '✓' : ''}</td>
+                                  <td style={{ textalign: 'center', color: primaryColor, fontWeight: 'bold' }}>{b.val === 4 ? '✓' : ''}</td>
+                                  <td style={{ textalign: 'center', color: primaryColor, fontWeight: 'bold' }}>{b.val === 5 ? '✓' : ''}</td>
+                                  <td style={{ textAlign: 'right', paddingRight: '6px', color: textColor }}>
+                                    <div style={{ fontWeight: 600, lineHeight: 1 }}>{b.labelAr}</div>
+                                    <div style={{ fontSize: '7.5px', color: '#64748b' }}>{b.labelEn}</div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Remarks and Comments Section */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${primaryColor}`, fontSize: '10px', marginBottom: '6px' }}>
+                        <tbody>
+                          <tr style={{ borderBottom: `1px solid ${primaryColor}`, height: '32px' }}>
+                            <td style={{ width: '25%', padding: '5px', fontWeight: 'bold', color: primaryColor, background: '#f8fafc', borderLeft: `1px solid ${borderColor}`, textAlign: 'right' }}>
+                              <div style={{ fontSize: '9px' }}>ملاحظة معلم الفصل</div>
+                              <div style={{ fontSize: '8px', color: '#64748b' }}>Teacher's Remark</div>
+                            </td>
+                            <td style={{ width: '50%', padding: '5px', fontStyle: 'italic', textAlign: 'right' }}>"{result.teacherRecommendations || 'ممتاز ومجتهد، استمر على هذا الأداء الرائع.'}"</td>
+                            <td style={{ width: '25%', padding: '5px', fontWeight: 'bold', textAlign: 'left', borderRight: `1px solid ${borderColor}`, verticalAlign: 'middle' }}>
+                              <div style={{ fontSize: '7.5px', color: '#64748b' }}>المعلم / Teacher:</div>
+                              <div style={{ fontSize: '9.5px', color: primaryColor, fontWeight: 'bold', marginTop: '1px' }}>{result.teacherName}</div>
+                            </td>
+                          </tr>
+                          <tr style={{ height: '32px' }}>
+                            <td style={{ padding: '5px', fontWeight: 'bold', color: primaryColor, background: '#f8fafc', borderLeft: `1px solid ${borderColor}`, textAlign: 'right' }}>
+                              <div style={{ fontSize: '9px' }}>ملاحظة المدير</div>
+                              <div style={{ fontSize: '8px', color: '#64748b' }}>Principal's Comments</div>
+                            </td>
+                            <td style={{ padding: '5px', fontStyle: 'italic', textAlign: 'right' }}>"{result.headTeacherComments || 'عمل رائع جداً، بارك الله فيك.'}"</td>
+                            <td style={{ padding: '5px', fontWeight: 'bold', textAlign: 'left', borderRight: `1px solid ${borderColor}`, verticalAlign: 'middle' }}>
+                              {(tenant as any)?.branding?.principalSignature ? (
+                                <img src={(tenant as any).branding.principalSignature} style={{ maxHeight: '22px', objectFit: 'contain', display: 'block', marginLeft: 'auto' }} alt="Signature" />
+                              ) : (
+                                <div style={{ fontFamily: "'Cairo', sans-serif", fontSize: '10px', fontStyle: 'italic', color: primaryColor, fontWeight: 'bold' }}>المدير / Principal</div>
+                              )}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {/* Resumption Dates / Verification Bar */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: `1.5px solid ${primaryColor}`, borderBottom: `1.5px solid ${primaryColor}`, fontSize: '10px', marginBottom: '6px', backgroundColor: '#f8fafc' }}>
+                        <tbody>
+                          <tr style={{ height: '28px' }}>
+                            <td style={{ padding: '4px 8px', fontWeight: 'bold', color: primaryColor, width: '38%', textAlign: 'right' }}>
+                              بداية الفترة القادمة / Next Term Begins: <span style={{ color: '#334155', marginRight: '6px' }}>{result.nextTermBegins || '—'}</span>
+                            </td>
+                            <td style={{ padding: '2px', textAlign: 'center', borderLeft: `1px solid ${borderColor}`, borderRight: `1px solid ${borderColor}`, width: '24%' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`https://${tenant?.slug || 'alqalam'}.smartschool.africa/verify-result/${result._id}`)}`} style={{ width: '32px', height: '32px' }} alt="QR Code" />
+                                <div style={{ textAlign: 'right', direction: 'rtl' }}>
+                                  <span style={{ fontSize: '7.5px', fontWeight: 800, color: secondaryColor }}>
+                                    تحقّق / Verify
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 'bold', color: primaryColor, width: '38%' }}>
+                              رسوم الفترة القادمة / Next Fees: <span style={{ color: '#334155', marginLeft: '6px' }}>{result.nextTermSchoolFees || '—'}</span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {/* Grading Key Scale Table */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8px', textAlign: 'center', marginBottom: '6px', border: `1px solid ${borderColor}` }}>
+                        <tbody>
+                          <tr style={{ backgroundColor: '#f8fafc', height: '18px', fontWeight: 'bold' }}>
+                            <td>م: ممتاز / A: Excellent (٨٠ - ١٠٠٪)</td>
+                            <td style={{ borderRight: `1px solid ${borderColor}` }}>جج: جيد جداً / B: Very Good (٦٠ - ٧٩٪)</td>
+                            <td style={{ borderRight: `1px solid ${borderColor}` }}>ج: جيد / C: Good (٥٠ - ٥٩٪)</td>
+                            <td style={{ borderRight: `1px solid ${borderColor}` }}>مق: مقبول / D: Pass (٣٠ - ٤٩٪)</td>
+                            <td style={{ borderRight: `1px solid ${borderColor}` }}>ر: رسوب / F: Fail (٠ - ٢٩٪)</td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {/* Footer Brand */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: `1px solid ${borderColor}`, paddingTop: '4px', fontSize: '7.5px', color: '#64748b' }}>
+                        <tbody>
+                          <tr>
+                            <td style={{ textAlign: 'right' }}>تم الإنشاء بواسطة نظام إدارة المدرسة الذكي • {new Date().toLocaleDateString('ar-SA')}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: primaryColor }}>
+                              {(tenant as any)?.nameArabic || schoolSettings?.schoolNameArabic || 'أكاديمية القلم كدونا'} / {schoolSettings?.schoolName || (tenant as any)?.name || 'AL-QALAM ACADEMY'}
+                            </td>
+                            <td style={{ textAlign: 'left', direction: 'ltr' }}><strong>Report ID:</strong> <code>{result._id}</code></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()
+              ) : isAlQalam ? (
+                 /* AL-QALAM REPORT SHEET INTERACTIVE PREVIEW */
                 <div style={{ border: '2px solid var(--primary)', padding: '1rem', borderRadius: '4px' }}>
                   {/* Header Row */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--primary)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
@@ -827,7 +1183,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                 <>
                   <div style={styles.reportSheetHeader}>
                     <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--primary)', fontFamily: "'Times New Roman', 'Times', serif" }}>{(schoolSettings?.schoolName || 'SmartSchool').toUpperCase()}</div>
-                    {schoolSettings?.curriculumType !== 'conventional' && (
+                    {(schoolSettings?.curriculumType !== 'conventional' || isTahfeezOrIslamic) && (
                       <div style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--primary-light)', fontFamily: 'var(--font-arabic)' }}>دار صغار الحفاظ</div>
                     )}
                     <div style={{ fontSize: '14px', color: 'var(--text-muted)', fontFamily: "'Times New Roman', 'Times', serif" }}>{schoolSettings?.address || ''} | Academic Term Result Assessment</div>
@@ -842,7 +1198,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                       <div><strong>Term Period:</strong> {result.term}</div>
                       <div><strong>Academic Year:</strong> {result.academicYear}</div>
                       <div><strong>Date Issued:</strong> {result.dateIssued || new Date().toLocaleDateString()}</div>
-                      {schoolSettings?.curriculumType === 'conventional' && (
+                      {(schoolSettings?.curriculumType === 'conventional' || isTahfeezOrIslamic) && (
                         <>
                           <div><strong>Date of Birth:</strong> {student.dob || '—'}</div>
                           <div><strong>Gender:</strong> {student.gender || '—'}</div>
@@ -881,7 +1237,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
 
                   {/* REPORT CARD DUAL GRID */}
                   <div className="report-main-layout" style={{ display: 'flex', gap: '1.5rem' }}>
-                    {schoolSettings?.curriculumType === 'conventional' ? (
+                    {schoolSettings?.curriculumType === 'conventional' && !isTahfeezOrIslamic ? (
                       /* CONVENTIONAL ACADEMIC ONLY VIEW */
                       <>
                         <div style={{ flex: 1.3 }}>
@@ -1024,9 +1380,18 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                               <thead>
                                 <tr>
                                   <th>Subject</th>
-                                  <th style={{ width: '60px' }}>CA 1</th>
-                                  <th style={{ width: '60px' }}>CA 2</th>
-                                  <th style={{ width: '60px' }}>Exam</th>
+                                  {isAlQalam ? (
+                                    <>
+                                      <th style={{ width: '80px' }}>CA (60)</th>
+                                      <th style={{ width: '80px' }}>Exam (40)</th>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <th style={{ width: '60px' }}>CA 1</th>
+                                      <th style={{ width: '60px' }}>CA 2</th>
+                                      <th style={{ width: '60px' }}>Exam</th>
+                                    </>
+                                  )}
                                   <th style={{ width: '70px' }}>Total</th>
                                   <th style={{ width: '50px' }}>Grade</th>
                                 </tr>
@@ -1038,9 +1403,18 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                                       <div>{s.subjectName}</div>
                                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
                                     </td>
-                                    <td>{s.score20_1}</td>
-                                    <td>{s.score20_2}</td>
-                                    <td>{s.score60}</td>
+                                    {isAlQalam ? (
+                                      <>
+                                        <td>{s.score60}</td>
+                                        <td>{s.score40}</td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td>{s.score20_1}</td>
+                                        <td>{s.score20_2}</td>
+                                        <td>{s.score60}</td>
+                                      </>
+                                    )}
                                     <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
                                     <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
                                   </tr>
@@ -1056,9 +1430,18 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                               <thead>
                                 <tr>
                                   <th>Subject</th>
-                                  <th style={{ width: '60px' }}>CA 1</th>
-                                  <th style={{ width: '60px' }}>CA 2</th>
-                                  <th style={{ width: '60px' }}>Exam</th>
+                                  {isAlQalam ? (
+                                    <>
+                                      <th style={{ width: '80px' }}>CA (60)</th>
+                                      <th style={{ width: '80px' }}>Exam (40)</th>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <th style={{ width: '60px' }}>CA 1</th>
+                                      <th style={{ width: '60px' }}>CA 2</th>
+                                      <th style={{ width: '60px' }}>Exam</th>
+                                    </>
+                                  )}
                                   <th style={{ width: '70px' }}>Total</th>
                                   <th style={{ width: '50px' }}>Grade</th>
                                 </tr>
@@ -1070,9 +1453,18 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                                       <div>{s.subjectName}</div>
                                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
                                     </td>
-                                    <td>{s.score20_1}</td>
-                                    <td>{s.score20_2}</td>
-                                    <td>{s.score60}</td>
+                                    {isAlQalam ? (
+                                      <>
+                                        <td>{s.score60}</td>
+                                        <td>{s.score40}</td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td>{s.score20_1}</td>
+                                        <td>{s.score20_2}</td>
+                                        <td>{s.score60}</td>
+                                      </>
+                                    )}
                                     <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
                                     <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
                                   </tr>
@@ -1093,60 +1485,62 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                         </div>
 
                         {/* SECULAR ACADEMIC CURRICULUM */}
-                        <div style={{ flex: 1 }}>
-                          <h4 style={styles.reportSectionTitle}>Academic Assessment</h4>
-                          <div style={styles.tableWrapper}>
-                            <table style={styles.reportTable}>
-                              <thead>
-                                <tr>
-                                  <th>Subject</th>
-                                  <th style={{ width: '60px' }}>CA 1</th>
-                                  <th style={{ width: '60px' }}>CA 2</th>
-                                  <th style={{ width: '60px' }}>Exam</th>
-                                  <th style={{ width: '70px' }}>Total</th>
-                                  <th style={{ width: '50px' }}>Grade</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {result.subjects.filter(s => s.section === 'academic').map(s => (
-                                  <tr key={s.subjectName}>
-                                    <td>
-                                      <div>{s.subjectName}</div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
-                                    </td>
-                                    <td>{s.score20_1}</td>
-                                    <td>{s.score20_2}</td>
-                                    <td>{s.score60}</td>
-                                    <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
-                                    <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
+                        {!isTahfeezOrIslamic && (
+                          <div style={{ flex: 1 }}>
+                            <h4 style={styles.reportSectionTitle}>Academic Assessment</h4>
+                            <div style={styles.tableWrapper}>
+                              <table style={styles.reportTable}>
+                                <thead>
+                                  <tr>
+                                    <th>Subject</th>
+                                    <th style={{ width: '60px' }}>{isAlQalam ? 'CA 1 (30)' : 'CA 1'}</th>
+                                    <th style={{ width: '60px' }}>{isAlQalam ? 'CA 2 (30)' : 'CA 2'}</th>
+                                    <th style={{ width: '60px' }}>{isAlQalam ? 'Exam (40)' : 'Exam'}</th>
+                                    <th style={{ width: '70px' }}>Total</th>
+                                    <th style={{ width: '50px' }}>Grade</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                </thead>
+                                <tbody>
+                                  {result.subjects.filter(s => s.section === 'academic').map(s => (
+                                    <tr key={s.subjectName}>
+                                      <td>
+                                        <div>{s.subjectName}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
+                                      </td>
+                                      <td>{s.score20_1}</td>
+                                      <td>{s.score20_2}</td>
+                                      <td>{isAlQalam ? s.score40 : s.score60}</td>
+                                      <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
+                                      <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
 
-                          <h4 style={{ ...styles.reportSectionTitle, marginTop: '1.5rem' }}>Core Evaluations & Ratings</h4>
-                          <div style={styles.tableWrapper}>
-                            <table style={styles.reportTable}>
-                              <thead>
-                                <tr>
-                                  <th>Metric Element</th>
-                                  <th>Arabic</th>
-                                  <th>Rating</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {result.evaluationElements.map(el => (
-                                  <tr key={el.elementLabel}>
-                                    <td>{el.elementLabel}</td>
-                                    <td style={{ fontFamily: 'var(--font-arabic)', fontSize: '0.9rem' }}>{el.elementLabelArabic}</td>
-                                    <td style={{ fontWeight: '600', color: 'var(--primary)' }}>{el.rating}</td>
+                            <h4 style={{ ...styles.reportSectionTitle, marginTop: '1.5rem' }}>Core Evaluations & Ratings</h4>
+                            <div style={styles.tableWrapper}>
+                              <table style={styles.reportTable}>
+                                <thead>
+                                  <tr>
+                                    <th>Metric Element</th>
+                                    <th>Arabic</th>
+                                    <th>Rating</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody>
+                                  {result.evaluationElements.map(el => (
+                                    <tr key={el.elementLabel}>
+                                      <td>{el.elementLabel}</td>
+                                      <td style={{ fontFamily: 'var(--font-arabic)', fontSize: '0.9rem' }}>{el.elementLabelArabic}</td>
+                                      <td style={{ fontWeight: '600', color: 'var(--primary)' }}>{el.rating}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -1568,7 +1962,7 @@ export default function App() {
                       required 
                       value={loginUsername} 
                       onChange={(e) => setLoginUsername(e.target.value)} 
-                      placeholder="e.g. khansau" 
+                      placeholder="Enter your username" 
                     />
                   </div>
                   <div>
@@ -2099,12 +2493,35 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
   const [dateIssued] = useState('2026-06-23');
   const [nextTermBegins] = useState('2026-09-15');
 
-  const [, , subjectName] = selectedClass ? selectedClass.split('-') : ['', '', ''];
+  const [selectedLevel, selectedSection, subjectName] = selectedClass ? selectedClass.split('-') : ['', '', ''];
   const showAll = !subjectName || subjectName === 'undefined' || subjectName === 'both';
   const currentSubj = subjectGrades ? subjectGrades.find(s => s.subjectName === subjectName) : null;
   const isTahfeezhSubject = showAll || (currentSubj ? (currentSubj.section === 'tahfeezh' || currentSubj.section === 'islamic') : false);
   const isTahfeezhOnly = showAll || (currentSubj ? currentSubj.section === 'tahfeezh' : false);
   const isAcademicSubject = showAll || (currentSubj ? currentSubj.section === 'academic' : false);
+
+  // Class teacher = teacher assigned to entire class (not a specific subject)
+  const isClassTeacher = showAll;
+  // Tahfeez class = the selected section/level contains Tahfeez/Islamic keywords
+  const isClassTahfeez = /tahfeez|islamic|quran/i.test(selectedSection || '') || /tahfeez|islamic|quran/i.test(selectedLevel || '');
+
+  // ─── Curriculum-aware access control ───────────────────────────────────────
+  // Pure Tahfeez teacher: only assigned to a Tahfeez/Quran subject
+  const isPureTahfeezTeacher = isClassTahfeez && isTahfeezhOnly && !isAcademicSubject;
+  // Pure Islamic subject teacher (not Tahfeezh, not academic)
+  const isPureIslamicTeacher = isClassTahfeez && (currentSubj?.section === 'islamic') && !isTahfeezhOnly && !isAcademicSubject;
+  // Any teacher whose class is in a Tahfeez/Islamic section
+  const isTahfeezSectionTeacher = isClassTahfeez;
+  // Conventional (non-Islamic/non-Tahfeez) class → show full Affective/Psychomotor/Cognitive domains
+  const showDomainEvaluations = !isTahfeezSectionTeacher;
+  // Whether this teacher can enter Academic Subject Marks
+  const canEnterSubjectMarks = !isPureTahfeezTeacher;
+  // Whether this teacher sees Quranic & Tahfeezh Progress block
+  const canSeeTahfeezProgress = isTahfeezhOnly && !isAlQalam;
+  // Whether this teacher sees Manners & Performance Ratings
+  const canSeeMannerRatings = isTahfeezhSubject;
+  // Whether this teacher sees Attendance Summary
+  const canSeeAttendance = true; // all teachers (class master or not) see attendance
 
   const fetchActiveSubjects = async () => {
     try {
@@ -2187,7 +2604,7 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
         setTahfeezhAbsenceOfHifz(resultObj.tahfeezhDetails.absenceOfHifz || 0);
         setTahfeezhDaysPresent(resultObj.tahfeezhDetails.daysPresent || 0);
         setTahfeezhDaysAbsent(resultObj.tahfeezhDetails.daysAbsent || 0);
-        setTahfeezhFromSurph: setTahfeezhFromSurah(resultObj.tahfeezhDetails.fromSurah || 'البقرة');
+        setTahfeezhFromSurah(resultObj.tahfeezhDetails.fromSurah || 'البقرة');
         setTahfeezhToSurah(resultObj.tahfeezhDetails.toSurah || 'الكهف');
         setTahfeezhMemorizedPages(resultObj.tahfeezhDetails.memorizedPages || 0);
 
@@ -2551,52 +2968,59 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
               {(isAlQalam || isConventional) && (
                 <>
                   {/* AL-QALAM STUDENT DETAILS */}
-                  <div style={{ marginBottom: '2rem' }}>
-                    <h4 style={styles.formSectionHeader} className="grading-section-header">Student Personal Profile</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '1rem' }}>
-                      <div>
-                        <label style={styles.label}>Date of Birth</label>
-                        <input type="text" placeholder="e.g. Thu, 15-Jul-2010" value={studentDob} onChange={e => setStudentDob(e.target.value)} />
-                      </div>
-                      <div>
-                        <label style={styles.label}>Gender</label>
-                        <select value={studentGender} onChange={e => setStudentGender(e.target.value)}>
-                          <option value="">Select Gender</option>
-                          <option value="MALE">MALE</option>
-                          <option value="FEMALE">FEMALE</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={styles.label}>House</label>
-                        <input type="text" placeholder="e.g. Yellow House" value={studentHouse} onChange={e => setStudentHouse(e.target.value)} />
-                      </div>
-                      <div>
-                        <label style={styles.label}>Club / Society</label>
-                        <input type="text" placeholder="e.g. Press Club" value={studentClub} onChange={e => setStudentClub(e.target.value)} />
+                  {!isClassTeacher && (
+                    <div style={{ marginBottom: '2rem' }}>
+                      <h4 style={styles.formSectionHeader} className="grading-section-header">
+                        {isClassTahfeez ? 'الملف الشخصي للطالب (Student Profile)' : 'Student Personal Profile'}
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '1rem' }}>
+                        <div>
+                          <label style={styles.label}>{isClassTahfeez ? 'تاريخ الميلاد' : 'Date of Birth'}</label>
+                          <input type="text" placeholder="e.g. Thu, 15-Jul-2010" value={studentDob} onChange={e => setStudentDob(e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={styles.label}>{isClassTahfeez ? 'الجنس' : 'Gender'}</label>
+                          <select value={studentGender} onChange={e => setStudentGender(e.target.value)}>
+                            <option value="">{isClassTahfeez ? 'اختر الجنس' : 'Select Gender'}</option>
+                            <option value="MALE">{isClassTahfeez ? 'ذكر (MALE)' : 'MALE'}</option>
+                            <option value="FEMALE">{isClassTahfeez ? 'أنثى (FEMALE)' : 'FEMALE'}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={styles.label}>{isClassTahfeez ? 'البيت' : 'House'}</label>
+                          <input type="text" placeholder="e.g. Yellow House" value={studentHouse} onChange={e => setStudentHouse(e.target.value)} />
+                        </div>
+                        <div>
+                          <label style={styles.label}>{isClassTahfeez ? 'الجمعية / النادي' : 'Club / Society'}</label>
+                          <input type="text" placeholder="e.g. Press Club" value={studentClub} onChange={e => setStudentClub(e.target.value)} />
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* AL-QALAM ATTENDANCE SUMMARY */}
                   <div style={{ marginBottom: '2rem' }}>
-                    <h4 style={styles.formSectionHeader} className="grading-section-header">Attendance Summary</h4>
+                    <h4 style={styles.formSectionHeader} className="grading-section-header">
+                      {isClassTahfeez ? 'خلاصة الحضور (Attendance Summary)' : 'Attendance Summary'}
+                    </h4>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem' }}>
                       <div>
-                        <label style={styles.label}>Times Opened</label>
+                        <label style={styles.label}>{isClassTahfeez ? 'مرات فتح المدرسة' : 'Times Opened'}</label>
                         <input type="number" value={timesOpened} onChange={e => setTimesOpened(parseInt(e.target.value) || 0)} />
                       </div>
                       <div>
-                        <label style={styles.label}>Times Present</label>
+                        <label style={styles.label}>{isClassTahfeez ? 'مرات الحضور' : 'Times Present'}</label>
                         <input type="number" value={timesPresent} onChange={e => setTimesPresent(parseInt(e.target.value) || 0)} />
                       </div>
                       <div>
-                        <label style={styles.label}>Times Absent</label>
+                        <label style={styles.label}>{isClassTahfeez ? 'مرات الغياب' : 'Times Absent'}</label>
                         <input type="number" value={timesAbsent} onChange={e => setTimesAbsent(parseInt(e.target.value) || 0)} />
                       </div>
                     </div>
                   </div>
 
-                  {/* AL-QALAM AFFECTIVE DOMAIN */}
+                  {/* AL-QALAM AFFECTIVE DOMAIN – hidden for Tahfeez/Islamic section teachers */}
+                  {showDomainEvaluations && (
                   <div style={{ marginBottom: '2rem' }}>
                     <h4 style={styles.formSectionHeader} className="grading-section-header">Affective Domain Evaluation (1 to 5)</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
@@ -2620,8 +3044,10 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                       ))}
                     </div>
                   </div>
+                  )}
 
-                  {/* AL-QALAM PSYCHOMOTOR SKILLS */}
+                  {/* AL-QALAM PSYCHOMOTOR SKILLS – hidden for Tahfeez/Islamic section teachers */}
+                  {showDomainEvaluations && (
                   <div style={{ marginBottom: '2rem' }}>
                     <h4 style={styles.formSectionHeader} className="grading-section-header">Psychomotor Skills Evaluation (1 to 5)</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
@@ -2645,7 +3071,9 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                       ))}
                     </div>
                   </div>
-                  {/* COGNITIVE DOMAIN EVALUATION */}
+                  )}
+                  {/* COGNITIVE DOMAIN EVALUATION – hidden for Tahfeez/Islamic section teachers */}
+                  {showDomainEvaluations && (
                   <div style={{ marginBottom: '2rem' }}>
                     <h4 style={styles.formSectionHeader} className="grading-section-header">Cognitive Domain Evaluation (1 to 5)</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1rem' }}>
@@ -2669,11 +3097,12 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                       ))}
                     </div>
                   </div>
+                  )}
                 </>
               )}
 
-              {/* TAHFEEZH SECTION & DETAILS */}
-              {isTahfeezhOnly && !isAlQalam && (
+              {/* TAHFEEZH SECTION & DETAILS – only for Tahfeez teachers, not Al-Qalam conventional */}
+              {canSeeTahfeezProgress && (
                 <div style={{ marginBottom: '2rem' }}>
                   <h4 style={styles.formSectionHeader} className="grading-section-header">Quranic & Tahfeezh Progress</h4>
                   <div className="grading-tahfeezh-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
@@ -2726,7 +3155,8 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                 </div>
               )}
 
-              {/* SUBJECT SCORE INPUTS */}
+              {/* SUBJECT SCORE INPUTS – Pure Tahfeez teachers cannot enter academic marks */}
+              {canEnterSubjectMarks && (
               <div style={{ marginBottom: '2rem' }}>
                 <h4 style={styles.formSectionHeader} className="grading-section-header">Academic & Core Subject Marks</h4>
                 <div style={styles.tableWrapper}>
@@ -2825,9 +3255,10 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                   </table>
                 </div>
               </div>
+              )}
 
-              {/* EVALUATION RATINGS */}
-              {isTahfeezhOnly && (
+              {/* EVALUATION RATINGS (Manners & Performance) – Tahfeez & Islamic subject teachers */}
+              {canSeeMannerRatings && (
                 <div style={{ marginBottom: '2rem' }}>
                   <h4 style={styles.formSectionHeader} className="grading-section-header">Manners & Performance Ratings</h4>
                   <div style={styles.tableWrapper}>
@@ -2886,7 +3317,7 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                 )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {(isAcademicSubject || isAlQalam) && (
+                  {(isAcademicSubject || isAlQalam || isTahfeezSectionTeacher) && (
                     <div>
                       <label style={styles.label}>Teacher's General Remarks *</label>
                       <textarea 

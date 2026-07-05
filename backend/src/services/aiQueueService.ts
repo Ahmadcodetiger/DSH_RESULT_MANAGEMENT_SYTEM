@@ -1,11 +1,14 @@
 import crypto from 'crypto';
 import AIJob, { IAIJob } from '../models/AIJob';
 import AICache from '../models/AICache';
+import Subscription from '../models/Subscription';
+import Plan from '../models/Plan';
 import { Types } from 'mongoose';
 
 // Concurrency tracker
 let activeJobsCount = 0;
 const MAX_CONCURRENT_JOBS = 5;
+const PER_TENANT_QUEUE_LIMIT = 5; // Max pending/processing jobs per tenant
 const jobQueue: Array<{ job: IAIJob; worker: () => Promise<any> }> = [];
 
 /**
@@ -55,6 +58,49 @@ export async function setCachedResponse(tenantId: string, prompt: string, respon
   }
 }
 
+async function refundAiCall(tenantId: string) {
+  try {
+    await Subscription.findOneAndUpdate(
+      { tenantId: new Types.ObjectId(tenantId) },
+      { $inc: { 'usage.aiCallsThisMonth': -1 } },
+      { new: true }
+    );
+  } catch (err) {
+    console.error('Failed to refund AI call for tenant', tenantId, err);
+  }
+}
+
+async function reserveAiCall(tenantId: string) {
+  // Ensure subscription exists and usage is under plan limit
+  const sub = await Subscription.findOne({ tenantId: new Types.ObjectId(tenantId) });
+  if (!sub) {
+    throw new Error('No active subscription found for tenant. AI features are restricted.');
+  }
+
+  // Reset usage if reset timestamp passed
+  const now = new Date();
+  if (!sub.usage.aiCallsResetAt || sub.usage.aiCallsResetAt < now) {
+    const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    sub.usage.aiCallsThisMonth = 0;
+    sub.usage.aiCallsResetAt = nextReset;
+    await sub.save();
+  }
+
+  const plan = await Plan.findOne({ planId: sub.planId });
+  const max = plan?.limits?.maxAiCallsPerMonth ?? 100;
+
+  // Atomic increment only if under limit
+  const updated = await Subscription.findOneAndUpdate(
+    { tenantId: new Types.ObjectId(tenantId), 'usage.aiCallsThisMonth': { $lt: max } },
+    { $inc: { 'usage.aiCallsThisMonth': 1 } },
+    { new: true }
+  );
+
+  if (!updated) {
+    throw new Error('AI monthly quota exceeded for this tenant. Please upgrade your plan.');
+  }
+}
+
 /**
  * Processes the next job in the queue if concurrency limits allow.
  */
@@ -83,6 +129,13 @@ async function processNextJob() {
     job.status = 'failed';
     job.error = err.message || 'Unknown processing error';
     await job.save();
+
+    // Refund quota on failure
+    try {
+      await refundAiCall(job.tenantId.toString());
+    } catch (e) {
+      // already logged in refundAiCall
+    }
   } finally {
     activeJobsCount--;
     // Trigger next job in queue
@@ -124,6 +177,15 @@ export async function enqueueAIJob(
     });
     return await job.save();
   }
+
+  // Per-tenant queue limit: avoid overwhelming a single tenant
+  const activeForTenant = await AIJob.countDocuments({ tenantId: new Types.ObjectId(tenantId), status: { $in: ['pending', 'processing'] } });
+  if (activeForTenant >= PER_TENANT_QUEUE_LIMIT) {
+    throw new Error('Too many pending AI requests for this tenant. Please wait before retrying.');
+  }
+
+  // Reserve quota (atomic increment)
+  await reserveAiCall(tenantId);
 
   // 2. Create the pending job in DB
   const job = new AIJob({

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, DollarSign, Bell, X, Shield, Award, Settings as SettingsIcon, Menu, LogOut,
+  Users, Coins, Bell, X, Shield, Award, Settings as SettingsIcon, Menu, LogOut,
   Sun, Moon, BookOpen, Sliders, Sparkles, CreditCard
 } from 'lucide-react';
 import api, { authService, classService, subjectService, aiService } from '../services/api';
@@ -18,6 +18,7 @@ interface Student {
   _id: string;
   admissionNumber: string;
   name: string;
+  nameArabic?: string;
   level: string;
   section: string;
   academicYear: string;
@@ -135,8 +136,263 @@ export default function AdminDashboardView({
   const [studentCsvFile, setStudentCsvFile] = useState<string>('');
   const [uploadStatus, setUploadStatus] = useState('');
   const [studentAddMode, setStudentAddMode] = useState<'csv' | 'manual'>('csv');
+  const [csvTab, setCsvTab] = useState<'conventional' | 'islamic'>('conventional');
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadResults, setUploadResults] = useState<{ uploadedCount: number; skipped: any[] } | null>(null);
+  const [csvPreview, setCsvPreview] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!studentCsvFile.trim()) {
+      setCsvPreview([]);
+      return;
+    }
+    try {
+      const lines = studentCsvFile.split(/\r?\n/);
+      if (lines.length === 0) {
+        setCsvPreview([]);
+        return;
+      }
+      const parseCsvLineClient = (line: string): string[] => {
+        const result: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          const nextChar = line[i + 1];
+          if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const firstLineParts = parseCsvLineClient(lines[0]);
+      const hasHeader = firstLineParts.some(part => {
+        const lower = part.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return (
+          lower.includes('name') ||
+          lower.includes('admission') ||
+          lower.includes('level') ||
+          lower.includes('class') ||
+          lower.includes('section')
+        );
+      });
+
+      let nameIdx = -1;
+      let nameArabicIdx = -1;
+      let admissionNumberIdx = -1;
+      let levelIdx = -1;
+      let sectionIdx = -1;
+      let academicYearIdx = -1;
+      let parentPinIdx = -1;
+      let schoolFeesIdx = -1;
+      let dobIdx = -1;
+      let genderIdx = -1;
+      let houseIdx = -1;
+      let clubIdx = -1;
+
+      if (hasHeader) {
+        for (let i = 0; i < firstLineParts.length; i++) {
+          const col = firstLineParts[i].toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (col === 'name' || col === 'studentname' || col === 'fullname') nameIdx = i;
+          else if (col === 'namearabic' || col === 'arabicname' || col === 'arabic') nameArabicIdx = i;
+          else if (
+            col === 'admissionnumber' ||
+            col === 'admissionno' ||
+            col === 'admno' ||
+            col === 'regno' ||
+            col === 'regnumber'
+          )
+            admissionNumberIdx = i;
+          else if (col === 'level' || col === 'class') levelIdx = i;
+          else if (col === 'section') sectionIdx = i;
+          else if (col === 'academicyear' || col === 'session') academicYearIdx = i;
+          else if (col === 'parentpin' || col === 'pin') parentPinIdx = i;
+          else if (col === 'schoolfees' || col === 'fees') schoolFeesIdx = i;
+          else if (col === 'dob' || col === 'dateofbirth' || col === 'birthdate') dobIdx = i;
+          else if (col === 'gender' || col === 'sex') genderIdx = i;
+          else if (col === 'house') houseIdx = i;
+          else if (col === 'club' || col === 'society') clubIdx = i;
+        }
+      }
+
+      const parsed: any[] = [];
+      const startIdx = hasHeader ? 1 : 0;
+      const defaultActiveYear = schoolSettings?.currentAcademicYear || '2025/2026';
+
+      for (let i = startIdx; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const parts = parseCsvLineClient(line);
+        if (parts.length === 0 || (parts.length === 1 && !parts[0])) continue;
+
+        let rowName = '';
+        let rowNameArabic = '';
+        let rowAdmission = '';
+        let rowLevel = '';
+        let rowSection = '';
+        let rowAcademicYear = defaultActiveYear;
+        let rowParentPin = '';
+        let rowSchoolFees = 0;
+        let rowDob = '';
+        let rowGender = '';
+        let rowHouse = '';
+        let rowClub = '';
+
+        if (hasHeader) {
+          if (nameIdx !== -1) rowName = parts[nameIdx] || '';
+          if (nameArabicIdx !== -1) rowNameArabic = parts[nameArabicIdx] || '';
+          if (admissionNumberIdx !== -1) rowAdmission = parts[admissionNumberIdx] || '';
+          if (levelIdx !== -1) rowLevel = parts[levelIdx] || '';
+          if (sectionIdx !== -1) rowSection = parts[sectionIdx] || '';
+          if (academicYearIdx !== -1) rowAcademicYear = parts[academicYearIdx] || defaultActiveYear;
+          if (parentPinIdx !== -1) rowParentPin = parts[parentPinIdx] || '';
+          if (schoolFeesIdx !== -1) rowSchoolFees = Number(parts[schoolFeesIdx]) || 0;
+          if (dobIdx !== -1) rowDob = parts[dobIdx] || '';
+          if (genderIdx !== -1) rowGender = parts[genderIdx] || '';
+          if (houseIdx !== -1) rowHouse = parts[houseIdx] || '';
+          if (clubIdx !== -1) rowClub = parts[clubIdx] || '';
+        } else {
+          // Positional fallback
+          if (parts.length <= 6) {
+            rowName = parts[0] || '';
+            rowAdmission = parts[1] || '';
+            rowLevel = parts[2] || '';
+            rowSection = parts[3] || '';
+            rowParentPin = parts[4] || '';
+            rowSchoolFees = Number(parts[5]) || 0;
+          } else {
+            rowName = parts[0] || '';
+            rowNameArabic = parts[1] || '';
+            rowAdmission = parts[2] || '';
+            rowLevel = parts[3] || '';
+            rowSection = parts[4] || '';
+            rowAcademicYear = parts[5] || defaultActiveYear;
+            rowParentPin = parts[6] || '';
+            rowSchoolFees = Number(parts[7]) || 0;
+            rowDob = parts[8] || '';
+            rowGender = parts[9] || '';
+            rowHouse = parts[10] || '';
+            rowClub = parts[11] || '';
+          }
+        }
+
+        parsed.push({
+          name: rowName,
+          nameArabic: rowNameArabic,
+          admissionNumber: rowAdmission,
+          level: rowLevel,
+          section: rowSection,
+          academicYear: rowAcademicYear,
+          parentPin: rowParentPin,
+          schoolFees: rowSchoolFees,
+          dob: rowDob,
+          gender: rowGender,
+          house: rowHouse,
+          club: rowClub
+        });
+      }
+      setCsvPreview(parsed);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [studentCsvFile, schoolSettings]);
+
+  const downloadTemplate = (type: 'conventional' | 'islamic') => {
+    let headers = '';
+    let row = '';
+    if (type === 'conventional') {
+      headers = 'name,admissionNumber,level,section,academicYear,parentPin,schoolFees,dob,gender,house,club\n';
+      row = 'AMAANI YAHUZA,DSH/015,5,ALLO,2025/2026,1234,180000,2015-05-12,MALE,Yellow House,Press Club\n';
+    } else {
+      headers = 'name,nameArabic,admissionNumber,level,section,academicYear,parentPin,schoolFees,dob,gender,house,club\n';
+      row = 'AMAANI YAHUZA,أماني ياهوزا,DSH/015,5,ALLO,2025/2026,1234,180000,2015-05-12,MALE,Yellow House,Press Club\n';
+    }
+    const blob = new Blob([headers + row], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `students_template_${type}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const copySampleData = (type: 'conventional' | 'islamic') => {
+    let content = '';
+    if (type === 'conventional') {
+      content = `name,admissionNumber,level,section,academicYear,parentPin,schoolFees,dob,gender,house,club
+AMAANI YAHUZA,DSH/015,5,ALLO,2025/2026,1234,180000,2015-05-12,MALE,Yellow House,Press Club
+KHANSAU ABDULLAHI,DSH/016,5,ALLO,2025/2026,5678,180000,2015-08-20,FEMALE,Blue House,Debate Club`;
+    } else {
+      content = `name,nameArabic,admissionNumber,level,section,academicYear,parentPin,schoolFees,dob,gender,house,club
+AMAANI YAHUZA,أماني ياهوزا,DSH/015,5,ALLO,2025/2026,1234,180000,2015-05-12,MALE,Yellow House,Press Club
+KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,180000,2015-08-20,FEMALE,Blue House,Debate Club`;
+    }
+    navigator.clipboard.writeText(content).then(() => {
+      alert('Sample CSV copied to clipboard!');
+    }).catch(err => {
+      alert('Failed to copy to clipboard.');
+    });
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.name.endsWith('.csv') || file.type === 'text/csv') {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          setStudentCsvFile(text);
+          setUploadStatus('');
+          setUploadResults(null);
+        };
+        reader.readAsText(file);
+      } else {
+        alert('Please drop a valid CSV file');
+      }
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        setStudentCsvFile(text);
+        setUploadStatus('');
+        setUploadResults(null);
+      };
+      reader.readAsText(file);
+    }
+  };
   const [manualStudent, setManualStudent] = useState({
     name: '',
+    nameArabic: '',
     admissionNumber: '',
     level: '',
     section: '',
@@ -153,6 +409,7 @@ export default function AdminDashboardView({
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [editStudentForm, setEditStudentForm] = useState({
     name: '',
+    nameArabic: '',
     admissionNumber: '',
     level: '',
     section: '',
@@ -184,6 +441,8 @@ export default function AdminDashboardView({
   const [settingsTerm, setSettingsTerm] = useState(schoolSettings?.currentTerm || 'Second Term');
   const [settingsYear, setSettingsYear] = useState(schoolSettings?.currentAcademicYear || '2025/2026');
   const [settingsCurriculumType, setSettingsCurriculumType] = useState((schoolSettings as any)?.curriculumType || 'dual');
+  const [settingsAllowMultiClassTeacher, setSettingsAllowMultiClassTeacher] = useState<boolean>((schoolSettings as any)?.academicConfig?.allowMultipleClassTeacherAssignments || false);
+  const [settingsAllowClassTeacherNextTerm, setSettingsAllowClassTeacherNextTerm] = useState<boolean>((schoolSettings as any)?.academicConfig?.allowClassTeacherNextTermEdit !== false);
 
   // Promotions form states
   const [promoFromLevel, setPromoFromLevel] = useState('1');
@@ -218,7 +477,7 @@ export default function AdminDashboardView({
 
   // Teacher editing & multiple assignments states
   const [editingTeacher, setEditingTeacher] = useState<User | null>(null);
-  const [editTeacherForm, setEditTeacherForm] = useState({ name: '', username: '', role: 'TEACHER' as any, password: '', assignedClasses: [] as { level: string; section: string; subjectName?: string }[] });
+  const [editTeacherForm, setEditTeacherForm] = useState({ name: '', username: '', role: 'TEACHER' as any, password: '', assignedClasses: [] as { level: string; section: string; subjectName?: string }[], classTeacherClasses: [] as { level: string; section: string }[] });
   
   // Temp assignments for teacher creation form
   const [tempAssignments, setTempAssignments] = useState<{ level: string; section: string; subjectName?: string }[]>([]);
@@ -249,6 +508,8 @@ export default function AdminDashboardView({
       setAnnexes(schoolSettings.annexes || []);
       setSettingsLogo(schoolSettings.logo || '');
       setSettingsCurriculumType((schoolSettings as any).curriculumType || 'dual');
+      setSettingsAllowMultiClassTeacher((schoolSettings as any)?.academicConfig?.allowMultipleClassTeacherAssignments || false);
+      setSettingsAllowClassTeacherNextTerm((schoolSettings as any)?.academicConfig?.allowClassTeacherNextTermEdit !== false);
     }
   }, [schoolSettings]);
   const processImageFile = (file: File, callback: (base64: string) => void) => {
@@ -395,6 +656,7 @@ export default function AdminDashboardView({
         password: editTeacherForm.password || undefined,
         role: editTeacherForm.role,
         assignedClasses: editTeacherForm.role === 'TEACHER' ? editTeacherForm.assignedClasses : [],
+        classTeacherClasses: editTeacherForm.role === 'TEACHER' ? editTeacherForm.classTeacherClasses : [],
       });
       setEditingTeacher(null);
       fetchTeachers();
@@ -503,7 +765,8 @@ export default function AdminDashboardView({
         username: newTeacherUsername,
         password: newTeacherPassword,
         role: newTeacherRole,
-        assignedClasses: newTeacherRole === 'TEACHER' ? tempAssignments : []
+        assignedClasses: newTeacherRole === 'TEACHER' ? tempAssignments : [],
+        classTeacherClasses: []
       });
       setNewTeacherName('');
       setNewTeacherUsername('');
@@ -623,12 +886,18 @@ export default function AdminDashboardView({
     }
     try {
       setUploadStatus('Uploading...');
-      await api.post('/admin/students/upload', { csvData: studentCsvFile });
-      setUploadStatus('Upload successful!');
+      setUploadResults(null);
+      const response = await api.post('/admin/students/upload', { csvData: studentCsvFile });
+      setUploadStatus(`Successfully processed!`);
+      setUploadResults({
+        uploadedCount: response.data.uploaded?.length || 0,
+        skipped: response.data.skipped || []
+      });
       setStudentCsvFile('');
       fetchStudents();
     } catch (err: any) {
       setUploadStatus(err.response?.data?.message || 'CSV parse or upload failed.');
+      setUploadResults(null);
     }
   };
 
@@ -636,6 +905,7 @@ export default function AdminDashboardView({
     setEditingStudent(s);
     setEditStudentForm({
       name: s.name,
+      nameArabic: s.nameArabic || '',
       admissionNumber: s.admissionNumber,
       level: s.level,
       section: s.section,
@@ -678,7 +948,7 @@ export default function AdminDashboardView({
 
   const handleAddStudentManual = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, admissionNumber, level, section, academicYear, parentPin, schoolFees, picture, dob, gender, house, club } = manualStudent;
+    const { name, nameArabic, admissionNumber, level, section, academicYear, parentPin, schoolFees, picture, dob, gender, house, club } = manualStudent;
     if (!name.trim() || !admissionNumber.trim() || !level.trim() || !section.trim() || !academicYear.trim()) {
       alert('Please fill all required fields');
       return;
@@ -693,6 +963,7 @@ export default function AdminDashboardView({
         students: [
           {
             name: name.trim(),
+            nameArabic: nameArabic.trim() || undefined,
             admissionNumber: admissionNumber.trim(),
             level: level.trim(),
             section: section.trim(),
@@ -713,6 +984,7 @@ export default function AdminDashboardView({
         setUploadStatus(`Student added successfully! Parent PIN: ${uploaded[0].pin}`);
         setManualStudent({
           name: '',
+          nameArabic: '',
           admissionNumber: '',
           level: '',
           section: '',
@@ -780,6 +1052,8 @@ export default function AdminDashboardView({
         currentAcademicYear: settingsYear,
         logo: settingsLogo,
         curriculumType: settingsCurriculumType,
+        allowMultipleClassTeacherAssignments: settingsAllowMultiClassTeacher,
+        allowClassTeacherNextTermEdit: settingsAllowClassTeacherNextTerm,
       });
       alert('School settings updated successfully!');
       onUpdateSettings();
@@ -863,7 +1137,7 @@ export default function AdminDashboardView({
             <Bell size={16} /> Announcements
           </button>
           <button className={`sidebar-btn ${activeAdminSubTab === 'finances' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('finances'); setIsMobileSidebarOpen(false); }}>
-            <DollarSign size={16} /> Finance Ledger
+            <Coins size={16} /> Finance Ledger
           </button>
           <button className={`sidebar-btn ${activeAdminSubTab === 'billing' ? 'active' : ''}`} onClick={() => { setActiveAdminSubTab('billing'); setIsMobileSidebarOpen(false); }}>
             <CreditCard size={16} /> Billing & Subscriptions
@@ -986,7 +1260,8 @@ export default function AdminDashboardView({
                                       username: t.username,
                                       role: t.role || 'TEACHER',
                                       password: '',
-                                      assignedClasses: t.assignedClasses || []
+                                      assignedClasses: t.assignedClasses || [],
+                                      classTeacherClasses: (t as any).classTeacherClasses || []
                                     });
                                   }}
                                 >
@@ -1232,6 +1507,51 @@ export default function AdminDashboardView({
                               ))}
                             </div>
                           </div>
+
+                          {/* Class Teacher Assignment Section */}
+                          <div style={{ marginTop: '1rem', padding: '0.75rem', border: '2px solid #8B1A1A', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(139,26,26,0.05)' }}>
+                            <label style={{ ...styles.label, fontSize: '0.8rem', fontWeight: 'bold', color: '#8B1A1A', marginBottom: '0.5rem', display: 'block' }}>🏫 Class Teacher Assignment</label>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Assign this teacher as Class Master/Mistress for a specific class. One active assignment per class.</p>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <select id="edit-ct-class-select" style={{ flex: '1', minWidth: '80px', fontSize: '0.8rem', padding: '0.35rem' }}>
+                                <option value="">Level</option>
+                                {[...new Set(activeClasses.map(c => c.className))].sort().map(lvl => (
+                                  <option key={lvl} value={lvl}>{lvl}</option>
+                                ))}
+                              </select>
+                              <select id="edit-ct-section-select" style={{ flex: '1', minWidth: '80px', fontSize: '0.8rem', padding: '0.35rem' }}>
+                                <option value="">Section</option>
+                                {uniqueSections.map(sec => (
+                                  <option key={sec} value={sec}>{sec}</option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const lvlSel = document.getElementById('edit-ct-class-select') as HTMLSelectElement;
+                                  const secSel = document.getElementById('edit-ct-section-select') as HTMLSelectElement;
+                                  if (!lvlSel?.value || !secSel?.value) {
+                                    alert('Please select Level and Section');
+                                    return;
+                                  }
+                                  const exists = editTeacherForm.classTeacherClasses.some(c => c.level === lvlSel.value && c.section === secSel.value);
+                                  if (exists) { alert('Already assigned as Class Teacher for this class.'); return; }
+                                  setEditTeacherForm({ ...editTeacherForm, classTeacherClasses: [...editTeacherForm.classTeacherClasses, { level: lvlSel.value, section: secSel.value }] });
+                                }}
+                                style={{ ...styles.submitBtn, padding: '0.35rem 0.65rem', fontSize: '0.78rem', backgroundColor: '#8B1A1A', borderColor: '#8B1A1A' }}
+                              >+ Assign</button>
+                            </div>
+                            <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: '100px', overflowY: 'auto' }}>
+                              {editTeacherForm.classTeacherClasses.length === 0 ? (
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No Class Teacher assignments yet.</span>
+                              ) : editTeacherForm.classTeacherClasses.map((c, idx) => (
+                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', padding: '0.25rem 0.5rem', backgroundColor: 'rgba(139,26,26,0.1)', borderRadius: '3px', border: '1px solid rgba(139,26,26,0.3)' }}>
+                                  <span>🏫 {c.level} — {c.section}</span>
+                                  <button type="button" onClick={() => setEditTeacherForm({ ...editTeacherForm, classTeacherClasses: editTeacherForm.classTeacherClasses.filter((_, i) => i !== idx) })} style={{ background: 'none', border: 'none', color: '#8B1A1A', cursor: 'pointer', fontWeight: 'bold' }}>×</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </>
                       )}
 
@@ -1357,29 +1677,262 @@ export default function AdminDashboardView({
                     </div>
 
                     {studentAddMode === 'csv' ? (
-                      <form onSubmit={handleUploadStudents} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                          Paste raw CSV data: <code>name,admissionNumber,level,section,parentPin,schoolFees</code>
-                        </p>
-                        <textarea 
-                          rows={8}
-                          style={{ fontFamily: 'monospace' }}
-                          placeholder="AMAANI YAHUZA,DSH/015,5,ALLO,1234,180000"
-                          value={studentCsvFile}
-                          onChange={e => setStudentCsvFile(e.target.value)}
-                        />
-                        <button type="submit" style={styles.submitBtn}>Upload CSV Data</button>
-                      </form>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Section tabs for Conventional vs Islamic */}
+                        <div style={{ display: 'flex', borderBottom: '2px solid var(--border)', paddingBottom: '0.25rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => { setCsvTab('conventional'); setUploadResults(null); }}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              border: 'none',
+                              background: 'transparent',
+                              borderBottom: csvTab === 'conventional' ? '3px solid var(--primary)' : 'none',
+                              color: csvTab === 'conventional' ? 'var(--primary)' : 'var(--text-muted)',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              marginBottom: '-5px',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            Conventional Section
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setCsvTab('islamic'); setUploadResults(null); }}
+                            style={{
+                              padding: '0.5rem 1rem',
+                              border: 'none',
+                              background: 'transparent',
+                              borderBottom: csvTab === 'islamic' ? '3px solid var(--primary)' : 'none',
+                              color: csvTab === 'islamic' ? 'var(--primary)' : 'var(--text-muted)',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              marginBottom: '-5px',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            Islamic / Tahfeez Section
+                          </button>
+                        </div>
+
+                        {/* Guide text & template downloads */}
+                        <div style={{ backgroundColor: 'var(--bg-base)', padding: '0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
+                          <span style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '0.4rem' }}>
+                            {csvTab === 'conventional' ? 'Conventional Student CSV Template' : 'Islamic / Tahfeez Student CSV Template'}
+                          </span>
+                          <p style={{ color: 'var(--text-muted)', margin: '0 0 0.75rem 0', lineHeight: '1.4' }}>
+                            {csvTab === 'conventional'
+                              ? 'Required columns: name, admissionNumber, level, section. Profile details like DOB, Gender, House, and Club are optional but recommended.'
+                              : 'Required columns: name (English), nameArabic (Arabic Name for report cards), admissionNumber, level, section. Profile details are optional but recommended.'}
+                          </p>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => downloadTemplate(csvTab)}
+                              style={{
+                                padding: '0.4rem 0.8rem',
+                                fontSize: '0.75rem',
+                                border: '1px solid var(--primary)',
+                                background: 'var(--primary-glow)',
+                                color: 'var(--primary)',
+                                borderRadius: '4px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              📥 Download Template
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => copySampleData(csvTab)}
+                              style={{
+                                padding: '0.4rem 0.8rem',
+                                fontSize: '0.75rem',
+                                border: '1px solid var(--border)',
+                                background: 'var(--bg-card)',
+                                color: 'var(--text-main)',
+                                borderRadius: '4px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              📋 Copy Sample CSV
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* File upload drag and drop zone */}
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          style={{
+                            border: isDragging ? '2px dashed var(--primary)' : '2px dashed var(--border)',
+                            backgroundColor: isDragging ? 'var(--primary-glow)' : 'var(--bg-card)',
+                            borderRadius: 'var(--radius-sm)',
+                            padding: '1.5rem',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            position: 'relative',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <input
+                            type="file"
+                            accept=".csv"
+                            onChange={handleFileInputChange}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              opacity: 0,
+                              cursor: 'pointer'
+                            }}
+                          />
+                          <div style={{ pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '1.5rem' }}>📂</span>
+                            <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                              Drag & Drop CSV File here
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              or click to browse local files
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Manual paste / edit textarea */}
+                        <form onSubmit={handleUploadStudents} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                              Or Paste/Edit Raw CSV Text
+                            </label>
+                             <textarea
+                              rows={6}
+                              style={{ fontFamily: 'monospace', fontSize: '0.8rem', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}
+                              placeholder=""
+                              value={studentCsvFile}
+                              onChange={e => { setStudentCsvFile(e.target.value); setUploadResults(null); }}
+                            />
+                          </div>
+
+                          {/* Preview Grid */}
+                          {csvPreview.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', backgroundColor: 'var(--bg-base)' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--primary)' }}>
+                                👀 Live Import Preview ({csvPreview.length} students detected)
+                              </span>
+                              <div style={{ overflowX: 'auto', maxHeight: '180px' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                                      <th style={{ padding: '0.3rem 0.5rem' }}>Name (En)</th>
+                                      {csvTab === 'islamic' && <th style={{ padding: '0.3rem 0.5rem' }}>Name (Ar)</th>}
+                                      <th style={{ padding: '0.3rem 0.5rem' }}>Admission</th>
+                                      <th style={{ padding: '0.3rem 0.5rem' }}>Class</th>
+                                      <th style={{ padding: '0.3rem 0.5rem' }}>Sec</th>
+                                      <th style={{ padding: '0.3rem 0.5rem' }}>Gender</th>
+                                      <th style={{ padding: '0.3rem 0.5rem' }}>House</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {csvPreview.slice(0, 10).map((row, idx) => (
+                                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                                        <td style={{ padding: '0.3rem 0.5rem', fontWeight: 'bold' }}>{row.name}</td>
+                                        {csvTab === 'islamic' && <td dir="rtl" style={{ padding: '0.3rem 0.5rem', fontFamily: 'Cairo, sans-serif' }}>{row.nameArabic}</td>}
+                                        <td style={{ padding: '0.3rem 0.5rem' }}><code>{row.admissionNumber}</code></td>
+                                        <td style={{ padding: '0.3rem 0.5rem' }}>{row.level}</td>
+                                        <td style={{ padding: '0.3rem 0.5rem' }}>{row.section}</td>
+                                        <td style={{ padding: '0.3rem 0.5rem' }}>{row.gender || '-'}</td>
+                                        <td style={{ padding: '0.3rem 0.5rem' }}>{row.house || '-'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                                {csvPreview.length > 10 && (
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.4rem', textAlign: 'center' }}>
+                                    Showing first 10 of {csvPreview.length} rows...
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          <button type="submit" style={styles.submitBtn}>
+                            🚀 Upload {csvPreview.length > 0 ? csvPreview.length : ''} Students
+                          </button>
+                        </form>
+
+                        {/* Detailed Results Reporting Card */}
+                        {uploadResults && (
+                          <div style={{
+                            padding: '1rem',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border)',
+                            backgroundColor: 'var(--bg-card)',
+                            boxShadow: 'var(--shadow-sm)'
+                          }}>
+                            <h4 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success)' }}>
+                              🎉 Processing Summary
+                            </h4>
+                            <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', marginBottom: '0.75rem', fontWeight: 'bold' }}>
+                              <span>✅ Registered: <span style={{ color: 'var(--success)' }}>{uploadResults.uploadedCount}</span></span>
+                              <span>⚠️ Skipped: <span style={{ color: uploadResults.skipped.length > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>{uploadResults.skipped.length}</span></span>
+                            </div>
+
+                            {uploadResults.skipped.length > 0 && (
+                              <div style={{ border: '1px solid var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ backgroundColor: 'var(--bg-base)', padding: '0.4rem 0.6rem', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+                                  Skipped Students List (Duplicates / Incomplete Data)
+                                </div>
+                                <div style={{ overflowY: 'auto', maxHeight: '120px' }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+                                    <thead>
+                                      <tr style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-base)', color: 'var(--text-muted)' }}>
+                                        <th style={{ padding: '0.3rem 0.5rem' }}>Name</th>
+                                        <th style={{ padding: '0.3rem 0.5rem' }}>Adm Number</th>
+                                        <th style={{ padding: '0.3rem 0.5rem' }}>Reason</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {uploadResults.skipped.map((skip, idx) => (
+                                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                                          <td style={{ padding: '0.3rem 0.5rem', fontWeight: 'bold' }}>{skip.name || 'Unnamed Student'}</td>
+                                          <td style={{ padding: '0.3rem 0.5rem' }}><code>{skip.admissionNumber || '-'}</code></td>
+                                          <td style={{ padding: '0.3rem 0.5rem', color: 'var(--error)', fontWeight: '500' }}>{skip.reason}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <form onSubmit={handleAddStudentManual} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Name *</label>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Name (English) *</label>
                           <input 
                             type="text" 
                             required
-                            placeholder="e.g. Amaani Yahuza"
+                            placeholder=""
                             value={manualStudent.name}
                             onChange={e => setManualStudent({ ...manualStudent, name: e.target.value })}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Name (Arabic - optional)</label>
+                          <input 
+                            type="text" 
+                            placeholder=""
+                            value={manualStudent.nameArabic}
+                            onChange={e => setManualStudent({ ...manualStudent, nameArabic: e.target.value })}
+                            dir="rtl"
+                            style={{ fontFamily: 'Cairo, sans-serif', textAlign: 'right' }}
                           />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1387,7 +1940,7 @@ export default function AdminDashboardView({
                           <input 
                             type="text" 
                             required
-                            placeholder="e.g. DSH/015"
+                            placeholder=""
                             value={manualStudent.admissionNumber}
                             onChange={e => setManualStudent({ ...manualStudent, admissionNumber: e.target.value })}
                           />
@@ -1432,7 +1985,7 @@ export default function AdminDashboardView({
                             <input 
                               type="text" 
                               required
-                              placeholder="e.g. 2025/2026"
+                              placeholder=""
                               value={manualStudent.academicYear}
                               onChange={e => setManualStudent({ ...manualStudent, academicYear: e.target.value })}
                             />
@@ -1451,7 +2004,7 @@ export default function AdminDashboardView({
                           <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>School Fees (₦)</label>
                           <input 
                             type="number" 
-                            placeholder="e.g. 180000"
+                            placeholder=""
                             value={manualStudent.schoolFees}
                             onChange={e => setManualStudent({ ...manualStudent, schoolFees: e.target.value })}
                           />
@@ -1462,11 +2015,12 @@ export default function AdminDashboardView({
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                 <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Date of Birth *</label>
                                 <input 
-                                  type="text" 
+                                  type="date" 
                                   required
-                                  placeholder="e.g. Thu, 15-Jul-2010"
                                   value={manualStudent.dob}
                                   onChange={e => setManualStudent({ ...manualStudent, dob: e.target.value })}
+                                  onClick={e => { try { e.currentTarget.showPicker(); } catch (err) {} }}
+                                  onFocus={e => { try { e.currentTarget.showPicker(); } catch (err) {} }}
                                 />
                               </div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1488,7 +2042,7 @@ export default function AdminDashboardView({
                                 <input 
                                   type="text" 
                                   required
-                                  placeholder="e.g. Yellow House"
+                                  placeholder=""
                                   value={manualStudent.house}
                                   onChange={e => setManualStudent({ ...manualStudent, house: e.target.value })}
                                 />
@@ -1498,7 +2052,7 @@ export default function AdminDashboardView({
                                 <input 
                                   type="text" 
                                   required
-                                  placeholder="e.g. Press Club"
+                                  placeholder=""
                                   value={manualStudent.club}
                                   onChange={e => setManualStudent({ ...manualStudent, club: e.target.value })}
                                 />
@@ -1580,12 +2134,22 @@ export default function AdminDashboardView({
                   </div>
                   <form onSubmit={handleUpdateStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Name *</label>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Name (English) *</label>
                       <input 
                         type="text" 
                         required
                         value={editStudentForm.name}
                         onChange={e => setEditStudentForm({ ...editStudentForm, name: e.target.value })}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Student Name (Arabic - optional)</label>
+                      <input 
+                        type="text" 
+                        value={editStudentForm.nameArabic}
+                        onChange={e => setEditStudentForm({ ...editStudentForm, nameArabic: e.target.value })}
+                        dir="rtl"
+                        style={{ fontFamily: 'Cairo, sans-serif', textAlign: 'right' }}
                       />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1664,11 +2228,12 @@ export default function AdminDashboardView({
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                             <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Date of Birth *</label>
                             <input 
-                              type="text" 
+                              type="date" 
                               required
-                              placeholder="e.g. Thu, 15-Jul-2010"
                               value={editStudentForm.dob}
                               onChange={e => setEditStudentForm({ ...editStudentForm, dob: e.target.value })}
+                              onClick={e => { try { e.currentTarget.showPicker(); } catch (err) {} }}
+                              onFocus={e => { try { e.currentTarget.showPicker(); } catch (err) {} }}
                             />
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -1690,7 +2255,7 @@ export default function AdminDashboardView({
                             <input 
                               type="text" 
                               required
-                              placeholder="e.g. Yellow House"
+                              placeholder=""
                               value={editStudentForm.house}
                               onChange={e => setEditStudentForm({ ...editStudentForm, house: e.target.value })}
                             />
@@ -1700,7 +2265,7 @@ export default function AdminDashboardView({
                             <input 
                               type="text" 
                               required
-                              placeholder="e.g. Press Club"
+                              placeholder=""
                               value={editStudentForm.club}
                               onChange={e => setEditStudentForm({ ...editStudentForm, club: e.target.value })}
                             />
@@ -1868,6 +2433,36 @@ export default function AdminDashboardView({
                   </select>
                 </div>
 
+                <div style={{ padding: '0.75rem', border: '2px solid #8B1A1A', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(139,26,26,0.04)' }}>
+                  <h4 style={{ color: '#8B1A1A', fontWeight: 'bold', marginBottom: '0.75rem', fontSize: '0.9rem' }}>🏫 Class Teacher (Class Master/Mistress) Settings</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={settingsAllowMultiClassTeacher}
+                        onChange={e => setSettingsAllowMultiClassTeacher(e.target.checked)}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <span style={{ fontSize: '0.85rem' }}>
+                        <strong>Allow Class Teacher to manage multiple classes</strong>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>If unchecked, a teacher can only be Class Teacher for one class at a time.</span>
+                      </span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={settingsAllowClassTeacherNextTerm}
+                        onChange={e => setSettingsAllowClassTeacherNextTerm(e.target.checked)}
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <span style={{ fontSize: '0.85rem' }}>
+                        <strong>Allow Class Teacher to edit Next Term information</strong>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>If unchecked, only Admin can set next term dates and fees on report cards.</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
                 <div>
                   <label style={styles.label}>School Name (English)</label>
                   <input 
@@ -1882,7 +2477,6 @@ export default function AdminDashboardView({
                   <label style={styles.label}>School Name (Arabic)</label>
                   <input 
                     type="text" 
-                    required 
                     value={settingsSchoolNameArabic} 
                     onChange={e => setSettingsSchoolNameArabic(e.target.value)} 
                     placeholder="أكاديمية دار صغار الحفاظ" 

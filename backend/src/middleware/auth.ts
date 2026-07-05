@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import Tenant from '../models/Tenant';
 import { ITenant } from '../models/Tenant';
 
 export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'PARENT' | 'ACCOUNTANT' | 'DIRECTOR';
@@ -22,12 +23,15 @@ export interface AuthRequest extends Request {
  * Verifies the JWT token from Authorization header or query parameter.
  * Extracts user identity and tenant context from the token payload.
  */
-export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticateToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1];
 
+  const allowQueryToken = process.env.ALLOW_QUERY_TOKEN === 'true' ||
+    (req.method === 'GET' && typeof req.path === 'string' && req.path.includes('/pdf'));
+
   // Fallback to query parameter token (commonly used for PDF download/file links)
-  if (!token && req.query.token) {
+  if (!token && allowQueryToken && req.query.token) {
     token = req.query.token as string;
   }
 
@@ -54,6 +58,14 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     // (e.g., API client without subdomain), set it from the token.
     if (decoded.tenantId && !req.tenantId) {
       req.tenantId = decoded.tenantId;
+    }
+
+    // If tenant context has not been resolved from host/header, hydrate it from token.
+    if (decoded.tenantId && !req.tenant) {
+      const tenant = await Tenant.findById(decoded.tenantId);
+      if (tenant) {
+        req.tenant = tenant;
+      }
     }
 
     next();

@@ -502,9 +502,9 @@ input:focus, select:focus, textarea:focus {
   transition: all var(--transition-fast);
 }
 .nav-button-action:hover {
-  border-color: var(--primary-light);
-  color: var(--primary);
-  background-color: var(--primary-glow);
+  border-color: var(--secondary);
+  color: var(--secondary);
+  background-color: var(--secondary-glow);
 }
 
 .nav-logout-btn {
@@ -1975,7 +1975,7 @@ input:focus, select:focus, textarea:focus {
 .parent-result-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md) !important;
-  border-color: var(--primary-light) !important;
+  border-color: var(--secondary) !important;
 }
 
 /* ========================================================
@@ -2446,7 +2446,7 @@ input:focus, select:focus, textarea:focus {
 
 .parent-tab-btn:hover {
   opacity: 1;
-  background-color: rgba(30, 86, 49, 0.08);
+  background-color: var(--secondary-glow);
 }
 
 .dark .parent-tab-btn:hover {
@@ -2547,8 +2547,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn-view-sheet:hover {
-  background-color: var(--primary-light) !important;
-  border-color: var(--primary-light) !important;
+  background-color: var(--secondary) !important;
+  border-color: var(--secondary) !important;
   transform: translateY(-1px);
 }
 
@@ -2568,7 +2568,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn-download-pdf:hover {
-  background-color: var(--primary-glow) !important;
+  background-color: var(--secondary-glow) !important;
   transform: translateY(-1px);
 }
 
@@ -2777,4 +2777,157 @@ input:focus, select:focus, textarea:focus {
   }
 }
 
+/* ========================================================
+   REPORT CARD PRINT OPTIMIZATIONS
+   ======================================================== */
+@media print {
+  /* Hide all dashboard chrome, overlays, sidebars, buttons, etc. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Show only the print target report card sheet */
+  .report-card-print-target,
+  .report-card-print-target * {
+    visibility: visible !important;
+  }
+
+  /* Expand print target to cover A4 fully without frame styles */
+  .report-card-print-target {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide close buttons, download links, action headers, etc. */
+  .no-print,
+  .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Page setup for A4 portrait layout with standard printing margin */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  /* Reset layout backgrounds and base color scheme for paper printout */
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+
+
+/* ========================================================
+   AL-QALAM ACADEMY TENANT OVERRIDES
+   Replaces green (default primary) with Dark Royal Blue & Maroon
+   ======================================================== */
+
+:root.tenant-alqalam {
+  --primary-h: 225;
+  --primary-s: 80%;
+  --primary-l: 25%;
+  --primary: #1a3a9c;           /* Dark Royal Blue */
+  --primary-light: #2a50cc;
+  --primary-dark: #0d2270;
+  --primary-glow: rgba(26, 58, 156, 0.15);
+
+  --secondary-h: 0;
+  --secondary-s: 100%;
+  --secondary-l: 25%;
+  --secondary: #800020;          /* Maroon */
+  --secondary-light: #a0002a;
+  --secondary-dark: #600018;
+  --secondary-glow: rgba(128, 0, 32, 0.15);
+}
+
+/* Override hover & active colors for all interactive elements */
+:root.tenant-alqalam .hero-primary-btn,
+:root.tenant-alqalam .nav-login-btn {
+  background-color: #1a3a9c;
+  border-color: #1a3a9c;
+}
+
+:root.tenant-alqalam .hero-primary-btn:hover,
+:root.tenant-alqalam .nav-login-btn:hover {
+  background-color: #2a50cc !important;
+  border-color: #2a50cc !important;
+  transform: translateY(-1px);
+}
+
+:root.tenant-alqalam .hero-secondary-btn {
+  color: #1a3a9c;
+  border-color: #1a3a9c;
+}
+
+:root.tenant-alqalam .hero-secondary-btn:hover {
+  background-color: rgba(26, 58, 156, 0.12) !important;
+  color: #1a3a9c !important;
+  border-color: #1a3a9c !important;
+}
+
+:root.tenant-alqalam .curriculum-tab-btn:hover {
+  color: #2a50cc !important;
+  background-color: rgba(26, 58, 156, 0.12) !important;
+}
+
+:root.tenant-alqalam .curriculum-tab-btn.active {
+  background-color: #1a3a9c !important;
+  color: #fff !important;
+}
+
+:root.tenant-alqalam .custom-table tr:hover td,
+:root.tenant-alqalam .grading-scores-table tbody tr:hover td,
+:root.tenant-alqalam .grading-eval-table tbody tr:hover td {
+  background-color: rgba(26, 58, 156, 0.10) !important;
+}
+
+:root.tenant-alqalam .hamburger-btn:hover,
+:root.tenant-alqalam .theme-toggle-btn:hover {
+  background-color: rgba(26, 58, 156, 0.12) !important;
+  color: #1a3a9c !important;
+  border-color: #2a50cc !important;
+}
+
+:root.tenant-alqalam a:hover {
+  color: #2a50cc !important;
+}
+
+:root.tenant-alqalam .sidebar-btn:hover,
+:root.tenant-alqalam .teacher-tab-btn:hover,
+:root.tenant-alqalam .parent-tab-btn:hover {
+  color: #1a3a9c !important;
+  background-color: rgba(26, 58, 156, 0.12) !important;
+}
+
+:root.tenant-alqalam .teacher-tab-btn.active,
+:root.tenant-alqalam .parent-tab-btn.active {
+  color: #fff !important;
+  background-color: #1a3a9c !important;
+  border-color: #1a3a9c !important;
+}
+
+:root.tenant-alqalam .teacher-roster-item:hover {
+  background-color: rgba(26, 58, 156, 0.08) !important;
+  border-color: #1a3a9c !important;
+}
+
+:root.tenant-alqalam .premium-stat-card:hover {
+  border-color: #2a50cc !important;
+}
+
+:root.tenant-alqalam .parent-result-card:hover {
+  border-color: #1a3a9c !important;
+}
 

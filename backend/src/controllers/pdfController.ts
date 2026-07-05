@@ -9,6 +9,7 @@ import User from '../models/User';
 import Invoice from '../models/Invoice';
 import Tenant from '../models/Tenant';
 import { SCHOOL_LOGO_BASE64 } from './logoBase64';
+import { renderAlQalamReport } from '../services/reportTemplates';
 
 // Helper to escape HTML characters for security (XSS prevention)
 const escapeHtml = (unsafe: any): string => {
@@ -46,536 +47,176 @@ const formatAge = (dob: Date): string => {
 };
 
 // Custom layout for Al-Qalam Academy
-const generateAlQalamReportHtml = (result: any, student: any, tenant: any, classPositionString: string) => {
-  const primaryColor = tenant.branding?.primaryColor || '#0A2240';
-  const secondaryColor = tenant.branding?.secondaryColor || '#d4af37';
-  const logo = tenant.branding?.logo || SCHOOL_LOGO_BASE64;
-  const schoolName = tenant.name || 'Al-Qalam Academy';
-  const schoolNameArabic = tenant.nameArabic || '';
-  const subHeader = tenant.subHeader || 'MOTTO: SUCCESS THROUGH HARDWORK';
-  const address = tenant.contact?.address || 'Kaduna, Nigeria';
-  const phoneNumbers = tenant.contact?.phoneNumbers || '';
-  const email = tenant.contact?.email || '';
-
-  const gradedSubjects = result.subjects.filter((s: any) => s.isGraded);
-  const gradedSubjectsCount = gradedSubjects.length || 1;
-
-  const renderRatingRow = (label: string, ratingValue: number) => {
-    const r = Number(ratingValue) || 5;
-    return `
-      <tr>
-        <td style="border: 1px solid #c5d5c5; padding: 2.2px 4px; font-size: 8.5px; font-weight: 500;">${label}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 5 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 4 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 3 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 2 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 1 ? '✓' : ''}</td>
-      </tr>
-    `;
-  };
-
-  const gradesList = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
-  const counts: Record<string, number> = { A1: 0, B2: 0, B3: 0, C4: 0, C5: 0, C6: 0, D7: 0, E8: 0, F9: 0 };
-  result.subjects.forEach((s: any) => {
-    if (s.isGraded && counts[s.grade] !== undefined) {
-      counts[s.grade]++;
-    }
-  });
-
-  const aff = result.affectiveDomain || {};
-  const psych = result.psychomotorSkills || {};
-  const cog = result.cognitiveDomain || {};
-
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <title>Al-Qalam Assessment Sheet - ${escapeHtml(student.name)}</title>
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600;700&family=Amiri:wght@400;700&display=swap');
-        
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
-        @page {
-          size: A4;
-          margin: 4mm;
-        }
-        body {
-          font-family: 'Inter', 'Cairo', sans-serif;
-          color: #1a1a1a;
-          background: #ffffff;
-          padding: 0;
-          margin: 0;
-          width: 100%;
-          height: 100%;
-          font-size: 9.5px;
-          line-height: 1.15;
-          -webkit-print-color-adjust: exact;
-        }
-        .outer-border {
-          border: 3.5px double ${primaryColor};
-          padding: 8px;
-          width: 100%;
-          height: calc(297mm - 8mm);
-          box-sizing: border-box;
-          position: relative;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-        
-        /* ── Header ── */
-        .header-container {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 2px solid ${primaryColor};
-          padding-bottom: 4px;
-          margin-bottom: 5px;
-        }
-        .header-logo {
-          width: 75px;
-          height: 75px;
-          object-fit: contain;
-        }
-        .header-text {
-          text-align: center;
-          flex-grow: 1;
-          padding: 0 10px;
-        }
-        .header-text h1 {
-          font-family: 'Cairo', sans-serif;
-          font-size: 24px;
-          color: ${primaryColor};
-          margin-bottom: 2px;
-          font-weight: 800;
-          letter-spacing: -0.5px;
-        }
-        .header-text h2 {
-          font-family: 'Times New Roman', 'Times', serif;
-          font-size: 13px;
-          color: #1a1a1a;
-          margin-bottom: 2px;
-          font-weight: bold;
-          letter-spacing: 0.5px;
-          text-transform: uppercase;
-        }
-        .header-text p.contact {
-          font-size: 9.5px;
-          color: #333;
-          margin-bottom: 2px;
-        }
-        .header-text p.sub {
-          font-family: 'Times New Roman', 'Times', serif;
-          font-size: 12.5px;
-          font-weight: bold;
-          color: ${primaryColor};
-          margin-top: 2px;
-          text-transform: uppercase;
-        }
-
-        /* ── Student info table ── */
-        .info-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 5px;
-        }
-        .info-table td {
-          border: 1px solid #c5d5c5;
-          padding: 3px 5px;
-          font-size: 9px;
-          background: #fafcfa;
-        }
-        .val-text {
-          font-weight: bold;
-          color: ${primaryColor};
-        }
-
-        /* ── Results table ── */
-        .results-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .results-table th, .results-table td {
-          border: 1px solid #c5d5c5;
-          padding: 3px 4px;
-        }
-        .results-table th {
-          background: #eef4ee;
-          color: ${primaryColor};
-          font-size: 9px;
-          text-align: center;
-          font-weight: bold;
-        }
-        .results-table td {
-          font-size: 10px;
-        }
-        .results-table td.center {
-          text-align: center;
-        }
-        .font-bold {
-          font-weight: bold;
-        }
-        .center {
-          text-align: center;
-        }
-        .bilingual-cell {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        .en {
-          font-family: 'Inter', sans-serif;
-          text-align: left;
-        }
-        .ar {
-          font-family: 'Cairo', sans-serif;
-          text-align: right;
-          direction: rtl;
-          color: #555;
-          font-size: 8.5px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="outer-border">
-        <!-- Header -->
-        <div class="header-container">
-          <img src="${logo.startsWith('data:') ? logo : SCHOOL_LOGO_BASE64}" class="header-logo" alt="School Logo" />
-          <div class="header-text">
-            <h1>${schoolName.toUpperCase()} KADUNA</h1>
-            <h2>${subHeader}</h2>
-            <p class="contact">${address} | Tel: ${phoneNumbers}</p>
-            <p class="contact">Email: ${email}</p>
-            <p class="sub">${result.term.toUpperCase()} STUDENT'S PERFORMANCE REPORT</p>
-          </div>
-          ${student.picture ? `
-            <img src="${escapeHtml(student.picture)}" class="header-logo" style="border: 1.5px solid ${primaryColor}; border-radius: 4px; object-fit: cover;" alt="Student Passport" />
-          ` : `
-            <div style="width: 75px; height: 75px; border: 1.5px solid ${primaryColor}; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: #fafafa; color: #888; font-size: 7px; text-align: center; padding: 4px;" class="header-logo">
-              <b>PASSPORT PHOTO</b>
-            </div>
-          `}
-        </div>
-
-        <!-- Student Info Table -->
-        <table class="info-table">
-          <tr>
-            <td style="width: 55%;">NAME: <span class="val-text">${escapeHtml(student.name)}</span></td>
-            <td style="width: 25%;">CLASS: <span class="val-text">${escapeHtml(student.level)}</span></td>
-            <td style="width: 20%;">SESSION: <span class="val-text">${escapeHtml(result.academicYear)}</span></td>
-          </tr>
-          <tr>
-            <td>ADMISSION NO: <span class="val-text">${escapeHtml(student.admissionNumber)}</span></td>
-            <td>D.O.B: <span class="val-text">${escapeHtml(student.dob || '—')}</span></td>
-            <td>AGE: <span class="val-text">${escapeHtml(calculateAge(student.dob))}</span></td>
-          </tr>
-          <tr>
-            <td>GENDER: <span class="val-text">${escapeHtml(student.gender || '—')}</span></td>
-            <td>HOUSE: <span class="val-text">${escapeHtml(student.house || '—')}</span></td>
-            <td>CLUB/SOCIETY: <span class="val-text">${escapeHtml(student.club || '—')}</span></td>
-          </tr>
-        </table>
-
-        <!-- Main content stacked side-by-side -->
-        <div style="display: grid; grid-template-columns: 2.1fr 1fr; gap: 8px; margin-bottom: 6px;">
-          
-          <!-- Cognitive Domain (Left Column) -->
-          <div>
-            <div style="background: ${primaryColor}; color: white; padding: 3px 6px; font-weight: bold; font-size: 9px; text-align: center; text-transform: uppercase; margin-bottom: 3px;">
-              COGNITIVE DOMAIN (SUBJECTS ASSESSMENT)
-            </div>
-            <table class="results-table">
-              <thead>
-                <tr>
-                  <th style="width: 36%;">SUBJECTS</th>
-                  <th style="width: 8%;">C.A.<br><span style="font-size: 8px; font-weight: normal;">60</span></th>
-                  <th style="width: 8%;">EXAM<br><span style="font-size: 8px; font-weight: normal;">40</span></th>
-                  <th style="width: 10%;">TERM TOTAL<br><span style="font-size: 8px; font-weight: normal;">100</span></th>
-                  <th style="width: 10%;">SUBJ.<br>POSN</th>
-                  <th style="width: 8%;">GRADE</th>
-                  <th style="width: 12%;">GRADE<br>REMARKS</th>
-                  <th style="width: 10%;">CLASS<br>AVERAGE</th>
-                  <th style="width: 8%;">1ST<br>TERM</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${result.subjects.map((s: any) => `
-                  <tr>
-                    <td class="bilingual-cell" style="font-weight: bold;">
-                      <span class="en">${escapeHtml(s.subjectName)}</span>
-                      <span class="ar">${escapeHtml(s.subjectNameArabic)}</span>
-                    </td>
-                    <td class="center">${s.isGraded ? s.score60 : '—'}</td>
-                    <td class="center">${s.isGraded ? s.score40 : '—'}</td>
-                    <td class="center font-bold" style="color: ${primaryColor};">${s.isGraded ? s.score100 : '—'}</td>
-                    <td class="center">${s.isGraded ? (s.subjectPosition || '1st') : '—'}</td>
-                    <td class="center font-bold" style="color: ${primaryColor};">${s.isGraded ? s.grade : '—'}</td>
-                    <td class="center" style="font-size: 8.5px; font-weight: bold;">${s.isGraded ? (s.subjectRemarks || '') : '—'}</td>
-                    <td class="center">${s.isGraded ? (s.classAverage || s.score100) : '—'}</td>
-                    <td class="center">${s.isGraded ? (s.prevTermScore || '—') : '—'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Attendance, Affective & Psychomotor Domains (Right Column) -->
-          <div style="display: flex; flex-direction: column; gap: 5px;">
-            <!-- Attendance -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th colspan="2" style="padding: 2.5px; text-transform: uppercase;">Attendance Summary</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-size: 8.5px;">No. of Times Sch Opened</td>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-weight: bold;" class="center">${result.attendanceSummary?.timesOpened || 0}</td>
-                </tr>
-                <tr>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-size: 8.5px;">No. of Times Present</td>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-weight: bold;" class="center">${result.attendanceSummary?.timesPresent || 0} ${result.attendanceSummary?.timesOpened ? `(${Math.round((result.attendanceSummary.timesPresent / result.attendanceSummary.timesOpened) * 100)}%)` : ''}</td>
-                </tr>
-                <tr>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-size: 8.5px;">No. of Times Absent</td>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-weight: bold;" class="center">${result.attendanceSummary?.timesAbsent || 0}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <!-- Affective Domain -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th style="padding: 2.5px;">AFFECTIVE DOMAIN</th>
-                  <th style="width: 18px; padding: 2.5px;">5</th>
-                  <th style="width: 18px; padding: 2.5px;">4</th>
-                  <th style="width: 18px; padding: 2.5px;">3</th>
-                  <th style="width: 18px; padding: 2.5px;">2</th>
-                  <th style="width: 18px; padding: 2.5px;">1</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${renderRatingRow('Attentiveness', aff.attentiveness)}
-                ${renderRatingRow('Honesty', aff.honesty)}
-                ${renderRatingRow('Neatness', aff.neatness)}
-                ${renderRatingRow('Politeness', aff.politeness)}
-                ${renderRatingRow('Punctuality/Assembly', aff.punctuality)}
-                ${renderRatingRow('Self Control/Calmness', aff.selfControl)}
-                ${renderRatingRow('Obedience', aff.obedience)}
-                ${renderRatingRow('Reliability', aff.reliability)}
-                ${renderRatingRow('Sense Of Responsibility', aff.responsibility)}
-                ${renderRatingRow('Relationship With Others', aff.relationship)}
-              </tbody>
-            </table>
-
-            <!-- Psychomotor - Skills -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th style="padding: 2.5px;">PSYCHOMOTOR - SKILLS</th>
-                  <th style="width: 18px; padding: 2.5px;">5</th>
-                  <th style="width: 18px; padding: 2.5px;">4</th>
-                  <th style="width: 18px; padding: 2.5px;">3</th>
-                  <th style="width: 18px; padding: 2.5px;">2</th>
-                  <th style="width: 18px; padding: 2.5px;">1</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${renderRatingRow('Handling Of Tools', psych.handlingTools)}
-                ${renderRatingRow('Drawing/ Painting', psych.drawingPainting)}
-                ${renderRatingRow('Handwriting', psych.handwriting)}
-                ${renderRatingRow('Public Speaking', psych.publicSpeaking)}
-                ${renderRatingRow('Speech Fluency', psych.speechFluency)}
-                ${renderRatingRow('Sports & Games', psych.sportsGames)}
-              </tbody>
-            </table>
-            
-            <!-- Cognitive Domain -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th style="padding: 2.5px;">COGNITIVE DOMAIN</th>
-                  <th style="width: 18px; padding: 2.5px;">5</th>
-                  <th style="width: 18px; padding: 2.5px;">4</th>
-                  <th style="width: 18px; padding: 2.5px;">3</th>
-                  <th style="width: 18px; padding: 2.5px;">2</th>
-                  <th style="width: 18px; padding: 2.5px;">1</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${renderRatingRow('Verbal Skills', cog.verbalSkills)}
-                ${renderRatingRow('Writing Skills', cog.writingSkills)}
-                ${renderRatingRow('Reading Skills', cog.readingSkills)}
-                ${renderRatingRow('Calculation Skills', cog.calculationSkills)}
-                ${renderRatingRow('Memory Recall', cog.memoryRecall)}
-                ${renderRatingRow('Creativity', cog.creativity)}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Grade analysis row -->
-        <div style="display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 8px; margin-bottom: 6px;">
-          <!-- Performance Summary -->
-          <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa;">
-            <div style="font-weight: bold; border-bottom: 1.5px solid ${primaryColor}; padding-bottom: 2px; margin-bottom: 4px; color: ${primaryColor}; text-align: center; font-size: 8.5px; text-transform: uppercase;">Performance Summary</div>
-            <table style="width: 100%; border-collapse: collapse; font-size: 8.5px; line-height: 1.3;">
-              <tr><td>Total Obtained:</td><td class="center font-bold" style="color: ${primaryColor}; font-size: 9px;">${result.totalMark.toFixed(1)}</td></tr>
-              <tr><td>Total Obtainable:</td><td class="center font-bold">${gradedSubjectsCount * 100}</td></tr>
-              <tr><td>Total Subjects:</td><td class="center font-bold">${gradedSubjectsCount}</td></tr>
-              <tr><td>%TAGE (Percentage):</td><td class="center font-bold" style="color: ${primaryColor}; font-size: 9px;">${result.finalAverage.toFixed(2)}%</td></tr>
-              <tr><td>GRADE:</td><td class="center font-bold" style="color: ${primaryColor}; font-size: 9px;">${result.generalGrade}</td></tr>
-              <tr><td colspan="2" class="center font-bold" style="border-top: 1px solid #c5d5c5; padding-top: 3px; font-size: 8.5px; color: ${primaryColor};">${classPositionString}</td></tr>
-            </table>
-          </div>
-
-          <!-- Grade Analysis & Rating Indices -->
-          <div style="display: flex; flex-direction: column; gap: 4px;">
-            <!-- Grade Analysis -->
-            <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa;">
-              <div style="font-weight: bold; border-bottom: 1.5px solid ${primaryColor}; padding-bottom: 2px; margin-bottom: 4px; color: ${primaryColor}; text-align: center; font-size: 8.5px; text-transform: uppercase;">Grade Analysis</div>
-              <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
-                <thead>
-                  <tr style="background: #eef4ee; color: ${primaryColor}; font-weight: bold; border-bottom: 1px solid #c5d5c5;">
-                    <th style="padding: 2px; border: 1px solid #c5d5c5;">GRADE</th>
-                    ${gradesList.map(g => `<th style="padding: 2px; border: 1px solid #c5d5c5;">${g}</th>`).join('')}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style="padding: 2px; font-weight: bold; border: 1px solid #c5d5c5;">NO.</td>
-                    ${gradesList.map(g => `<td style="padding: 2px; border: 1px solid #c5d5c5; font-weight: bold;" class="center">${counts[g] || '-'}</td>`).join('')}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Rating Indices -->
-            <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa; font-size: 6.5px; line-height: 1.2;">
-              <div style="font-weight: bold; color: ${primaryColor}; margin-bottom: 2px; font-size: 7.5px; text-transform: uppercase;">Rating Indices</div>
-              <div>5 - Maintains an Excellent degree of Observable (Obs) traits</div>
-              <div>4 - Maintains a High level of Obs traits &nbsp;&nbsp; 3 - Acceptable level of Obs traits</div>
-              <div>2 - Shows Minimal regard for Obs traits &nbsp;&nbsp;&nbsp; 1 - Has No regard for Observable traits</div>
-            </div>
-          </div>
-
-          <!-- Grade Scale -->
-          <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa; font-size: 7px;">
-            <div style="font-weight: bold; border-bottom: 1.5px solid ${primaryColor}; padding-bottom: 2px; margin-bottom: 4px; color: ${primaryColor}; text-align: center; font-size: 8.5px; text-transform: uppercase;">Grade Scale</div>
-            <table style="width: 100%; border-collapse: collapse; line-height: 1.15;">
-              <tr><td class="font-bold" style="color: ${primaryColor};">A1</td><td>85-100%</td><td class="font-bold">EXCELLENT</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">B2</td><td>75-84.9%</td><td class="font-bold">VERY GOOD</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">B3</td><td>70-74.9%</td><td class="font-bold">GOOD</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">C4</td><td>65-69.9%</td><td class="font-bold">CREDIT</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">C5</td><td>60-64.9%</td><td class="font-bold">CREDIT</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">C6</td><td>50-59.9%</td><td class="font-bold">CREDIT</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">D7</td><td>45-49.9%</td><td class="font-bold">PASS</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">E8</td><td>40-44.9%</td><td class="font-bold">PASS</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">F9</td><td>0-39.9%</td><td class="font-bold">FAIL</td></tr>
-            </table>
-          </div>
-        </div>
-
-        <!-- Remarks Table -->
-        <table style="width: 100%; border-collapse: collapse; margin-top: 3px; border: 1px solid #c5d5c5; font-size: 8.5px; line-height: 1.25;">
-          <tr style="border-bottom: 1px solid #c5d5c5;">
-            <td style="width: 15%; padding: 4px 6px; font-weight: bold; color: ${primaryColor}; background: #fafcfa; border-right: 1px solid #c5d5c5;">Class Teacher's Remark</td>
-            <td style="width: 60%; padding: 4px 6px; font-style: italic;">${escapeHtml(result.teacherRecommendations)}</td>
-            <td style="width: 25%; padding: 4px 6px; font-weight: bold; text-align: right; border-left: 1px solid #c5d5c5;">
-              <div style="font-size: 7.5px; color: #555; text-transform: uppercase;">Teacher Name</div>
-              <div style="font-size: 9.5px; color: ${primaryColor}; font-weight: bold; margin-top: 2px;">${escapeHtml(result.teacherName)}</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 6px; font-weight: bold; color: ${primaryColor}; background: #fafcfa; border-right: 1px solid #c5d5c5;">Principal's Remark</td>
-            <td style="padding: 4px 6px; font-style: italic;">${escapeHtml(result.headTeacherComments || 'A Remarkable and Excellent Result!!.. Keep it Up..')}</td>
-            <td style="padding: 4px 6px; font-weight: bold; text-align: right; border-left: 1px solid #c5d5c5;">
-              ${tenant.branding?.principalSignature ? `
-                <img src="${tenant.branding.principalSignature}" style="max-height: 20px; object-fit: contain; display: block; margin-left: auto;" alt="Signature" />
-              ` : `
-                <div style="font-family: 'Amiri', serif; font-size: 9px; font-style: italic; color: ${primaryColor}; line-height: 1;">Shamsuddeen Sani</div>
-              `}
-              <div style="font-size: 7.5px; color: #555; text-transform: uppercase; margin-top: 2px;">Principal Signature</div>
-            </td>
-          </tr>
-        </table>
-
-        <!-- Footer next term date -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 4px 10px; background: #fafcfa; border: 1px solid #c5d5c5; border-radius: 3px;">
-          <div>
-            <span style="font-weight: bold; color: #555; font-size: 8.5px; text-transform: uppercase;">Next Term Begins:</span>
-            <span style="font-weight: bold; color: ${primaryColor}; margin-left: 6px; font-size: 9.5px;">${escapeHtml(result.nextTermBegins || 'Mon, 13-April-2026')}</span>
-          </div>
-          <div style="font-size: 8.5px; font-weight: bold; color: #555;">
-            DATE: <span style="color: ${primaryColor};">${escapeHtml(result.dateIssued || new Date().toLocaleDateString('en-GB'))}</span>
-          </div>
-        </div>
-
-        <div style="text-align: center; margin-top: 4px; font-family: 'Amiri', serif; font-size: 9px; color: #999; font-style: italic; letter-spacing: 0.5px;">
-          Al-Qalam Academy Kaduna © 2026 - Powered by SmartSchool Africa
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+const generateAlQalamReportHtml = async (
+  result: any,
+  student: any,
+  tenant: any,
+  classPositionString: string,
+  classRank: number = 0,
+  classCount: number = 0,
+  classAverage: number = 0,
+  highestScore: number = 0,
+  lowestScore: number = 0
+) => {
+  return await renderAlQalamReport(
+    result,
+    student,
+    tenant,
+    classPositionString,
+    classRank,
+    classCount,
+    classAverage,
+    highestScore,
+    lowestScore
+  );
 };
 
-// Custom layout for Conventional Academic-only schools (no Arabic, no Islamic/Tahfeez)
 const generateConventionalReportHtml = (result: any, student: any, tenant: any, classPositionString: string) => {
-  const primaryColor = tenant.branding?.primaryColor || '#1E5631';
-  const secondaryColor = tenant.branding?.secondaryColor || '#d4af37';
+  const primaryColor = tenant.branding?.primaryColor || '#0f172a';
+  const secondaryColor = tenant.branding?.secondaryColor || '#475569';
   const logo = tenant.branding?.logo || SCHOOL_LOGO_BASE64;
   const schoolName = tenant.name || 'SmartSchool';
-  const subHeader = tenant.subHeader || 'Academic Excellence & Moral Discipline';
+  const schoolNameArabic = tenant.nameArabic || '';
+  const subHeader = tenant.subHeader || 'Learn Today, Lead Tomorrow';
   const address = tenant.contact?.address || '';
-  const phoneNumbers = tenant.contact?.phoneNumbers || '';
+  const phoneNumbers = tenant.contact?.phoneNumbers || tenant.contact?.phone || '';
   const email = tenant.contact?.email || '';
+  const website = tenant.contact?.website || '';
 
-  const gradedSubjects = result.subjects.filter((s: any) => s.isGraded);
-  const gradedSubjectsCount = gradedSubjects.length || 1;
+  const term = result.term || '';
+  const session = result.academicYear || '';
+
+  const allSubjects = result.subjects || [];
+  const academicSubjects = allSubjects.filter((s: any) => s.section === 'academic');
+  const islamicSubjects = allSubjects.filter((s: any) => s.section === 'islamic');
+  const tahfeezhSubjects = allSubjects.filter((s: any) => s.section === 'tahfeezh');
+
+  const showAcademic = academicSubjects.length > 0;
+  const showIslamic = islamicSubjects.length > 0;
+  const showTahfeez = tahfeezhSubjects.length > 0;
+  const showArabic = showIslamic || showTahfeez;
+
+  const isAlQalam = tenant?.slug === 'alqalam' ||
+    schoolName?.toLowerCase().includes('qalam') ||
+    (allSubjects && allSubjects.some((s: any) => s.grade === 'A1' || s.grade === 'B2'));
+
+  const gradesList = isAlQalam
+    ? ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9']
+    : ['A', 'B', 'C', 'D', 'F'];
+
+  const counts: Record<string, number> = {};
+  gradesList.forEach(g => { counts[g] = 0; });
+
+  const gradedSubjects = allSubjects.filter((s: any) => s.isGraded);
+  gradedSubjects.forEach((s: any) => {
+    const grade = s.grade?.toString().trim().toUpperCase() || '';
+    if (counts[grade] !== undefined) {
+      counts[grade]++;
+    }
+  });
+
+  const totalSubjects = gradedSubjects.length;
+  const totalObtainable = totalSubjects * 100;
+
+  const totalObtained = result.totalMark !== undefined ? Number(result.totalMark) :
+    gradedSubjects.reduce((acc: number, curr: any) => acc + (Number(curr.score100) || 0), 0);
+
+  const percentage = result.finalAverage !== undefined ? Number(result.finalAverage) :
+    (totalObtainable > 0 ? (totalObtained / totalObtainable) * 100 : 0);
+
+  const overallGrade = result.generalGrade || '—';
+
+  const passedCount = gradedSubjects.filter(
+    (s: any) => s.grade && !/^F9$|^F$/i.test(s.grade.toString().trim())
+  ).length;
+  const failedCount = totalSubjects - passedCount;
+
+  const timesOpened = Number(result.attendanceSummary?.timesOpened) || 0;
+  const timesPresent = Number(result.attendanceSummary?.timesPresent) || 0;
+  const timesAbsent = Number(result.attendanceSummary?.timesAbsent) || 0;
+  const attendancePercent = timesOpened > 0 ? Math.round((timesPresent / timesOpened) * 100) : 0;
+
+  const calculateAge = (dobString: string): string => {
+    if (!dobString) return '—';
+    try {
+      const dob = new Date(dobString);
+      if (isNaN(dob.getTime())) {
+        const clean = dobString.replace(/^[A-Za-z]+,\s*/, '').replace(/-/g, ' ');
+        const parsed = new Date(clean);
+        if (isNaN(parsed.getTime())) return dobString;
+        const ageDiff = Date.now() - parsed.getTime();
+        const ageDate = new Date(ageDiff);
+        return String(Math.abs(ageDate.getUTCFullYear() - 1970)) + ' yrs';
+      }
+      const ageDiff = Date.now() - dob.getTime();
+      const ageDate = new Date(ageDiff);
+      return String(Math.abs(ageDate.getUTCFullYear() - 1970)) + ' yrs';
+    } catch {
+      return dobString;
+    }
+  };
+
+  const age = calculateAge(student.dob || result.studentId?.dob);
+
+  const aff = result.affectiveDomain || {};
+  const psych = result.psychomotorSkills || {};
+  const cog = result.cognitiveDomain || {};
+
+  const scale = tenant.academicConfig?.gradingScale || { A: 80, B: 70, C: 60, D: 50, F: 0 };
+  const nextTermBegins = result.nextTermBegins || '—';
+  const nextTermFees = result.nextTermSchoolFees || result.nextTermFees || '—';
+  const dateIssued = result.dateIssued || new Date().toLocaleDateString('en-GB');
 
   const renderRatingRow = (label: string, ratingValue: number) => {
     const r = Number(ratingValue) || 5;
     return `
       <tr>
-        <td style="border: 1px solid #c5d5c5; padding: 2.2px 4px; font-size: 8.5px; font-weight: 500;">${label}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 5 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 4 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 3 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 2 ? '✓' : ''}</td>
-        <td style="border: 1px solid #c5d5c5; padding: 2px; font-weight: bold; font-size: 9.5px; color: ${primaryColor};" class="center">${r === 1 ? '✓' : ''}</td>
+        <td style="padding: 2.2px 4px; color: #334155; font-weight: 600; border-bottom: 1px solid #cbd5e1;">${label}</td>
+        ${[5, 4, 3, 2, 1].map(col => `
+          <td style="padding: 2px; font-weight: bold; font-size: 8px; text-align: center; border-left: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; color: ${primaryColor};">
+            ${r === col ? '✓' : ''}
+          </td>
+        `).join('')}
       </tr>
     `;
   };
 
-  const gradesList = ['A', 'B', 'C', 'D', 'F'];
-  const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, F: 0 };
-  result.subjects.forEach((s: any) => {
-    if (s.isGraded && counts[s.grade] !== undefined) {
-      counts[s.grade]++;
-    }
-  });
+  const renderSubjectRowsHtml = (sectionSubjects: any[]) => {
+    return sectionSubjects.map((s: any, idx: number) => {
+      const isOdd = idx % 2 === 1;
+      return `
+        <tr style="border-bottom: 1px solid #cbd5e1; background-color: ${isOdd ? '#f8fafc' : '#ffffff'};">
+          <td style="padding: 3px 5px; font-weight: bold; color: #334155;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>${escapeHtml(s.subjectName)}</span>
+              ${showArabic && s.subjectNameArabic ? `<span style="font-family: 'Amiri', 'Cairo', serif; font-size: 7.5px; color: #64748b; font-weight: normal;">${escapeHtml(s.subjectNameArabic)}</span>` : ''}
+            </div>
+          </td>
+          <td style="padding: 3px; text-align: center; color: #475569;">${s.isGraded ? s.score20_1 : '—'}</td>
+          <td style="padding: 3px; text-align: center; color: #475569;">${s.isGraded ? s.score20_2 : '—'}</td>
+          <td style="padding: 3px; text-align: center; color: #475569;">${s.isGraded ? (isAlQalam ? s.score40 : s.score60) : '—'}</td>
+          <td style="padding: 3px; text-align: center; font-weight: bold; color: ${primaryColor}; background-color: #f1f5f9;">${s.isGraded ? s.score100 : '—'}</td>
+          <td style="padding: 3px; text-align: center; font-weight: bold; color: ${primaryColor};">${s.isGraded ? s.grade : '—'}</td>
+          <td style="padding: 3px; text-align: center; color: #475569;">${s.isGraded ? (s.subjectPosition || '—') : '—'}</td>
+          <td style="padding: 3px; text-align: center; color: #64748b;">${s.isGraded ? (s.classAverage || s.score100) : '—'}</td>
+          <td style="padding: 3px 5px; color: #475569; font-size: 7px; font-style: italic;">${s.isGraded ? (s.subjectRemarks || '—') : '—'}</td>
+        </tr>
+      `;
+    }).join('');
+  };
 
-  const aff = result.affectiveDomain || {};
-  const psych = result.psychomotorSkills || {};
-  const cog = result.cognitiveDomain || {};
+  const isTahfeezSchool = showTahfeez && !showAcademic && !showIslamic;
+  const isIslamicSchool = showIslamic && !showTahfeez && !showAcademic;
+  const isHybridSchool = showAcademic && (showIslamic || showTahfeez);
 
   return `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Report Sheet - ${escapeHtml(student.name)}</title>
+      <title>Report Card - ${escapeHtml(student.name)}</title>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Amiri&family=Inter:wght@400;500;600;700;800&display=swap');
         
         * {
           box-sizing: border-box;
@@ -583,421 +224,422 @@ const generateConventionalReportHtml = (result: any, student: any, tenant: any, 
           padding: 0;
         }
         @page {
-          size: A4;
-          margin: 4mm;
+          size: A4 portrait;
+          margin: 6mm 8mm;
         }
         body {
-          font-family: 'Times New Roman', 'Times', serif;
-          color: #1a1a1a;
+          font-family: 'Inter', sans-serif;
+          color: #1e293b;
           background: #ffffff;
-          padding: 0;
-          margin: 0;
-          width: 100%;
-          height: 100%;
-          font-size: 9.5px;
-          line-height: 1.15;
+          font-size: 8px;
+          line-height: 1.25;
           -webkit-print-color-adjust: exact;
         }
         .outer-border {
           border: 3.5px double ${primaryColor};
-          padding: 8px;
+          padding: 10px;
           width: 100%;
-          height: calc(297mm - 8mm);
+          height: calc(297mm - 12mm);
           box-sizing: border-box;
-          position: relative;
-          overflow: hidden;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-        }
-        
-        /* ── Header ── */
-        .header-container {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 2px solid ${primaryColor};
-          padding-bottom: 4px;
-          margin-bottom: 5px;
-        }
-        .header-logo {
-          width: 75px;
-          height: 75px;
-          object-fit: contain;
-          border-radius: 6px;
-        }
-        .header-text {
-          text-align: center;
-          flex-grow: 1;
-          padding: 0 10px;
-        }
-        .header-text h1 {
-          font-family: 'Times New Roman', 'Times', serif;
-          font-size: 23px;
-          color: ${primaryColor};
-          margin-bottom: 2px;
-          font-weight: bold;
-          text-transform: uppercase;
-        }
-        .header-text h2 {
-          font-family: 'Times New Roman', 'Times', serif;
-          font-size: 12.5px;
-          color: #555;
-          margin-bottom: 2px;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-        .header-text p.contact {
-          font-size: 9px;
-          color: #444;
-          margin-bottom: 2px;
-          font-family: 'Inter', sans-serif;
-        }
-        .header-text p.sub {
-          font-family: 'Times New Roman', 'Times', serif;
-          font-size: 11.5px;
-          font-weight: bold;
-          color: ${primaryColor};
-          margin-top: 3px;
-          text-transform: uppercase;
-        }
-        
-        /* ── Student info table ── */
-        .info-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 5px;
-        }
-        .info-table td {
-          border: 1px solid #c5d5c5;
-          padding: 3.5px 5px;
-          font-size: 9px;
-          font-weight: 500;
-          background: #fafcfa;
-          font-family: 'Inter', sans-serif;
-        }
-        .val-text {
-          font-weight: bold;
-          color: ${primaryColor};
-        }
-        
-        /* ── Results table ── */
-        .results-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .results-table th {
-          background: #eef4ee;
-          color: ${primaryColor};
-          border: 1px solid #c5d5c5;
-          padding: 3.5px;
-          font-size: 8.5px;
-          font-weight: bold;
-          text-align: center;
-          text-transform: uppercase;
-        }
-        .results-table td {
-          border: 1px solid #c5d5c5;
-          padding: 3.5px;
-          font-size: 9.5px;
-          font-family: 'Inter', sans-serif;
-        }
-        .results-table td.center {
-          text-align: center;
-        }
-        .font-bold {
-          font-weight: bold;
-        }
-        .center {
-          text-align: center;
         }
       </style>
     </head>
     <body>
       <div class="outer-border">
-        <!-- Header -->
-        <div class="header-container">
-          <img src="${logo.startsWith('data:') ? logo : SCHOOL_LOGO_BASE64}" class="header-logo" alt="School Logo" />
-          <div class="header-text">
-            <h1>${schoolName.toUpperCase()}</h1>
-            <h2>${subHeader}</h2>
-            <p class="contact">${address} | Tel: ${phoneNumbers}</p>
-            <p class="contact">Email: ${email}</p>
-            <p class="sub">${result.term.toUpperCase()} STUDENT'S PERFORMANCE REPORT</p>
-          </div>
-          ${student.picture ? `
-            <img src="${escapeHtml(student.picture)}" class="header-logo" style="border: 1.5px solid ${primaryColor}; border-radius: 4px; object-fit: cover;" alt="Student Passport" />
-          ` : `
-            <div style="width: 75px; height: 75px; border: 1.5px solid ${primaryColor}; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: #fafafa; color: #888; font-size: 7px; text-align: center; padding: 4px;" class="header-logo">
-              <b>PASSPORT PHOTO</b>
-            </div>
-          `}
-        </div>
+        <div>
+          <!-- 1. Header -->
+          <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 6px;">
+            <tr>
+              <td style="width: 75px; vertical-align: middle;">
+                <img src="${logo.startsWith('data:') ? logo : SCHOOL_LOGO_BASE64}" style="max-width: 70px; max-height: 70px; object-fit: contain;" alt="Logo" />
+              </td>
+              <td style="text-align: center; vertical-align: middle; padding: 0 10px;">
+                ${showArabic && schoolNameArabic ? `
+                  <h2 style="font-family: 'Amiri', serif; font-size: 13px; font-weight: bold; color: ${primaryColor}; margin-bottom: 1px; direction: rtl;">
+                    ${escapeHtml(schoolNameArabic)}
+                  </h2>
+                ` : ''}
+                <h1 style="font-size: 14px; font-weight: 800; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
+                  ${escapeHtml(schoolName)}
+                </h1>
+                <p style="font-size: 7.5px; font-style: italic; font-weight: 600; color: #475569; margin: 0.5px 0 0 0;">
+                  ${escapeHtml(subHeader)}
+                </p>
+                <p style="font-size: 7.2px; color: #64748b; margin: 0.5px 0 0 0;">
+                  ${escapeHtml(address)}
+                </p>
+                <div style="font-size: 7px; color: #64748b; margin-top: 1px;">
+                  ${phoneNumbers ? `<span><b>Tel:</b> ${escapeHtml(phoneNumbers)}</span>` : ''}
+                  ${email ? `<span style="margin-left: 6px;"><b>Email:</b> ${escapeHtml(email)}</span>` : ''}
+                  ${website ? `<span style="margin-left: 6px;"><b>Web:</b> ${escapeHtml(website)}</span>` : ''}
+                </div>
+                <div style="margin-top: 3px;">
+                  <span style="font-size: 7.2px; font-weight: bold; color: #475569; background-color: #f1f5f9; padding: 1.5px 4.5px; border-radius: 3px;">
+                    Session: ${escapeHtml(session)}
+                  </span>
+                  <span style="font-size: 7.2px; font-weight: bold; color: #475569; background-color: #f1f5f9; padding: 1.5px 4.5px; border-radius: 3px; margin-left: 4px;">
+                    Term: ${escapeHtml(term)}
+                  </span>
+                </div>
+              </td>
+              <td style="width: 75px; text-align: right; vertical-align: middle;">
+                ${student.picture ? `
+                  <img src="${escapeHtml(student.picture)}" style="width: 60px; height: 72px; border: 1px solid #cbd5e1; border-radius: 3px; object-fit: cover;" alt="Student" />
+                ` : `
+                  <div style="width: 60px; height: 72px; border: 1px dashed #cbd5e1; border-radius: 3px; display: flex; align-items: center; justify-content: center; background-color: #f8fafc; color: #94a3b8; font-size: 5.5px; font-weight: bold; text-align: center; padding: 4px;">
+                    PASSPORT
+                  </div>
+                `}
+              </td>
+            </tr>
+          </table>
 
-        <!-- Student Info Table -->
-        <table class="info-table">
-          <tr>
-            <td style="width: 55%;">NAME: <span class="val-text">${escapeHtml(student.name)}</span></td>
-            <td style="width: 25%;">CLASS: <span class="val-text">${escapeHtml(student.level)}</span></td>
-            <td style="width: 20%;">SESSION: <span class="val-text">${escapeHtml(result.academicYear)}</span></td>
-          </tr>
-          <tr>
-            <td>ADMISSION NO: <span class="val-text">${escapeHtml(student.admissionNumber)}</span></td>
-            <td>D.O.B: <span class="val-text">${escapeHtml(student.dob || '—')}</span></td>
-            <td>AGE: <span class="val-text">${escapeHtml(calculateAge(student.dob))}</span></td>
-          </tr>
-          <tr>
-            <td>GENDER: <span class="val-text">${escapeHtml(student.gender || '—')}</span></td>
-            <td>HOUSE: <span class="val-text">${escapeHtml(student.house || '—')}</span></td>
-            <td>CLUB/SOCIETY: <span class="val-text">${escapeHtml(student.club || '—')}</span></td>
-          </tr>
-        </table>
-
-        <!-- Main content stacked side-by-side -->
-        <div style="display: grid; grid-template-columns: 2.1fr 1fr; gap: 8px; margin-bottom: 6px;">
-          
-          <!-- Cognitive Domain (Left Column) -->
-          <div>
-            <div style="background: ${primaryColor}; color: white; padding: 3px 6px; font-weight: bold; font-size: 9px; text-align: center; text-transform: uppercase; margin-bottom: 3px;">
-              COGNITIVE DOMAIN (SUBJECTS ASSESSMENT)
-            </div>
-            <table class="results-table">
-              <thead>
-                <tr>
-                  <th style="width: 38%;">SUBJECTS</th>
-                  <th style="width: 10%;">CA1<br><span style="font-size: 7px; font-weight: normal;">20</span></th>
-                  <th style="width: 10%;">CA2<br><span style="font-size: 7px; font-weight: normal;">20</span></th>
-                  <th style="width: 10%;">EXAM<br><span style="font-size: 7px; font-weight: normal;">60</span></th>
-                  <th style="width: 12%;">TOTAL<br><span style="font-size: 7px; font-weight: normal;">100</span></th>
-                  <th style="width: 10%;">POSN</th>
-                  <th style="width: 10%;">GRADE</th>
-                  <th style="width: 12%;">CLASS<br>AVERAGE</th>
-                  <th style="width: 8%;">PREV<br>TERM</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${result.subjects.map((s: any) => `
-                  <tr>
-                    <td style="font-weight: bold;">
-                      <span>${escapeHtml(s.subjectName)}</span>
-                    </td>
-                    <td class="center">${s.isGraded ? s.score20_1 : '—'}</td>
-                    <td class="center">${s.isGraded ? s.score20_2 : '—'}</td>
-                    <td class="center">${s.isGraded ? s.score60 : '—'}</td>
-                    <td class="center font-bold" style="color: ${primaryColor};">${s.isGraded ? s.score100 : '—'}</td>
-                    <td class="center">${s.isGraded ? (s.subjectPosition || '—') : '—'}</td>
-                    <td class="center font-bold" style="color: ${primaryColor};">${s.isGraded ? s.grade : '—'}</td>
-                    <td class="center">${s.isGraded ? (s.classAverage || s.score100) : '—'}</td>
-                    <td class="center">${s.isGraded ? (s.prevTermScore || '—') : '—'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
+          <div style="text-align: center; margin-bottom: 6px;">
+            <h3 style="font-size: 9px; font-weight: 800; color: ${primaryColor}; letter-spacing: 0.5px; margin: 0; text-transform: uppercase;">
+              ${showArabic ? "Student's Academic & Moral Performance Report" : "Student's Performance Report Card"}
+            </h3>
           </div>
 
-          <!-- Attendance, Affective & Psychomotor Domains (Right Column) -->
-          <div style="display: flex; flex-direction: column; gap: 5px;">
-            <!-- Attendance -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th colspan="2" style="padding: 2.5px; text-transform: uppercase;">Attendance Summary</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-size: 8.5px;">Times School Opened</td>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-weight: bold;" class="center">${result.attendanceSummary?.timesOpened || 0}</td>
-                </tr>
-                <tr>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-size: 8.5px;">Times Present</td>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-weight: bold;" class="center">${result.attendanceSummary?.timesPresent || 0} ${result.attendanceSummary?.timesOpened ? `(${Math.round((result.attendanceSummary.timesPresent / result.attendanceSummary.timesOpened) * 100)}%)` : ''}</td>
-                </tr>
-                <tr>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-size: 8.5px;">Times Absent</td>
-                  <td style="border: 1px solid #c5d5c5; padding: 2.5px; font-weight: bold;" class="center">${result.attendanceSummary?.timesAbsent || 0}</td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- 2. Student Info Grid -->
+          <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 4px; background-color: #f8fafc; margin-bottom: 8px; font-size: 7.5px;">
+            <tr>
+              <td style="padding: 3px 5px; border-bottom: 1px solid #e2e8f0; width: 40%;">STUDENT NAME: <strong style="color: #0f172a; font-size: 8px;">${escapeHtml(student.name)}</strong></td>
+              <td style="padding: 3px 5px; border-bottom: 1px solid #e2e8f0; width: 30%;">ADMISSION NO: <strong style="color: #334155;">${escapeHtml(student.admissionNumber)}</strong></td>
+              <td style="padding: 3px 5px; border-bottom: 1px solid #e2e8f0; width: 30%;">REGISTRATION NO: <strong style="color: #334155;">${escapeHtml(student.regNumber || student.admissionNumber || '—')}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding: 3px 5px; border-bottom: 1px solid #e2e8f0;">CLASS / ARM: <strong style="color: #334155;">${escapeHtml(result.level)} • ${escapeHtml(result.section)}</strong></td>
+              <td style="padding: 3px 5px; border-bottom: 1px solid #e2e8f0;">GENDER: <strong style="color: #334155;">${escapeHtml(student.gender || '—')}</strong></td>
+              <td style="padding: 3px 5px; border-bottom: 1px solid #e2e8f0;">DATE OF BIRTH: <strong style="color: #334155;">${escapeHtml(student.dob || '—')}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding: 3px 5px;">HOUSE / CLUB: <strong style="color: #334155;">${escapeHtml(student.house || '—')} / ${escapeHtml(student.club || '—')}</strong></td>
+              <td style="padding: 3px 5px;">AGE: <strong style="color: #334155;">${escapeHtml(age)}</strong></td>
+              <td style="padding: 3px 5px; color: ${primaryColor};">CLASS POSITION: <strong style="font-size: 8px;">${classPositionString || '—'}</strong></td>
+            </tr>
+          </table>
 
-            <!-- Affective Domain -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th style="padding: 2.5px;">AFFECTIVE DOMAIN</th>
-                  <th style="width: 18px; padding: 2.5px;">5</th>
-                  <th style="width: 18px; padding: 2.5px;">4</th>
-                  <th style="width: 18px; padding: 2.5px;">3</th>
-                  <th style="width: 18px; padding: 2.5px;">2</th>
-                  <th style="width: 18px; padding: 2.5px;">1</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${renderRatingRow('Attentiveness', aff.attentiveness)}
-                ${renderRatingRow('Honesty', aff.honesty)}
-                ${renderRatingRow('Neatness', aff.neatness)}
-                ${renderRatingRow('Politeness', aff.politeness)}
-                ${renderRatingRow('Punctuality', aff.punctuality)}
-                ${renderRatingRow('Self Control', aff.selfControl)}
-                ${renderRatingRow('Obedience', aff.obedience)}
-                ${renderRatingRow('Reliability', aff.reliability)}
-                ${renderRatingRow('Sense Of Responsibility', aff.responsibility)}
-                ${renderRatingRow('Relationship With Others', aff.relationship)}
-              </tbody>
-            </table>
-
-            <!-- Psychomotor - Skills -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th style="padding: 2.5px;">PSYCHOMOTOR - SKILLS</th>
-                  <th style="width: 18px; padding: 2.5px;">5</th>
-                  <th style="width: 18px; padding: 2.5px;">4</th>
-                  <th style="width: 18px; padding: 2.5px;">3</th>
-                  <th style="width: 18px; padding: 2.5px;">2</th>
-                  <th style="width: 18px; padding: 2.5px;">1</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${renderRatingRow('Handling Of Tools', psych.handlingTools)}
-                ${renderRatingRow('Drawing & Painting', psych.drawingPainting)}
-                ${renderRatingRow('Handwriting', psych.handwriting)}
-                ${renderRatingRow('Public Speaking', psych.publicSpeaking)}
-                ${renderRatingRow('Speech Fluency', psych.speechFluency)}
-                ${renderRatingRow('Sports & Games', psych.sportsGames)}
-              </tbody>
-            </table>
-            
-            <!-- Cognitive Domain -->
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead>
-                <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 8.5px;">
-                  <th style="padding: 2.5px;">COGNITIVE DOMAIN</th>
-                  <th style="width: 18px; padding: 2.5px;">5</th>
-                  <th style="width: 18px; padding: 2.5px;">4</th>
-                  <th style="width: 18px; padding: 2.5px;">3</th>
-                  <th style="width: 18px; padding: 2.5px;">2</th>
-                  <th style="width: 18px; padding: 2.5px;">1</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${renderRatingRow('Verbal Skills', cog.verbalSkills)}
-                ${renderRatingRow('Writing Skills', cog.writingSkills)}
-                ${renderRatingRow('Reading Skills', cog.readingSkills)}
-                ${renderRatingRow('Calculation Skills', cog.calculationSkills)}
-                ${renderRatingRow('Memory Recall', cog.memoryRecall)}
-                ${renderRatingRow('Creativity', cog.creativity)}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Grade analysis row -->
-        <div style="display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 8px; margin-bottom: 6px;">
-          <!-- Performance Summary -->
-          <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa;">
-            <div style="font-weight: bold; border-bottom: 1.5px solid ${primaryColor}; padding-bottom: 2px; margin-bottom: 4px; color: ${primaryColor}; text-align: center; font-size: 8.5px; text-transform: uppercase;">Performance Summary</div>
-            <table style="width: 100%; border-collapse: collapse; font-size: 8.5px; line-height: 1.3;">
-              <tr><td>Total Obtained:</td><td class="center font-bold" style="color: ${primaryColor}; font-size: 9px;">${result.totalMark.toFixed(1)}</td></tr>
-              <tr><td>Total Obtainable:</td><td class="center font-bold">${gradedSubjectsCount * 100}</td></tr>
-              <tr><td>Total Subjects:</td><td class="center font-bold">${gradedSubjectsCount}</td></tr>
-              <tr><td>Percentage:</td><td class="center font-bold" style="color: ${primaryColor}; font-size: 9px;">${result.finalAverage.toFixed(2)}%</td></tr>
-              <tr><td>Grade:</td><td class="center font-bold" style="color: ${primaryColor}; font-size: 9px;">${result.generalGrade}</td></tr>
-              <tr><td colspan="2" class="center font-bold" style="border-top: 1px solid #c5d5c5; padding-top: 3px; font-size: 8.5px; color: ${primaryColor};">${classPositionString}</td></tr>
-            </table>
-          </div>
-
-          <!-- Grade Analysis & Rating Indices -->
-          <div style="display: flex; flex-direction: column; gap: 4px;">
-            <!-- Grade Analysis -->
-            <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa;">
-              <div style="font-weight: bold; border-bottom: 1.5px solid ${primaryColor}; padding-bottom: 2px; margin-bottom: 4px; color: ${primaryColor}; text-align: center; font-size: 8.5px; text-transform: uppercase;">Grade Analysis</div>
-              <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
+          <!-- 3. Academic Tables -->
+          <div style="margin-bottom: 6px;">
+            ${showAcademic ? `
+              <div style="background-color: #0f172a; color: #ffffff; padding: 2px 5px; font-weight: bold; font-size: 7.5px; text-transform: uppercase; margin-bottom: 2px; border-radius: 2px;">
+                Academic Subjects
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 7.5px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
                 <thead>
-                  <tr style="background: #eef4ee; color: ${primaryColor}; font-weight: bold; border-bottom: 1px solid #c5d5c5;">
-                    <th style="padding: 2px; border: 1px solid #c5d5c5;">GRADE</th>
-                    ${gradesList.map(g => `<th style="padding: 2px; border: 1px solid #c5d5c5;">${g}</th>`).join('')}
+                  <tr style="background-color: #f8fafc; border-bottom: 1.5px solid #cbd5e1; color: #475569; font-weight: bold;">
+                    <th style="padding: 3px 5px; text-align: left;">Subject</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'CA1 (30)' : 'CA1 (20)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'CA2 (30)' : 'CA2 (20)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'Exam (40)' : 'Exam (60)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 60px; background-color: #f1f5f9; color: #0f172a;">Total</th>
+                    <th style="padding: 3px; text-align: center; width: 50px;">Grade</th>
+                    <th style="padding: 3px; text-align: center; width: 50px;">Posn</th>
+                    <th style="padding: 3px; text-align: center; width: 60px;">Avg</th>
+                    <th style="padding: 3px 5px; text-align: left; min-width: 110px;">Teacher Remark</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td style="padding: 2px; font-weight: bold; border: 1px solid #c5d5c5;">NO.</td>
-                    ${gradesList.map(g => `<td style="padding: 2px; border: 1px solid #c5d5c5; font-weight: bold;" class="center">${counts[g] || '-'}</td>`).join('')}
-                  </tr>
+                  ${renderSubjectRowsHtml(academicSubjects)}
                 </tbody>
               </table>
-            </div>
+            ` : ''}
 
-            <!-- Rating Indices -->
-            <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa; font-size: 6.5px; line-height: 1.2;">
-              <div style="font-weight: bold; color: ${primaryColor}; margin-bottom: 2px; font-size: 7.5px; text-transform: uppercase;">Rating Indices</div>
-              <div>5 - Maintains an Excellent degree of Observable (Obs) traits</div>
-              <div>4 - Maintains a High level of Obs traits &nbsp;&nbsp; 3 - Acceptable level of Obs traits</div>
-              <div>2 - Shows Minimal regard for Obs traits &nbsp;&nbsp;&nbsp; 1 - Has No regard for Observable traits</div>
-            </div>
+            ${showIslamic ? `
+              <div style="background-color: #0f172a; color: #ffffff; padding: 2px 5px; font-weight: bold; font-size: 7.5px; text-transform: uppercase; margin-bottom: 2px; border-radius: 2px;">
+                Islamic Studies & Arabic
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 7.5px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
+                <thead>
+                  <tr style="background-color: #f8fafc; border-bottom: 1.5px solid #cbd5e1; color: #475569; font-weight: bold;">
+                    <th style="padding: 3px 5px; text-align: left;">Subject</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'CA1 (30)' : 'CA1 (20)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'CA2 (30)' : 'CA2 (20)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'Exam (40)' : 'Exam (60)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 60px; background-color: #f1f5f9; color: #0f172a;">Total</th>
+                    <th style="padding: 3px; text-align: center; width: 50px;">Grade</th>
+                    <th style="padding: 3px; text-align: center; width: 50px;">Posn</th>
+                    <th style="padding: 3px; text-align: center; width: 60px;">Avg</th>
+                    <th style="padding: 3px 5px; text-align: left; min-width: 110px;">Teacher Remark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${renderSubjectRowsHtml(islamicSubjects)}
+                </tbody>
+              </table>
+            ` : ''}
+
+            ${showTahfeez ? `
+              <div style="background-color: #0f172a; color: #ffffff; padding: 2px 5px; font-weight: bold; font-size: 7.5px; text-transform: uppercase; margin-bottom: 2px; border-radius: 2px;">
+                Tahfeez & Qur'an Progress
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 7.5px; border: 1px solid #cbd5e1; border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
+                <thead>
+                  <tr style="background-color: #f8fafc; border-bottom: 1.5px solid #cbd5e1; color: #475569; font-weight: bold;">
+                    <th style="padding: 3px 5px; text-align: left;">Subject</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'CA1 (30)' : 'CA1 (20)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'CA2 (30)' : 'CA2 (20)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 55px;">${isAlQalam ? 'Exam (40)' : 'Exam (60)'}</th>
+                    <th style="padding: 3px; text-align: center; width: 60px; background-color: #f1f5f9; color: #0f172a;">Total</th>
+                    <th style="padding: 3px; text-align: center; width: 50px;">Grade</th>
+                    <th style="padding: 3px; text-align: center; width: 50px;">Posn</th>
+                    <th style="padding: 3px; text-align: center; width: 60px;">Avg</th>
+                    <th style="padding: 3px 5px; text-align: left; min-width: 110px;">Teacher Remark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${renderSubjectRowsHtml(tahfeezhSubjects)}
+                </tbody>
+              </table>
+            ` : ''}
           </div>
 
-          <!-- Grade Scale -->
-          <div style="border: 1px solid #c5d5c5; border-radius: 3px; padding: 4px; background: #fafcfa; font-size: 7px;">
-            <div style="font-weight: bold; border-bottom: 1.5px solid ${primaryColor}; padding-bottom: 2px; margin-bottom: 4px; color: ${primaryColor}; text-align: center; font-size: 8.5px; text-transform: uppercase;">Grade Scale</div>
-            <table style="width: 100%; border-collapse: collapse; line-height: 1.3;">
-              <tr><td class="font-bold" style="color: ${primaryColor};">A</td><td>80 - 100%</td><td class="font-bold">EXCELLENT</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">B</td><td>70 - 79%</td><td class="font-bold">VERY GOOD</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">C</td><td>60 - 69%</td><td class="font-bold">GOOD</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">D</td><td>50 - 59%</td><td class="font-bold">PASS</td></tr>
-              <tr><td class="font-bold" style="color: ${primaryColor};">F</td><td>0 - 49%</td><td class="font-bold">FAIL</td></tr>
-            </table>
-          </div>
+          <!-- 4. Tahfeez Progress Block -->
+          ${showTahfeez && result.tahfeezhDetails ? `
+            <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; background-color: #fcfdfc; margin-bottom: 6px; font-size: 7.5px;">
+              <div style="font-weight: 700; color: #0f172a; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+                <span>Tahfeez & Hifz Progress Summary</span>
+                ${showArabic ? `<span style="font-family: 'Cairo', sans-serif;">ملخص تقدم الحفظ</span>` : ''}
+              </div>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="width: 25%; padding: 1.5px;">Total Hifz Days: <b>${escapeHtml(result.tahfeezhDetails.absenceOfHifz || '0')}</b></td>
+                  <td style="width: 25%; padding: 1.5px;">Attendance: <b>Present ${escapeHtml(result.tahfeezhDetails.daysPresent || '—')} / Absent ${escapeHtml(result.tahfeezhDetails.daysAbsent || '0')}</b></td>
+                  <td style="width: 35%; padding: 1.5px;">From → To Surah: <b>From ${escapeHtml(result.tahfeezhDetails.fromSurah || '—')} → To ${escapeHtml(result.tahfeezhDetails.toSurah || '—')}</b></td>
+                  <td style="width: 15%; padding: 1.5px; color: ${primaryColor};">Pages: <b>${escapeHtml(result.tahfeezhDetails.memorizedPages || '—')}</b></td>
+                </tr>
+              </table>
+            </div>
+          ` : ''}
+
+          <!-- 5. Summaries & Domains Grids -->
+          ${!isTahfeezSchool ? `
+            <div style="display: grid; grid-template-columns: 1.15fr 1fr; gap: 6px; margin-bottom: 6px;">
+              <!-- Left Column: Performance statistics -->
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <!-- Performance Summary -->
+                <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; background: #ffffff;">
+                  <div style="font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; margin-bottom: 4px; color: #0f172a; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.2px;">Performance Summary</div>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 7.5px; line-height: 1.35;">
+                    <tr><td>Total Marks Obtained:</td><td style="font-weight: 700; color: ${primaryColor}; text-align: right;">${totalObtained.toFixed(1)}</td></tr>
+                    <tr><td>Total Marks Obtainable:</td><td style="font-weight: bold; text-align: right;">${totalObtainable}</td></tr>
+                    <tr><td>Percentage Average:</td><td style="font-weight: 700; color: ${primaryColor}; text-align: right;">${percentage.toFixed(2)}%</td></tr>
+                    <tr><td>Overall Grade / Position:</td><td style="font-weight: bold; text-align: right;">${overallGrade} / ${classPositionString}</td></tr>
+                    <tr><td>Subjects Offered / Passed / Failed:</td><td style="font-weight: bold; text-align: right; color: ${failedCount > 0 ? '#dc2626' : '#16a34a'}">${totalSubjects} / ${passedCount} / ${failedCount}</td></tr>
+                  </table>
+                </div>
+
+                <!-- Grade Analysis -->
+                <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; background: #ffffff;">
+                  <div style="font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; margin-bottom: 4px; color: #0f172a; font-size: 7.5px; text-transform: uppercase; letter-spacing: 0.2px;">Grade Analysis</div>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 7px; border: 1px solid #e2e8f0; text-align: center;">
+                    <thead>
+                      <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; color: #64748b; font-weight: bold;">
+                        <th style="padding: 1.5px; border-right: 1px solid #e2e8f0;">GRADE</th>
+                        ${gradesList.map(g => `<th style="padding: 1.5px; border-right: 1px solid #e2e8f0;">${g}</th>`).join('')}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style="padding: 1.5px; font-weight: bold; border-right: 1px solid #e2e8f0; background: #fafbfd; color: #64748b;">COUNT</td>
+                        ${gradesList.map(g => `
+                          <td style="padding: 1.5px; border-right: 1px solid #e2e8f0; font-weight: ${counts[g] > 0 ? 'bold' : 'normal'}; color: ${counts[g] > 0 ? primaryColor : '#cbd5e1'};">
+                            ${counts[g] > 0 ? counts[g] : '—'}
+                          </td>
+                        `).join('')}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Legend Scale -->
+                <div style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; background: #ffffff; display: grid; grid-template-columns: 1.1fr 1fr; gap: 5px; font-size: 7px;">
+                  <div>
+                    <div style="font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; margin-bottom: 3px; color: #0f172a; text-transform: uppercase;">Grading Scale</div>
+                    <div style="line-height: 1.15; color: #475569;">
+                      ${isAlQalam ? `
+                        A1: 85–100 (Ex)<br>
+                        B2: 75–84 (VG)<br>
+                        B3: 70–74 (G)<br>
+                        C4-C6: 50-69 (Cr)<br>
+                        D7-E8: 40-49 (Ps)<br>
+                        F9: 0–39 (Fail)
+                      ` : `
+                        A: ${scale.A}–100 (Ex)<br>
+                        B: ${scale.B}–${scale.A - 1} (VG)<br>
+                        C: ${scale.C}–${scale.B - 1} (G)<br>
+                        D: ${scale.D}–${scale.C - 1} (Ps)<br>
+                        F: 0–${scale.D - 1} (Fail)
+                      `}
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; margin-bottom: 3px; color: #0f172a; text-transform: uppercase;">Rating Index</div>
+                    <div style="line-height: 1.15; color: #475569;">
+                      5 = Excellent<br>
+                      4 = Very Good<br>
+                      3 = Good<br>
+                      2 = Fair<br>
+                      1 = Poor
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Column: Attendance & Domain Evaluations -->
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <!-- Attendance Summary -->
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; background: #ffffff;">
+                  <thead>
+                    <tr style="background: ${primaryColor}; color: white; font-weight: bold; font-size: 7.2px;">
+                      <th colspan="2" style="padding: 2.5px 5px; text-transform: uppercase; text-align: left;">Attendance Summary</th>
+                    </tr>
+                  </thead>
+                  <tbody style="font-size: 7.2px; color: #475569;">
+                    <tr>
+                      <td style="padding: 2px 5px; border-bottom: 1px solid #e2e8f0;">Opened / Present / Absent:</td>
+                      <td style="padding: 2px 5px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: bold; color: #0f172a;">
+                        ${timesOpened} / ${timesPresent} (${attendancePercent}%) / ${timesAbsent}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <!-- Affective Domain Table -->
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; background: #ffffff;">
+                  <thead>
+                    <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; font-size: 7.2px; font-weight: bold;">
+                      <th style="padding: 2.5px 5px; text-align: left; color: #0f172a;">AFFECTIVE DOMAIN EVAL</th>
+                      <th style="width: 14px; text-align: center;">5</th>
+                      <th style="width: 14px; text-align: center;">4</th>
+                      <th style="width: 14px; text-align: center;">3</th>
+                      <th style="width: 14px; text-align: center;">2</th>
+                      <th style="width: 14px; text-align: center;">1</th>
+                    </tr>
+                  </thead>
+                  <tbody style="font-size: 6.8px;">
+                    ${renderRatingRow('Attentiveness', aff.attentiveness)}
+                    ${renderRatingRow('Honesty', aff.honesty)}
+                    ${renderRatingRow('Neatness', aff.neatness)}
+                    ${renderRatingRow('Politeness', aff.politeness)}
+                    ${renderRatingRow('Punctuality', aff.punctuality)}
+                    ${renderRatingRow('Self Control', aff.selfControl)}
+                    ${renderRatingRow('Obedience', aff.obedience)}
+                    ${renderRatingRow('Reliability', aff.reliability)}
+                    ${renderRatingRow('Responsibility / Leadership', aff.responsibility)}
+                    ${renderRatingRow('Relationship With Others', aff.relationship)}
+                  </tbody>
+                </table>
+
+                <!-- Psychomotor Skills Table -->
+                <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; background: #ffffff;">
+                  <thead>
+                    <tr style="background: #f8fafc; border-bottom: 1px solid #cbd5e1; font-size: 7.2px; font-weight: bold;">
+                      <th style="padding: 2.5px 5px; text-align: left; color: #0f172a;">PSYCHOMOTOR SKILLS EVAL</th>
+                      <th style="width: 14px; text-align: center;">5</th>
+                      <th style="width: 14px; text-align: center;">4</th>
+                      <th style="width: 14px; text-align: center;">3</th>
+                      <th style="width: 14px; text-align: center;">2</th>
+                      <th style="width: 14px; text-align: center;">1</th>
+                    </tr>
+                  </thead>
+                  <tbody style="font-size: 6.8px;">
+                    ${renderRatingRow('Handwriting', psych.handwriting)}
+                    ${renderRatingRow('Handling Of Tools', psych.handlingTools)}
+                    ${renderRatingRow('Sports & Games', psych.sportsGames)}
+                    ${renderRatingRow('Public Speaking', psych.publicSpeaking)}
+                    ${renderRatingRow('Drawing & Painting', psych.drawingPainting)}
+                    ${renderRatingRow('Creativity', cog.creativity)}
+                    ${renderRatingRow('Practical Skills', psych.handlingTools)}
+                    ${renderRatingRow('Musical Skills', psych.speechFluency ? 3 : 0)}
+                    ${renderRatingRow('Computer Skills', cog.calculationSkills)}
+                    ${renderRatingRow('Communication', psych.speechFluency || cog.verbalSkills)}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ` : ''}
         </div>
 
-        <!-- Remarks Table -->
-        <table style="width: 100%; border-collapse: collapse; margin-top: 3px; border: 1px solid #c5d5c5; font-size: 8.5px; line-height: 1.25;">
-          <tr style="border-bottom: 1px solid #c5d5c5;">
-            <td style="width: 15%; padding: 4px 6px; font-weight: bold; color: ${primaryColor}; background: #fafcfa; border-right: 1px solid #c5d5c5;">Class Teacher's Remark</td>
-            <td style="width: 60%; padding: 4px 6px; font-style: italic;">${escapeHtml(result.teacherRecommendations)}</td>
-            <td style="width: 25%; padding: 4px 6px; font-weight: bold; text-align: right; border-left: 1px solid #c5d5c5;">
-              <div style="font-size: 7.5px; color: #555; text-transform: uppercase;">Teacher Name</div>
-              <div style="font-size: 9.5px; color: ${primaryColor}; font-weight: bold; margin-top: 2px;">${escapeHtml(result.teacherName)}</div>
+        <!-- 6. Remarks Section -->
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; font-size: 7.5px; line-height: 1.3; margin-bottom: 6px;">
+          <tr style="border-bottom: 1px solid #cbd5e1;">
+            <td style="width: 18%; padding: 3px 5px; font-weight: bold; color: #64748b; background: #f8fafc; border-right: 1px solid #cbd5e1; text-transform: uppercase;">Class Teacher's Remark</td>
+            <td style="width: 57%; padding: 3px 5px; font-style: italic;">"${escapeHtml(result.teacherRecommendations || 'A good result. Keep striving for improvement.')}"</td>
+            <td style="width: 25%; padding: 3px 5px; font-weight: bold; text-align: right; border-left: 1px solid #cbd5e1;">
+              <div style="font-size: 6px; color: #64748b; text-transform: uppercase;">Teacher Name</div>
+              <div style="font-size: 8px; color: ${primaryColor}; font-weight: bold; margin-top: 1px;">${escapeHtml(result.teacherName)}</div>
             </td>
           </tr>
+          ${(showTahfeez || isIslamicSchool || isHybridSchool) && result.supervisorRecommendations ? `
+            <tr style="border-bottom: 1px solid #cbd5e1;">
+              <td style="padding: 3px 5px; font-weight: bold; color: #64748b; background: #f8fafc; border-right: 1px solid #cbd5e1; text-transform: uppercase;">Supervisor's Remark</td>
+              <td style="padding: 3px 5px; font-style: italic;" colspan="2">"${escapeHtml(result.supervisorRecommendations)}"</td>
+            </tr>
+          ` : ''}
           <tr>
-            <td style="padding: 4px 6px; font-weight: bold; color: ${primaryColor}; background: #fafcfa; border-right: 1px solid #c5d5c5;">Principal's Remark</td>
-            <td style="padding: 4px 6px; font-style: italic;">${escapeHtml(result.headTeacherComments || 'A Remarkable and Excellent Result!!.. Keep it Up..')}</td>
-            <td style="padding: 4px 6px; font-weight: bold; text-align: right; border-left: 1px solid #c5d5c5;">
+            <td style="padding: 3px 5px; font-weight: bold; color: #64748b; background: #f8fafc; border-right: 1px solid #cbd5e1; text-transform: uppercase;">Principal's Remark</td>
+            <td style="padding: 3px 5px; font-style: italic;">"${escapeHtml(result.headTeacherComments || 'An encouraging result. Good job.')}"</td>
+            <td style="padding: 3px 5px; font-weight: bold; text-align: right; border-left: 1px solid #cbd5e1; vertical-align: middle;">
               ${tenant.branding?.principalSignature ? `
-                <img src="${tenant.branding.principalSignature}" style="max-height: 20px; object-fit: contain; display: block; margin-left: auto;" alt="Signature" />
+                <img src="${tenant.branding.principalSignature}" style="max-height: 20px; object-fit: contain; display: block; margin-left: auto; margin-bottom: 1px;" alt="Signature" />
               ` : `
-                <div style="font-family: 'Times New Roman', 'Times', serif; font-size: 9.5px; font-style: italic; color: ${primaryColor}; line-height: 1; font-weight: bold;">Principal</div>
+                <div style="font-family: 'Times New Roman', 'Times', serif; font-size: 8.5px; font-style: italic; color: ${primaryColor}; font-weight: bold; line-height: 1;">Principal</div>
               `}
-              <div style="font-size: 7.5px; color: #555; text-transform: uppercase; margin-top: 2px;">Principal Signature</div>
+              <div style="font-size: 6px; color: #64748b; text-transform: uppercase; margin-top: 1px;">Principal Signature</div>
             </td>
           </tr>
         </table>
 
-        <!-- Footer next term date -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding: 4px 10px; background: #fafcfa; border: 1px solid #c5d5c5; border-radius: 3px;">
-          <div>
-            <span style="font-weight: bold; color: #555; font-size: 8.5px; text-transform: uppercase;">Next Term Begins:</span>
-            <span style="font-weight: bold; color: ${primaryColor}; margin-left: 6px; font-size: 9.5px;">${escapeHtml(result.nextTermBegins || 'Mon, 13-April-2026')}</span>
-          </div>
-          <div style="font-size: 8.5px; font-weight: bold; color: #555;">
-            DATE: <span style="color: ${primaryColor};">${escapeHtml(result.dateIssued || new Date().toLocaleDateString('en-GB'))}</span>
-          </div>
-        </div>
+        <!-- 7. Next Term Resumption Dates -->
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 4px; background-color: #f8fafc; font-size: 7.5px; margin-bottom: 8px;">
+          <tr>
+            <td style="padding: 4px 6px; width: 35%;">NEXT TERM RESUMES: <strong style="color: ${primaryColor};">${escapeHtml(nextTermBegins)}</strong></td>
+            <td style="padding: 4px 6px; width: 35%;">NEXT TERM FEES: <strong style="color: #334155;">${escapeHtml(nextTermFees)}</strong></td>
+            <td style="padding: 4px 6px; width: 30%; text-align: right;">DATE ISSUED: <strong style="color: #334155;">${escapeHtml(dateIssued)}</strong></td>
+          </tr>
+        </table>
 
-        <div style="text-align: center; margin-top: 4px; font-size: 9px; color: #999; font-style: italic; letter-spacing: 0.5px; font-family: 'Inter', sans-serif;">
-          ${schoolName.toUpperCase()} © 2026 - Powered by SmartSchool Africa
-        </div>
+        <!-- 8. Footer -->
+        <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #cbd5e1; padding-top: 4px; font-size: 6.5px; color: #64748b;">
+          <tr>
+            <td>Generated by <strong>Smart School Management System</strong> • ${new Date().toLocaleString()}</td>
+            <td style="text-align: right;"><strong>Report ID:</strong> <code>${result._id}</code></td>
+          </tr>
+        </table>
       </div>
     </body>
     </html>
   `;
-};
+};;
 
 // Helper to generate the HTML string dynamically themed per tenant
-const generateReportHtml = (result: any, student: any, tenant: any, classPositionString: string = '') => {
-  if (tenant && tenant.slug === 'alqalam') {
-    return generateAlQalamReportHtml(result, student, tenant, classPositionString);
+const generateReportHtml = async (
+  result: any,
+  student: any,
+  tenant: any,
+  classPositionString: string = '',
+  classRank: number = 0,
+  classCount: number = 0,
+  classAverage: number = 0,
+  highestScore: number = 0,
+  lowestScore: number = 0
+) => {
+  if (tenant && (tenant.slug === 'alqalam' || tenant.slug === 'alqalamacademy' || tenant.slug === 'al-qalam-academy')) {
+    return await generateAlQalamReportHtml(
+      result,
+      student,
+      tenant,
+      classPositionString,
+      classRank,
+      classCount,
+      classAverage,
+      highestScore,
+      lowestScore
+    );
   }
   if (tenant && tenant.curriculumType === 'conventional') {
     return generateConventionalReportHtml(result, student, tenant, classPositionString);
@@ -1051,20 +693,20 @@ const generateReportHtml = (result: any, student: any, tenant: any, classPositio
     if (sectionSubjects.length === 0) {
       return { total: '—', grade: '—' };
     }
-    
+
     let total = 0;
     sectionSubjects.forEach(s => {
       total += s.score100 || 0;
     });
-    
+
     const average = Math.round(total / sectionSubjects.length);
-    
+
     let grade = 'F';
     if (average >= (tenant.academicConfig?.gradingScale?.A || 80)) grade = 'A';
     else if (average >= (tenant.academicConfig?.gradingScale?.B || 70)) grade = 'B';
     else if (average >= (tenant.academicConfig?.gradingScale?.C || 60)) grade = 'C';
     else if (average >= (tenant.academicConfig?.gradingScale?.D || 50)) grade = 'D';
-    
+
     return { total, grade };
   };
 
@@ -2051,9 +1693,16 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
     }
 
     const tenant = await Tenant.findById(tenantId);
-    
+
     let classPositionString = '';
-    if (tenant && tenant.slug === 'alqalam') {
+    let classRank = 0;
+    let classCount = 0;
+    let classAverage = 0;
+    let highestScore = 0;
+    let lowestScore = 0;
+
+    // Calculate class position for ALL tenants (rank students by finalAverage within same class)
+    if (tenant) {
       const allResultsInClass = await Result.find({
         tenantId,
         level: result.level,
@@ -2063,15 +1712,15 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       }).sort({ finalAverage: -1 });
 
       const studentRankIndex = allResultsInClass.findIndex(r => r._id.toString() === result._id.toString());
-      const classRank = studentRankIndex !== -1 ? studentRankIndex + 1 : 1;
-      const classCount = allResultsInClass.length;
+      classRank = studentRankIndex !== -1 ? studentRankIndex + 1 : 1;
+      classCount = allResultsInClass.length;
 
       const getOrdinal = (n: number) => {
         const s = ["th", "st", "nd", "rd"];
         const v = n % 100;
         return n + (s[(v - 20) % 10] || s[v] || s[0]);
       };
-      
+
       const rankSuffix = getOrdinal(classRank);
       let remark = 'FAIL';
       if (result.finalAverage >= 85) remark = 'EXCELLENT';
@@ -2084,9 +1733,26 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       else if (result.finalAverage >= 40) remark = 'PASS';
 
       classPositionString = `${rankSuffix} of ${classCount} - ${remark}`;
+
+      if (classCount > 0) {
+        highestScore = allResultsInClass[0].finalAverage;
+        lowestScore = allResultsInClass[classCount - 1].finalAverage;
+        const totalSum = allResultsInClass.reduce((sum, r) => sum + r.finalAverage, 0);
+        classAverage = Math.round((totalSum / classCount) * 100) / 100;
+      }
     }
 
-    const htmlContent = generateReportHtml(result, student, tenant, classPositionString);
+    const htmlContent = await generateReportHtml(
+      result,
+      student,
+      tenant,
+      classPositionString,
+      classRank,
+      classCount,
+      classAverage,
+      highestScore,
+      lowestScore
+    );
 
     // Launch puppeteer
     let browser;
@@ -2125,7 +1791,7 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
     // Set response headers and send binary data
     const filename = `Report_${student.admissionNumber.replace(/\//g, '_')}_${result.term.replace(/ /g, '_')}.pdf`;
     const finalBuffer = Buffer.from(pdfBuffer);
-    
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', finalBuffer.length);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -2196,7 +1862,7 @@ export const generateInvoicePdf = async (req: AuthRequest, res: Response) => {
 
     const filename = `Bill_${student.admissionNumber.replace(/\//g, '_')}_${invoice._id}.pdf`;
     const finalBuffer = Buffer.from(pdfBuffer);
-    
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', finalBuffer.length);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -2271,7 +1937,7 @@ export const generateReceiptPdf = async (req: AuthRequest, res: Response) => {
 
     const filename = `Receipt_${student.admissionNumber.replace(/\//g, '_')}_${payment._id}.pdf`;
     const finalBuffer = Buffer.from(pdfBuffer);
-    
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', finalBuffer.length);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

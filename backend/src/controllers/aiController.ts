@@ -40,7 +40,7 @@ const getSchoolSettings = async (tenantId: string) => {
   }
 };
 
-const callOpenRouter = async (prompt: string): Promise<string> => {
+const callOpenRouter = async (messages: Array<{ role: string; content: string }>): Promise<string> => {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error('OPENROUTER_API_KEY environmental variable is missing.');
@@ -55,13 +55,8 @@ const callOpenRouter = async (prompt: string): Promise<string> => {
       'X-Title': 'SmartSchool Africa SaaS Platform',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+      messages,
       max_tokens: 400 // Limit tokens to prevent pre-auth credit checks from throwing 402 error
     })
   });
@@ -147,30 +142,31 @@ export const generateReportFeedback = async (req: AuthRequest, res: Response) =>
       `;
     }
 
-    const prompt = `
-      You are an AI assistant helping a teacher at ${settings.schoolName}, an Islamic dual-curriculum school.
-      Generate a professional, warm, and highly personalized report card comment (strictly maximum 25 words) for the student based on their performance details below.
-      The comment must be written in English, include Islamic terms of encouragement (e.g. "Masha Allah", "Barakallah Feek/Feeki", "May Allah increase you in knowledge"), and offer constructive advice.
-      It MUST be extremely brief (strictly maximum 25 words) so that the printed report sheet fits on a single A4 page.
+    // Build structured messages (system + user) to avoid prompt injection and allow safer templating
+    const systemMessage = {
+      role: 'system',
+      content: `You are a concise report-comment assistant for school report cards. Always return ONLY the required comment text, no metadata, no explanations.`
+    };
 
-      Student Details:
-      - Name: ${studentName}
-      - General Average Grade: ${averageGrade} (${finalAverage}%)
-      
-      Grades:
-      ${subjectsList}
-      ${tahfeezhDetailsStr}
+    const userPayload = {
+      instruction: 'generate_report_feedback',
+      school: { name: settings.schoolName },
+      constraints: { maxWords: 25, language: 'English', includeIslamicBlessings: true },
+      student: { name: studentName, averageGrade, finalAverage },
+      gradesText: subjectsList,
+      tahfeezh: tahfeezhDetailsStr
+    };
 
-      Provide ONLY the raw comment text, with no extra quotes or introduction.
-    `;
+    const messages = [systemMessage, { role: 'user', content: JSON.stringify(userPayload) }];
+    const promptKey = JSON.stringify(messages);
 
     const job = await enqueueAIJob(
       tenantId,
       req.user?.id || null,
       'report_feedback',
       { studentName, averageGrade, finalAverage },
-      prompt,
-      () => callOpenRouter(prompt)
+      promptKey,
+      () => callOpenRouter(messages)
     );
 
     return res.status(202).json({
@@ -221,27 +217,31 @@ export const generateFinancialForecast = async (req: AuthRequest, res: Response)
     const outstandingFees = totalExpected - totalPaid;
     const currentBalance = totalPaid - totalExpenses;
 
-    const prompt = `
-      You are a senior financial AI advisor. Generate a concise financial briefing and cash flow outlook (150-200 words) for the accountant of ${settings.schoolName} based on the following metrics:
-      
-      Financial Metrics (for ${filterTerm} / Academic Year ${filterYear}):
-      - Total Expected Fees (from Student Files): ₦${totalExpected.toLocaleString()}
-      - Total Invoiced Fees: ₦${totalInvoiced.toLocaleString()}
-      - Total Fees Collected: ₦${totalPaid.toLocaleString()}
-      - Outstanding Fees (Expected - Collected): ₦${outstandingFees.toLocaleString()}
-      - Total Expenses: ₦${totalExpenses.toLocaleString()}
-      - Net Balance (Money on Ground): ₦${currentBalance.toLocaleString()}
-
-      Write a structured advice briefing. Underline the current collection efficiency (Paid/Expected percentage), assess reserves vs expenses, and suggest 2 concrete actions to recover outstanding fees. Format with clear Markdown paragraphs.
-    `;
+    const systemMessage = { role: 'system', content: 'You are an experienced financial analyst. Provide clear, actionable financial briefings in Markdown.' };
+    const userPayload = {
+      instruction: 'finance_forecast',
+      school: { name: settings.schoolName },
+      period: { term: filterTerm, academicYear: filterYear },
+      metrics: {
+        totalExpected,
+        totalInvoiced,
+        totalPaid,
+        outstandingFees,
+        totalExpenses,
+        currentBalance
+      },
+      constraints: { format: 'markdown', lengthWords: [150, 200] }
+    };
+    const messages = [systemMessage, { role: 'user', content: JSON.stringify(userPayload) }];
+    const promptKey = JSON.stringify(messages);
 
     const job = await enqueueAIJob(
       tenantId,
       req.user?.id || null,
       'finance_forecast',
       { term: filterTerm, academicYear: filterYear },
-      prompt,
-      () => callOpenRouter(prompt)
+      promptKey,
+      () => callOpenRouter(messages)
     );
 
     return res.status(202).json({
@@ -292,28 +292,32 @@ export const generateExecutiveBriefing = async (req: AuthRequest, res: Response)
     });
     const averageScore = results.length > 0 ? (totalGPA / results.length).toFixed(1) : 'N/A';
 
-    const prompt = `
-      You are a strategic education consultant AI. Write an executive briefing (150-200 words) for the Director/Proprietor of ${settings.schoolName} using these school metrics for ${filterTerm} (Academic Year ${filterYear}):
-      
-      School Overview:
-      - Active Students: ${activeStudentsCount}
-      - Staff count (Teachers): ${teachersCount}
-      - Student-Teacher Ratio: ${(activeStudentsCount / (teachersCount || 1)).toFixed(1)}
-      - School average score (GPA): ${averageScore}%
-      - Collected Revenue: ₦${totalPaid.toLocaleString()}
-      - Operating Costs: ₦${totalExpenses.toLocaleString()}
-      - Current Balance: ₦${netBalance.toLocaleString()}
-
-      Outline key recommendations for resource allocation, class performance, and teacher workload optimization. Be professional, supportive, and strategic. Format in clean Markdown.
-    `;
+    const systemMessage = { role: 'system', content: 'You are a strategic education consultant. Produce an executive briefing in Markdown with clear recommendations.' };
+    const userPayload = {
+      instruction: 'director_briefing',
+      school: { name: settings.schoolName },
+      period: { term: filterTerm, academicYear: filterYear },
+      metrics: {
+        activeStudentsCount,
+        teachersCount,
+        studentTeacherRatio: (activeStudentsCount / (teachersCount || 1)).toFixed(1),
+        averageScore,
+        totalPaid,
+        totalExpenses,
+        netBalance
+      },
+      constraints: { format: 'markdown', lengthWords: [150, 200] }
+    };
+    const messages = [systemMessage, { role: 'user', content: JSON.stringify(userPayload) }];
+    const promptKey = JSON.stringify(messages);
 
     const job = await enqueueAIJob(
       tenantId,
       req.user?.id || null,
       'director_briefing',
       { term: filterTerm, academicYear: filterYear },
-      prompt,
-      () => callOpenRouter(prompt)
+      promptKey,
+      () => callOpenRouter(messages)
     );
 
     return res.status(202).json({
@@ -346,30 +350,24 @@ export const generateHeadTeacherFeedback = async (req: AuthRequest, res: Respons
         .join('\n');
     }
 
-    const prompt = `
-      You are an AI assistant helping the Head Teacher / Principal of ${settings.schoolName}, an Islamic dual-curriculum school.
-      Generate a professional, warm, and authoritative Head Teacher report card comment (strictly maximum 25 words) for the student based on their final average performance.
-      The comment must be written in English, sound encouraging yet academic, include short Islamic blessings (e.g. "Masha Allah", "Barakallah Feek/Feeki", "May Allah bless your efforts"), and give a brief recommendation to keep up or improve their scores.
-      It MUST be extremely brief (strictly maximum 25 words) so that the printed report sheet fits on a single A4 page.
-
-      Student Details:
-      - Name: ${studentName}
-      - Final average: ${finalAverage}%
-      - General grade: ${generalGrade}
-      
-      Grades:
-      ${subjectsList}
-
-      Provide ONLY the raw comment text, with no extra quotes or introduction.
-    `;
+    const systemMessage = { role: 'system', content: 'You are a concise Head Teacher comment generator. Return only the comment (max 25 words).' };
+    const userPayload = {
+      instruction: 'head_teacher_feedback',
+      school: { name: settings.schoolName },
+      student: { name: studentName, finalAverage, generalGrade },
+      gradesText: subjectsList,
+      constraints: { maxWords: 25, language: 'English', includeIslamicBlessings: true }
+    };
+    const messages = [systemMessage, { role: 'user', content: JSON.stringify(userPayload) }];
+    const promptKey = JSON.stringify(messages);
 
     const job = await enqueueAIJob(
       tenantId,
       req.user?.id || null,
       'head_teacher_feedback',
       { studentName, finalAverage, generalGrade },
-      prompt,
-      () => callOpenRouter(prompt)
+      promptKey,
+      () => callOpenRouter(messages)
     );
 
     return res.status(202).json({
@@ -478,15 +476,16 @@ export const detectAtRiskStudents = async (req: AuthRequest, res: Response) => {
 
     // Generate group advice block prompt
     const studentsSummary = atRiskList.map(s => `- ${s.name} (Grade average dropped from ${s.previousAverage}% to ${s.currentAverage}%)`).join('\n');
-    const prompt = `
-      You are an expert educational psychologist and director consultant.
-      We have analyzed student report card statistics for this term and flagged the following students with declining performance trends:
-      
-      Flagged Students:
-      ${studentsSummary}
-
-      Draft a short, highly professional strategic overview (100-150 words) with 3 key actionable recommendations for teachers and counselors to support these struggling students.
-    `;
+    const systemMessage = { role: 'system', content: 'You are an educational psychologist and strategic consultant. Provide concise, practical teacher-facing recommendations.' };
+    const userPayload = {
+      instruction: 'at_risk_detection',
+      school: { name: settings.schoolName },
+      period: { term: currentTerm, academicYear: currentYear },
+      flaggedStudents: atRiskList,
+      constraints: { lengthWords: [100, 150], recommendations: 3 }
+    };
+    const messages = [systemMessage, { role: 'user', content: JSON.stringify(userPayload) }];
+    const promptKey = JSON.stringify(messages);
 
     // Enqueue LLM job
     const job = await enqueueAIJob(
@@ -494,8 +493,8 @@ export const detectAtRiskStudents = async (req: AuthRequest, res: Response) => {
       req.user?.id || null,
       'at_risk_detection',
       { currentTerm, currentYear, count: atRiskList.length },
-      prompt,
-      () => callOpenRouter(prompt)
+      promptKey,
+      () => callOpenRouter(messages)
     );
 
     return res.status(202).json({
@@ -548,17 +547,17 @@ export const generateClassScoreSummary = async (req: AuthRequest, res: Response)
 
     const classAverage = (totalScore / results.length).toFixed(1);
 
-    const prompt = `
-      You are an academic auditor AI assisting the director of ${settings.schoolName}.
-      Provide a brief summary briefing (100-120 words) analyzing the performance of Level "${level}" Section "${section}" for "${term}" (${academicYear}):
-      
-      Class Metrics:
-      - Total graded students: ${results.length}
-      - Class Average Score: ${classAverage}%
-      - Highest Average: ${highestAverage}% achieved by ${highestScorerName}
-
-      Summarize general academic performance (are they doing well or average?), suggest which areas require review, and provide encouragement. Format in markdown.
-    `;
+    const systemMessage = { role: 'system', content: 'You are an academic auditor assistant. Provide short class-level summaries and suggestions in Markdown.' };
+    const userPayload = {
+      instruction: 'class_summary',
+      school: { name: settings.schoolName },
+      period: { term, academicYear },
+      class: { level, section },
+      metrics: { totalStudents: results.length, classAverage, highestAverage, highestScorerName },
+      constraints: { format: 'markdown', lengthWords: [100, 120] }
+    };
+    const messages = [systemMessage, { role: 'user', content: JSON.stringify(userPayload) }];
+    const promptKey = JSON.stringify(messages);
 
     // Enqueue LLM job
     const job = await enqueueAIJob(
@@ -566,8 +565,8 @@ export const generateClassScoreSummary = async (req: AuthRequest, res: Response)
       req.user?.id || null,
       'class_summary',
       { level, section, term, academicYear },
-      prompt,
-      () => callOpenRouter(prompt)
+      promptKey,
+      () => callOpenRouter(messages)
     );
 
     return res.status(202).json({

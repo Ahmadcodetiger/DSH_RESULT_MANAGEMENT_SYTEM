@@ -366,6 +366,32 @@ export const getAvailablePlans = async (req: TenantRequest, res: Response) => {
 const dnsResolveCname = promisify(dns.resolveCname);
 const dnsResolve4 = promisify(dns.resolve4);
 
+const getHexVariations = (hex: string) => {
+  let clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  }
+  const r = parseInt(clean.substring(0, 2), 16) || 0;
+  const g = parseInt(clean.substring(2, 4), 16) || 0;
+  const b = parseInt(clean.substring(4, 6), 16) || 0;
+
+  // light: mix with 30% white
+  const rl = Math.round(r + (255 - r) * 0.3);
+  const gl = Math.round(g + (255 - g) * 0.3);
+  const bl = Math.round(b + (255 - b) * 0.3);
+  const light = `#${((1 << 24) + (rl << 16) + (gl << 8) + bl).toString(16).slice(1)}`;
+
+  // dark: mix with 30% black
+  const rd = Math.round(r * 0.7);
+  const gd = Math.round(g * 0.7);
+  const bd = Math.round(b * 0.7);
+  const dark = `#${((1 << 24) + (rd << 16) + (gd << 8) + bd).toString(16).slice(1)}`;
+
+  const glow = `rgba(${r}, ${g}, ${b}, 0.15)`;
+
+  return { light, dark, glow };
+};
+
 /**
  * Serves dynamic CSS variables for white-labeling
  */
@@ -377,10 +403,26 @@ export const getTenantThemeCss = async (req: TenantRequest, res: Response) => {
     }
 
     const branding = req.tenant.branding;
-    const primary = branding?.primaryColor || '#1a7a4c';
-    const secondary = branding?.secondaryColor || '#f0c14b';
+    const isAlQalam = req.tenant.slug === 'alqalam' || 
+                      req.tenant.slug === 'al-qalam-academy' || 
+                      req.tenant.name?.toLowerCase().includes('qalam');
+
+    let primary = branding?.primaryColor;
+    let secondary = branding?.secondaryColor;
+
+    if (isAlQalam) {
+      if (!primary || primary === '#1a7a4c' || primary === '#1E5631') primary = '#800020';
+      if (!secondary || secondary === '#f0c14b' || secondary === '#2e7d32') secondary = '#4169E1';
+    } else {
+      if (!primary) primary = '#1a7a4c';
+      if (!secondary) secondary = '#f0c14b';
+    }
+
     const logoUrl = branding?.logo || '';
     const faviconUrl = branding?.favicon || '';
+
+    const primaryVars = getHexVariations(primary);
+    const secondaryVars = getHexVariations(secondary);
 
     const css = `/**
  * SmartSchool Africa - Dynamic Tenant Theme Stylesheet
@@ -393,6 +435,19 @@ export const getTenantThemeCss = async (req: TenantRequest, res: Response) => {
   --tenant-secondary-color: ${secondary};
   --tenant-logo-url: ${logoUrl ? `url('${logoUrl}')` : 'none'};
   --tenant-favicon-url: ${faviconUrl ? `url('${faviconUrl}')` : 'none'};
+
+  /* Overrides for application brand colors */
+  --primary: ${primary};
+  --primary-light: ${primaryVars.light};
+  --primary-dark: ${primaryVars.dark};
+  --primary-glow: ${primaryVars.glow};
+
+  --secondary: ${secondary};
+  --secondary-light: ${secondaryVars.light};
+  --secondary-dark: ${secondaryVars.dark};
+  --secondary-glow: ${secondaryVars.glow};
+  
+  --border-focus: ${primary};
 }
 `;
 

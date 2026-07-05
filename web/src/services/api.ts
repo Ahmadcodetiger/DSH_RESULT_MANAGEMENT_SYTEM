@@ -5,7 +5,12 @@ const getApiUrl = () => {
     return import.meta.env.VITE_API_URL;
   }
   if (typeof window !== 'undefined' && window.location.hostname) {
-    return `http://${window.location.hostname}:5000/api`;
+    const hostname = window.location.hostname;
+    // If using local subdomains like al-qalam.localhost, point API to localhost:5000
+    if (hostname.endsWith('.localhost')) {
+      return `http://localhost:5000/api`;
+    }
+    return `http://${hostname}:5000/api`;
   }
   return 'https://dsh-backend-xi.vercel.app/api';
 };

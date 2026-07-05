@@ -107,14 +107,17 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 // Only start the HTTP server in local/non-Vercel environments
 if (process.env.VERCEL !== '1') {
-  connectDB().then(() => {
+  (async () => {
+    try {
+      await connectDB();
+    } catch (err: any) {
+      console.warn('Warning: could not connect to MongoDB. Starting server anyway for local development. Error:', err && err.message ? err.message : err);
+    }
+
     app.listen(process.env.PORT || 5000, () => {
       console.log(`SmartSchool Africa API running in ${process.env.NODE_ENV || 'development'} mode on port ${process.env.PORT || 5000}`);
     });
-  }).catch((err) => {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  });
+  })();
 }
 
 // Export for Vercel serverless

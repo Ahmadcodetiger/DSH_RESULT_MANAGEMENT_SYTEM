@@ -83,9 +83,13 @@ export const resolveTenant = async (req: TenantRequest, res: Response, next: Nex
   try {
     let tenant: ITenant | null = null;
 
-    // 1. Check X-Tenant-ID header first (highest priority), falling back to query param for direct downloads
+    // 1. Check X-Tenant-ID header first (highest priority).
+    // For safety, falling back to query parameter is DISABLED by default.
+    // To allow tenant resolution via query param (e.g., special download links)
+    // set `ALLOW_TENANT_QUERY=true` in the environment. This prevents
+    // accidental tenant switching via crafted URLs.
     let tenantHeader = req.headers['x-tenant-id'] as string;
-    if (!tenantHeader && (req.query.tenantId || req.query.tenant)) {
+    if (!tenantHeader && process.env.ALLOW_TENANT_QUERY === 'true' && (req.query.tenantId || req.query.tenant)) {
       tenantHeader = (req.query.tenantId || req.query.tenant) as string;
     }
     if (tenantHeader) {

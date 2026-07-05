@@ -53,6 +53,9 @@ import {
   getStudentResults,
   getResultById,
   getParentStudentResults,
+  getClassProgress,
+  submitClassResultsForApproval,
+  verifyResultPublicly,
 } from '../controllers/gradeController';
 import {
   createInvoice,
@@ -145,6 +148,7 @@ router.get('/public/settings', requireTenant, getSchoolSettings);
 router.get('/public/classes', requireTenant, getSchoolClasses);
 router.get('/public/subjects', requireTenant, getSubjects);
 router.get('/public/theme', requireTenant, getTenantThemeCss);
+router.get('/public/results/:id/verify', requireTenant, verifyResultPublicly);
 
 // --- School Billing Portal Routes ---
 router.post('/billing/subscribe/initialize', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN']), initializeSubscriptionCheckout);
@@ -191,6 +195,8 @@ router.patch('/admin/results/:id/status', requireTenant, authenticateToken, tena
 
 // --- Teacher/Admin Routes ---
 router.get('/teacher/students', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'TEACHER']), getStudentsForTeacher);
+router.get('/teacher/class-progress', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'TEACHER']), getClassProgress);
+router.post('/teacher/class-submit', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'TEACHER']), submitClassResultsForApproval);
 router.post('/grading/submit', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'TEACHER']), submitOrUpdateResult);
 router.get('/grading/student/:studentId', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'TEACHER']), getStudentResults);
 
@@ -224,10 +230,10 @@ router.post('/ai/class-summary', requireTenant, authenticateToken, tenantGuard, 
 router.get('/platform/admin/dashboard', authenticateToken, requireRole(['SUPER_ADMIN']), getPlatformAdminDashboard);
 
 // --- Secure PDF and Result Views (Shared Roles) ---
-router.get('/results/:id', requireTenant, authenticateToken, tenantGuard, getResultById);
-router.get('/results/:id/pdf', requireTenant, authenticateToken, tenantGuard, generateResultPdf);
-router.get('/finance/invoices/:invoiceId/pdf', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR', 'PARENT']), generateInvoicePdf);
-router.get('/finance/invoices/:invoiceId/payments/:paymentId/pdf', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR', 'PARENT']), generateReceiptPdf);
+router.get('/results/:id', authenticateToken, requireTenant, tenantGuard, getResultById);
+router.get('/results/:id/pdf', authenticateToken, requireTenant, tenantGuard, generateResultPdf);
+router.get('/finance/invoices/:invoiceId/pdf', authenticateToken, requireTenant, tenantGuard, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR', 'PARENT']), generateInvoicePdf);
+router.get('/finance/invoices/:invoiceId/payments/:paymentId/pdf', authenticateToken, requireTenant, tenantGuard, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR', 'PARENT']), generateReceiptPdf);
 
 // --- Parent Portal Routes ---
 router.get('/parent/results', requireTenant, authenticateToken, tenantGuard, requireRole(['PARENT']), getParentStudentResults);

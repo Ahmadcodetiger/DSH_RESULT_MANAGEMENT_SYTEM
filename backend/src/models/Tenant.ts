@@ -71,6 +71,8 @@ export interface ITenantAcademicConfig {
   };
   annexes: string[];
   accountantWhatsApp: string;
+  allowMultipleClassTeacherAssignments?: boolean;
+  allowClassTeacherNextTermEdit?: boolean;
 }
 
 export interface ITenantFeatures {
@@ -257,6 +259,8 @@ const TenantSchema = new Schema<ITenant>(
       },
       annexes: { type: [String], default: [] },
       accountantWhatsApp: { type: String, default: '' },
+      allowMultipleClassTeacherAssignments: { type: Boolean, default: false },
+      allowClassTeacherNextTermEdit: { type: Boolean, default: true },
     },
 
     // Subscription Info (denormalized from Subscription model for fast access)

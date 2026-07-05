@@ -15,7 +15,7 @@ import AuditLog from '../models/AuditLog';
 // Create a new staff user
 export const createTeacher = async (req: AuthRequest, res: Response) => {
   try {
-    const { username, password, name, assignedClasses, role } = req.body;
+    const { username, password, name, assignedClasses, classTeacherClasses, role } = req.body;
     const tenantId = req.tenantId;
 
     if (!tenantId) {
@@ -38,6 +38,29 @@ export const createTeacher = async (req: AuthRequest, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    const tenant = await Tenant.findById(tenantId);
+    let finalClassTeacherClasses = finalRole === 'TEACHER' ? (classTeacherClasses || []) : [];
+
+    if (finalRole === 'TEACHER' && finalClassTeacherClasses.length > 0) {
+      const allowMultiple = tenant?.academicConfig?.allowMultipleClassTeacherAssignments === true;
+      if (!allowMultiple && finalClassTeacherClasses.length > 1) {
+        finalClassTeacherClasses = [finalClassTeacherClasses[0]];
+      }
+
+      // For each assigned class, remove previous Class Teacher assignments
+      for (const cls of finalClassTeacherClasses) {
+        await User.updateMany(
+          {
+            tenantId,
+            classTeacherClasses: { $elemMatch: { level: cls.level, section: cls.section } }
+          },
+          {
+            $pull: { classTeacherClasses: { level: cls.level, section: cls.section } }
+          }
+        );
+      }
+    }
+
     const teacher = new User({
       tenantId,
       username: formattedUsername,
@@ -45,6 +68,7 @@ export const createTeacher = async (req: AuthRequest, res: Response) => {
       name,
       role: finalRole,
       assignedClasses: finalRole === 'TEACHER' ? (assignedClasses || []) : [],
+      classTeacherClasses: finalClassTeacherClasses,
     });
 
     await teacher.save();
@@ -91,7 +115,7 @@ export const getTeachers = async (req: AuthRequest, res: Response) => {
 export const updateTeacher = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { username, name, assignedClasses, password, isActive, role } = req.body;
+    const { username, name, assignedClasses, classTeacherClasses, password, isActive, role } = req.body;
     const tenantId = req.tenantId;
 
     if (!tenantId) {
@@ -119,8 +143,33 @@ export const updateTeacher = async (req: AuthRequest, res: Response) => {
 
     if (teacher.role === 'TEACHER') {
       if (assignedClasses) teacher.assignedClasses = assignedClasses;
+      
+      if (classTeacherClasses) {
+        const tenant = await Tenant.findById(tenantId);
+        const allowMultiple = tenant?.academicConfig?.allowMultipleClassTeacherAssignments === true;
+        let finalClassTeacherClasses = classTeacherClasses;
+        if (!allowMultiple && finalClassTeacherClasses.length > 1) {
+          finalClassTeacherClasses = [finalClassTeacherClasses[0]];
+        }
+
+        // For each class in list, clear assignment from any OTHER teacher
+        for (const cls of finalClassTeacherClasses) {
+          await User.updateMany(
+            {
+              tenantId,
+              _id: { $ne: teacher._id },
+              classTeacherClasses: { $elemMatch: { level: cls.level, section: cls.section } }
+            },
+            {
+              $pull: { classTeacherClasses: { level: cls.level, section: cls.section } }
+            }
+          );
+        }
+        teacher.classTeacherClasses = finalClassTeacherClasses;
+      }
     } else {
       teacher.assignedClasses = [] as any;
+      teacher.classTeacherClasses = [] as any;
     }
 
     if (isActive !== undefined) (teacher as any).isActive = isActive;
@@ -194,6 +243,34 @@ export const deleteTeacher = async (req: AuthRequest, res: Response) => {
 
 // --- Student Management ---
 
+// Helper function to parse CSV lines respecting quotes
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 // Bulk upload students via JSON list or CSV
 export const uploadStudents = async (req: AuthRequest, res: Response) => {
   try {
@@ -202,35 +279,155 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Tenant context required' });
     }
 
+    // Fetch tenant configuration for default academic year
+    const tenant = await Tenant.findById(tenantId);
+    const defaultAcademicYear = tenant?.academicConfig?.currentAcademicYear || '2025/2026';
+
     let students = req.body.students;
 
     // Parse CSV data if provided
     if (req.body.csvData && typeof req.body.csvData === 'string') {
       students = [];
-      const lines = req.body.csvData.split('\n');
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const parts = line.split(',').map((p: string) => p.trim());
-        if (parts.length < 4) continue;
+      const lines = req.body.csvData.split(/\r?\n/);
+      if (lines.length > 0) {
+        // Check if first line is a header
+        const firstLineParts = parseCsvLine(lines[0]);
+        const hasHeader = firstLineParts.some(part => {
+          const lower = part.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return (
+            lower.includes('name') ||
+            lower.includes('admission') ||
+            lower.includes('level') ||
+            lower.includes('class') ||
+            lower.includes('section')
+          );
+        });
 
-        // Skip header lines
-        if (
-          parts[0].toLowerCase() === 'name' ||
-          parts[1].toLowerCase() === 'admissionnumber' ||
-          parts[0].toLowerCase() === 'student name'
-        ) {
-          continue;
+        let nameIdx = -1;
+        let nameArabicIdx = -1;
+        let admissionNumberIdx = -1;
+        let levelIdx = -1;
+        let sectionIdx = -1;
+        let academicYearIdx = -1;
+        let parentPinIdx = -1;
+        let schoolFeesIdx = -1;
+        let dobIdx = -1;
+        let genderIdx = -1;
+        let houseIdx = -1;
+        let clubIdx = -1;
+
+        if (hasHeader) {
+          for (let i = 0; i < firstLineParts.length; i++) {
+            const col = firstLineParts[i].toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (col === 'name' || col === 'studentname' || col === 'fullname' || col === 'studentfullname') {
+              nameIdx = i;
+            } else if (col === 'namearabic' || col === 'arabicname' || col === 'arabic') {
+              nameArabicIdx = i;
+            } else if (
+              col === 'admissionnumber' ||
+              col === 'admissionno' ||
+              col === 'admno' ||
+              col === 'regno' ||
+              col === 'regnumber'
+            ) {
+              admissionNumberIdx = i;
+            } else if (col === 'level' || col === 'class') {
+              levelIdx = i;
+            } else if (col === 'section') {
+              sectionIdx = i;
+            } else if (col === 'academicyear' || col === 'session') {
+              academicYearIdx = i;
+            } else if (col === 'parentpin' || col === 'pin') {
+              parentPinIdx = i;
+            } else if (col === 'schoolfees' || col === 'fees') {
+              schoolFeesIdx = i;
+            } else if (col === 'dob' || col === 'dateofbirth' || col === 'birthdate') {
+              dobIdx = i;
+            } else if (col === 'gender' || col === 'sex') {
+              genderIdx = i;
+            } else if (col === 'house') {
+              houseIdx = i;
+            } else if (col === 'club' || col === 'society') {
+              clubIdx = i;
+            }
+          }
         }
 
-        students.push({
-          name: parts[0],
-          admissionNumber: parts[1],
-          level: parts[2],
-          section: parts[3],
-          parentPin: parts[4] || undefined,
-          schoolFees: parts[5] ? Number(parts[5]) : undefined,
-          academicYear: '2025/2026' // Default active academic year
-        });
+        const startIdx = hasHeader ? 1 : 0;
+        for (let i = startIdx; i < lines.length; i++) {
+          const line = lines[i];
+          if (!line.trim()) continue;
+          const parts = parseCsvLine(line);
+          if (parts.length === 0 || (parts.length === 1 && !parts[0])) continue;
+
+          let name = '';
+          let nameArabic = '';
+          let admissionNumber = '';
+          let level = '';
+          let section = '';
+          let academicYear = defaultAcademicYear;
+          let parentPin = '';
+          let schoolFees = 0;
+          let dob = '';
+          let gender = '';
+          let house = '';
+          let club = '';
+
+          if (hasHeader) {
+            if (nameIdx !== -1) name = parts[nameIdx] || '';
+            if (nameArabicIdx !== -1) nameArabic = parts[nameArabicIdx] || '';
+            if (admissionNumberIdx !== -1) admissionNumber = parts[admissionNumberIdx] || '';
+            if (levelIdx !== -1) level = parts[levelIdx] || '';
+            if (sectionIdx !== -1) section = parts[sectionIdx] || '';
+            if (academicYearIdx !== -1) academicYear = parts[academicYearIdx] || defaultAcademicYear;
+            if (parentPinIdx !== -1) parentPin = parts[parentPinIdx] || '';
+            if (schoolFeesIdx !== -1) schoolFees = Number(parts[schoolFeesIdx]) || 0;
+            if (dobIdx !== -1) dob = parts[dobIdx] || '';
+            if (genderIdx !== -1) gender = parts[genderIdx] || '';
+            if (houseIdx !== -1) house = parts[houseIdx] || '';
+            if (clubIdx !== -1) club = parts[clubIdx] || '';
+          } else {
+            // Positional fallback
+            if (parts.length <= 6) {
+              // Legacy format: name, admissionNumber, level, section, parentPin, schoolFees
+              name = parts[0] || '';
+              admissionNumber = parts[1] || '';
+              level = parts[2] || '';
+              section = parts[3] || '';
+              parentPin = parts[4] || '';
+              schoolFees = Number(parts[5]) || 0;
+            } else {
+              // Full format: name, nameArabic, admissionNumber, level, section, academicYear, parentPin, schoolFees, dob, gender, house, club
+              name = parts[0] || '';
+              nameArabic = parts[1] || '';
+              admissionNumber = parts[2] || '';
+              level = parts[3] || '';
+              section = parts[4] || '';
+              academicYear = parts[5] || defaultAcademicYear;
+              parentPin = parts[6] || '';
+              schoolFees = Number(parts[7]) || 0;
+              dob = parts[8] || '';
+              gender = parts[9] || '';
+              house = parts[10] || '';
+              club = parts[11] || '';
+            }
+          }
+
+          students.push({
+            name,
+            nameArabic,
+            admissionNumber,
+            level,
+            section,
+            academicYear,
+            parentPin: parentPin || undefined,
+            schoolFees,
+            dob,
+            gender,
+            house,
+            club
+          });
+        }
       }
     }
 
@@ -242,7 +439,7 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
     const skippedStudents = [];
 
     for (const stud of students) {
-      const { admissionNumber, name, level, section, academicYear, parentPin, schoolFees, picture, dob, gender, house, club } = stud;
+      const { admissionNumber, name, nameArabic, level, section, academicYear, parentPin, schoolFees, picture, dob, gender, house, club } = stud;
 
       if (!admissionNumber || !name || !level || !section || !academicYear) {
         skippedStudents.push({ ...stud, reason: 'Missing required fields' });
@@ -258,6 +455,7 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
           // Restore and update the soft-deleted student
           const generatedPin = parentPin || Math.floor(1000 + Math.random() * 9000).toString();
           existing.name = name;
+          existing.nameArabic = nameArabic || '';
           existing.level = level;
           existing.section = section;
           existing.academicYear = academicYear;
@@ -292,10 +490,11 @@ export const uploadStudents = async (req: AuthRequest, res: Response) => {
         tenantId,
         admissionNumber: formattedAdmission,
         name,
+        nameArabic: nameArabic || '',
         level,
         section,
         academicYear,
-        parentPin: generatedPin, // Plain text PIN (stored securely or plaintext based on legacy config)
+        parentPin: generatedPin, // Plain text PIN
         schoolFees: parsedSchoolFees,
         picture: picture || '',
         dob: dob || '',
@@ -845,6 +1044,8 @@ export const getSchoolSettings = async (req: any, res: Response) => {
       accountantWhatsApp: tenant.academicConfig.accountantWhatsApp,
       logo: tenant.branding?.logo || '',
       curriculumType: tenant.curriculumType || 'dual',
+      allowMultipleClassTeacherAssignments: tenant.academicConfig.allowMultipleClassTeacherAssignments || false,
+      allowClassTeacherNextTermEdit: tenant.academicConfig.allowClassTeacherNextTermEdit !== false,
     };
 
     return res.status(200).json(settings);
@@ -881,6 +1082,8 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
       accountantWhatsApp,
       logo,
       curriculumType,
+      allowMultipleClassTeacherAssignments,
+      allowClassTeacherNextTermEdit,
     } = req.body;
 
     const oldState = tenant.toObject();
@@ -902,6 +1105,8 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
       tenant.branding.logo = logo;
     }
     if (curriculumType !== undefined) tenant.curriculumType = curriculumType;
+    if (allowMultipleClassTeacherAssignments !== undefined) tenant.academicConfig.allowMultipleClassTeacherAssignments = allowMultipleClassTeacherAssignments;
+    if (allowClassTeacherNextTermEdit !== undefined) tenant.academicConfig.allowClassTeacherNextTermEdit = allowClassTeacherNextTermEdit;
 
     await tenant.save();
 
@@ -923,6 +1128,8 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
       accountantWhatsApp: tenant.academicConfig.accountantWhatsApp,
       logo: tenant.branding?.logo || '',
       curriculumType: tenant.curriculumType || 'dual',
+      allowMultipleClassTeacherAssignments: tenant.academicConfig.allowMultipleClassTeacherAssignments || false,
+      allowClassTeacherNextTermEdit: tenant.academicConfig.allowClassTeacherNextTermEdit !== false,
     };
 
     // Log action
