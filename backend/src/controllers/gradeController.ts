@@ -450,6 +450,44 @@ const decorateResultWithClassRank = async (resObj: any, tenantId: any) => {
   const rankIdx = allResultsInClass.findIndex(r => r._id.toString() === obj._id.toString());
   obj.position = rankIdx !== -1 ? rankIdx + 1 : 1;
   obj.totalStudents = allResultsInClass.length;
+
+  // Merge active subjects into result so newly added subjects appear on report sheets
+  try {
+    const levelStr = String(obj.level || '').toUpperCase();
+    const sectionStr = String(obj.section || '').toUpperCase();
+    const isIslamicOrTahfeez = 
+      levelStr.includes('TAHFEEZ') || levelStr.includes('ISLAMIC') || levelStr.includes('QURAN') ||
+      sectionStr.includes('TAHFEEZ') || sectionStr.includes('ISLAMIC') || sectionStr.includes('QURAN');
+
+    const subjectQuery: any = { tenantId, isActive: true };
+    if (isIslamicOrTahfeez) {
+      subjectQuery.section = { $in: ['tahfeezh', 'islamic'] };
+    } else {
+      subjectQuery.section = 'academic';
+    }
+
+    const activeSubjects = await Subject.find(subjectQuery);
+    if (activeSubjects && activeSubjects.length > 0) {
+      const rawSubjects = obj.subjects || [];
+      const mergedSubjects = activeSubjects.map((s: any) => {
+        const existing = rawSubjects.find((sub: any) => sub.subjectName === s.name);
+        return existing ? { ...existing, section: existing.section || s.section } : {
+          subjectName: s.name,
+          subjectNameArabic: s.nameArabic || '',
+          score60: 0, score20_1: 0, score20_2: 0, score40: 0, score100: 0,
+          grade: '', isGraded: false, section: s.section
+        };
+      });
+      // Keep orphan subjects (graded but no longer in active list)
+      const activeNames = new Set(activeSubjects.map((s: any) => s.name));
+      const orphans = rawSubjects.filter((s: any) => !activeNames.has(s.subjectName));
+      obj.subjects = [...mergedSubjects, ...orphans];
+    }
+  } catch (err) {
+    // Non-critical: if subject merge fails, return result as-is
+    console.error('Subject merge in decorateResultWithClassRank failed:', err);
+  }
+
   return obj;
 };
 

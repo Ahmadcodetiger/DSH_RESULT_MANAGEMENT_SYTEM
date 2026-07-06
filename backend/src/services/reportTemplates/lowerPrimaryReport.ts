@@ -218,11 +218,15 @@ export const renderLowerPrimaryReport = async (
           border: 3.5px double ${primaryColor};
           padding: 10px;
           width: 100%;
-          height: calc(297mm - 12mm);
+          min-height: calc(297mm - 12mm);
+          height: auto;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
+        }
+        tr {
+          page-break-inside: avoid;
         }
       </style>
     </head>

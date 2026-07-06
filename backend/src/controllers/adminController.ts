@@ -1043,6 +1043,7 @@ export const getSchoolSettings = async (req: any, res: Response) => {
       annexes: tenant.academicConfig.annexes,
       accountantWhatsApp: tenant.academicConfig.accountantWhatsApp,
       logo: tenant.branding?.logo || '',
+      islamicLogo: tenant.branding?.islamicLogo || '',
       curriculumType: tenant.curriculumType || 'dual',
       allowMultipleClassTeacherAssignments: tenant.academicConfig.allowMultipleClassTeacherAssignments || false,
       allowClassTeacherNextTermEdit: tenant.academicConfig.allowClassTeacherNextTermEdit !== false,
@@ -1081,6 +1082,7 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
       currentTerm,
       accountantWhatsApp,
       logo,
+      islamicLogo,
       curriculumType,
       allowMultipleClassTeacherAssignments,
       allowClassTeacherNextTermEdit,
@@ -1103,6 +1105,10 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
     if (logo !== undefined) {
       if (!tenant.branding) tenant.branding = {} as any;
       tenant.branding.logo = logo;
+    }
+    if (islamicLogo !== undefined) {
+      if (!tenant.branding) tenant.branding = {} as any;
+      tenant.branding.islamicLogo = islamicLogo;
     }
     if (curriculumType !== undefined) tenant.curriculumType = curriculumType;
     if (allowMultipleClassTeacherAssignments !== undefined) tenant.academicConfig.allowMultipleClassTeacherAssignments = allowMultipleClassTeacherAssignments;
@@ -1127,6 +1133,7 @@ export const updateSchoolSettings = async (req: AuthRequest, res: Response) => {
       annexes: tenant.academicConfig.annexes,
       accountantWhatsApp: tenant.academicConfig.accountantWhatsApp,
       logo: tenant.branding?.logo || '',
+      islamicLogo: tenant.branding?.islamicLogo || '',
       curriculumType: tenant.curriculumType || 'dual',
       allowMultipleClassTeacherAssignments: tenant.academicConfig.allowMultipleClassTeacherAssignments || false,
       allowClassTeacherNextTermEdit: tenant.academicConfig.allowClassTeacherNextTermEdit !== false,

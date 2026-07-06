@@ -120,6 +120,8 @@ export default function AdminDashboardView({
   const [newTeacherPassword, setNewTeacherPassword] = useState('');
   const [newTeacherRole, setNewTeacherRole] = useState<'ADMIN' | 'TEACHER' | 'ACCOUNTANT' | 'DIRECTOR'>('TEACHER');
   const [settingsLogo, setSettingsLogo] = useState(schoolSettings?.logo || '');
+  const [settingsIslamicLogo, setSettingsIslamicLogo] = useState(schoolSettings?.islamicLogo || '');
+  const [selectedRollCallClass, setSelectedRollCallClass] = useState<string>('All');
   const [newTeacherLevel, setNewTeacherLevel] = useState('5');
   const [newTeacherSection, setNewTeacherSection] = useState('ALLO');
   const [newTeacherSubject, setNewTeacherSubject] = useState("Al-Qur'an Karem (Hifz)");
@@ -507,6 +509,7 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
       setSettingsYear(schoolSettings.currentAcademicYear || '2025/2026');
       setAnnexes(schoolSettings.annexes || []);
       setSettingsLogo(schoolSettings.logo || '');
+      setSettingsIslamicLogo((schoolSettings as any).islamicLogo || '');
       setSettingsCurriculumType((schoolSettings as any).curriculumType || 'dual');
       setSettingsAllowMultiClassTeacher((schoolSettings as any)?.academicConfig?.allowMultipleClassTeacherAssignments || false);
       setSettingsAllowClassTeacherNextTerm((schoolSettings as any)?.academicConfig?.allowClassTeacherNextTermEdit !== false);
@@ -1051,6 +1054,7 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
         currentTerm: settingsTerm,
         currentAcademicYear: settingsYear,
         logo: settingsLogo,
+        islamicLogo: settingsIslamicLogo,
         curriculumType: settingsCurriculumType,
         allowMultipleClassTeacherAssignments: settingsAllowMultiClassTeacher,
         allowClassTeacherNextTermEdit: settingsAllowClassTeacherNextTerm,
@@ -1571,10 +1575,27 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
           ) : (
               <div className="grid-cols-3">
                 <div className="span-2-desktop glass dashboard-card">
-                  <h3 style={{ ...styles.cardHeader, marginBottom: '0.25rem' }}>Student Roll Call</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                    Active student roll registry, admission numbers, parental access codes, and configured school fees.
-                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '1.25rem' }}>
+                    <div>
+                      <h3 style={{ ...styles.cardHeader, margin: 0 }}>Student Roll Call</h3>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
+                        Active student roll registry, parental access codes, and configured school fees.
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Filter Class:</label>
+                      <select 
+                        value={selectedRollCallClass} 
+                        onChange={e => setSelectedRollCallClass(e.target.value)}
+                        style={{ fontSize: '0.85rem', padding: '0.35rem 0.65rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)', color: 'var(--text-base)', cursor: 'pointer', outline: 'none' }}
+                      >
+                        <option value="All">All Classes</option>
+                        {[...new Set(activeClasses.map(c => c.className))].sort().map(lvl => (
+                          <option key={lvl} value={lvl}>{lvl}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                   <div style={styles.tableWrapper}>
                     <table className="custom-table">
                       <thead>
@@ -1588,7 +1609,9 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                         </tr>
                       </thead>
                       <tbody>
-                        {students.map(s => (
+                        {students
+                          .filter(s => selectedRollCallClass === 'All' || s.level === selectedRollCallClass)
+                          .map(s => (
                           <tr key={s._id}>
                             <td>{s.name}</td>
                             <td><code>{s.admissionNumber}</code></td>
@@ -2421,6 +2444,59 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                       </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No logo selected (default: DSH Logo)</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1rem' }}>
+                  <label style={styles.label}>Islamic / Tahfeez Section Badge</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-base)' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          processImageFile(file, (base64) => {
+                            setSettingsIslamicLogo(base64);
+                          });
+                        }
+                      }}
+                      style={{ width: 'auto' }}
+                    />
+                    {settingsIslamicLogo ? (
+                      <div style={{ position: 'relative' }}>
+                        <img 
+                          src={settingsIslamicLogo} 
+                          alt="Islamic Badge Preview" 
+                          style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border)' }} 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSettingsIslamicLogo('')}
+                          style={{
+                            position: 'absolute',
+                            top: '-5px',
+                            right: '-5px',
+                            background: 'var(--error)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '18px',
+                            height: '18px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No section badge selected (falls back to main school logo)</span>
                     )}
                   </div>
                 </div>

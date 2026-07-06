@@ -8,6 +8,7 @@ import Student from '../models/Student';
 import User from '../models/User';
 import Invoice from '../models/Invoice';
 import Tenant from '../models/Tenant';
+import Subject from '../models/Subject';
 import { SCHOOL_LOGO_BASE64 } from './logoBase64';
 import { renderAlQalamReport } from '../services/reportTemplates';
 
@@ -74,7 +75,6 @@ const generateAlQalamReportHtml = async (
 const generateConventionalReportHtml = (result: any, student: any, tenant: any, classPositionString: string) => {
   const primaryColor = tenant.branding?.primaryColor || '#0f172a';
   const secondaryColor = tenant.branding?.secondaryColor || '#475569';
-  const logo = tenant.branding?.logo || SCHOOL_LOGO_BASE64;
   const schoolName = tenant.name || 'SmartSchool';
   const schoolNameArabic = tenant.nameArabic || '';
   const subHeader = tenant.subHeader || 'Learn Today, Lead Tomorrow';
@@ -90,6 +90,10 @@ const generateConventionalReportHtml = (result: any, student: any, tenant: any, 
   const academicSubjects = allSubjects.filter((s: any) => s.section === 'academic');
   const islamicSubjects = allSubjects.filter((s: any) => s.section === 'islamic');
   const tahfeezhSubjects = allSubjects.filter((s: any) => s.section === 'tahfeezh');
+
+  const logo = (islamicSubjects.length > 0 || tahfeezhSubjects.length > 0)
+    ? (tenant.branding?.islamicLogo || tenant.branding?.logo || SCHOOL_LOGO_BASE64)
+    : (tenant.branding?.logo || SCHOOL_LOGO_BASE64);
 
   const showAcademic = academicSubjects.length > 0;
   const showIslamic = islamicSubjects.length > 0;
@@ -646,7 +650,6 @@ const generateReportHtml = async (
   }
   const primaryColor = tenant.branding?.primaryColor || '#1E5631';
   const secondaryColor = tenant.branding?.secondaryColor || '#d4af37';
-  const logo = tenant.branding?.logo || SCHOOL_LOGO_BASE64;
   const schoolName = tenant.name || 'SmartSchool';
   const schoolNameArabic = tenant.nameArabic || '';
   const subHeader = tenant.subHeader || '';
@@ -713,6 +716,10 @@ const generateReportHtml = async (
   const tahfeezhSubjects = result.subjects.filter((s: any) => s.section === 'tahfeezh');
   const islamicSubjects = result.subjects.filter((s: any) => s.section === 'islamic');
   const academicSubjects = result.subjects.filter((s: any) => s.section === 'academic');
+
+  const logo = (islamicSubjects.length > 0 || tahfeezhSubjects.length > 0)
+    ? (tenant.branding?.islamicLogo || tenant.branding?.logo || SCHOOL_LOGO_BASE64)
+    : (tenant.branding?.logo || SCHOOL_LOGO_BASE64);
 
   const tahfeezhMetrics = calculateSectionMetrics(tahfeezhSubjects);
   const islamicMetrics = calculateSectionMetrics(islamicSubjects);
@@ -1663,7 +1670,7 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ message: 'Result sheet not found' });
     }
 
-    const student = await Student.findOne({ tenantId, _id: result.studentId, isDeleted: { $ne: true } });
+    const student = await Student.findOne({ tenantId, _id: result.studentId });
     if (!student) {
       return res.status(404).json({ message: 'Student details not found' });
     }
@@ -1742,6 +1749,45 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Merge active subjects into result so newly added subjects appear on PDF report
+    try {
+      const levelStr = String(result.level || '').toUpperCase();
+      const sectionStr = String(result.section || '').toUpperCase();
+      const isIslamicOrTahfeez = 
+        levelStr.includes('TAHFEEZ') || levelStr.includes('ISLAMIC') || levelStr.includes('QURAN') ||
+        sectionStr.includes('TAHFEEZ') || sectionStr.includes('ISLAMIC') || sectionStr.includes('QURAN');
+
+      const subjectQuery: any = { tenantId, isActive: true };
+      if (isIslamicOrTahfeez) {
+        subjectQuery.section = { $in: ['tahfeezh', 'islamic'] };
+      } else {
+        subjectQuery.section = 'academic';
+      }
+
+      const activeSubjects = await Subject.find(subjectQuery);
+      if (activeSubjects && activeSubjects.length > 0) {
+        const rawSubjects = result.subjects || [];
+        const mergedSubjects = activeSubjects.map((s: any) => {
+          const existing = rawSubjects.find((sub: any) => sub.subjectName === s.name);
+          if (existing) {
+            const existingObj = existing.toObject ? existing.toObject() : existing;
+            return { ...existingObj, section: existingObj.section || s.section };
+          }
+          return {
+            subjectName: s.name,
+            subjectNameArabic: s.nameArabic || '',
+            score60: 0, score20_1: 0, score20_2: 0, score40: 0, score100: 0,
+            grade: '', isGraded: false, section: s.section
+          };
+        });
+        const activeNames = new Set(activeSubjects.map((s: any) => s.name));
+        const orphans = rawSubjects.filter((s: any) => !activeNames.has(s.subjectName)).map((s: any) => s.toObject ? s.toObject() : s);
+        (result as any).subjects = [...mergedSubjects, ...orphans];
+      }
+    } catch (err) {
+      console.error('Subject merge in generateResultPdf failed:', err);
+    }
+
     const htmlContent = await generateReportHtml(
       result,
       student,
@@ -1789,7 +1835,7 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
     await browser.close();
 
     // Set response headers and send binary data
-    const filename = `Report_${student.admissionNumber.replace(/\//g, '_')}_${result.term.replace(/ /g, '_')}.pdf`;
+    const filename = `Report_${student.admissionNumber.replace(/\//g, '_')}_${result.term.replace(/ /g, '_')}.pdf`.replace(/[^\w\.-]/g, '_');
     const finalBuffer = Buffer.from(pdfBuffer);
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -1820,7 +1866,7 @@ export const generateInvoicePdf = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Unauthorized access to this invoice PDF' });
     }
 
-    const student = await Student.findOne({ tenantId, _id: invoice.studentId, isDeleted: { $ne: true } });
+    const student = await Student.findOne({ tenantId, _id: invoice.studentId });
     if (!student) {
       return res.status(404).json({ message: 'Student details not found' });
     }
@@ -1860,7 +1906,7 @@ export const generateInvoicePdf = async (req: AuthRequest, res: Response) => {
 
     await browser.close();
 
-    const filename = `Bill_${student.admissionNumber.replace(/\//g, '_')}_${invoice._id}.pdf`;
+    const filename = `Bill_${student.admissionNumber.replace(/\//g, '_')}_${invoice._id}.pdf`.replace(/[^\w\.-]/g, '_');
     const finalBuffer = Buffer.from(pdfBuffer);
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -1890,7 +1936,7 @@ export const generateReceiptPdf = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Unauthorized access to this receipt PDF' });
     }
 
-    const student = await Student.findOne({ tenantId, _id: invoice.studentId, isDeleted: { $ne: true } });
+    const student = await Student.findOne({ tenantId, _id: invoice.studentId });
     if (!student) {
       return res.status(404).json({ message: 'Student details not found' });
     }
@@ -1935,7 +1981,7 @@ export const generateReceiptPdf = async (req: AuthRequest, res: Response) => {
 
     await browser.close();
 
-    const filename = `Receipt_${student.admissionNumber.replace(/\//g, '_')}_${payment._id}.pdf`;
+    const filename = `Receipt_${student.admissionNumber.replace(/\//g, '_')}_${payment._id}.pdf`.replace(/[^\w\.-]/g, '_');
     const finalBuffer = Buffer.from(pdfBuffer);
 
     res.setHeader('Content-Type', 'application/pdf');

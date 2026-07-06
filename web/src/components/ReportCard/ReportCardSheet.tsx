@@ -377,22 +377,11 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
   };
 
   if (isTahfeezOrIslamic) {
-    const maroon        = '#800020';
-    const primaryColor  = '#334155';
-    const secondaryColor= '#475569';
-    const borderColor   = '#cbd5e1';
     const textColor     = '#1e293b';
 
     const toArabicNumerals = (n: number | string): string =>
       String(n).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
 
-    const translateTermToArabic = (termStr: string): string => {
-      const t = termStr.toLowerCase();
-      if (t.includes('first')) return 'الأولى';
-      if (t.includes('second')) return 'الثانية';
-      if (t.includes('third')) return 'الثالثة';
-      return termStr;
-    };
 
     const translateClassToArabic = (levelStr: string): string => {
       const l = levelStr.toLowerCase();
@@ -441,7 +430,7 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
     const filteredSubjects  = allSubjects;
     const gradedSubjects    = filteredSubjects.filter((s: any) => s.isGraded);
     const totalObtained     = gradedSubjects.reduce((acc: number, curr: any) => acc + (Number(curr.score100) || 0), 0);
-    const totalObtainable   = filteredSubjects.length * 100;
+    const totalObtainable   = gradedSubjects.length * 100;
     const finalPercentage   = totalObtainable > 0 ? (totalObtained / totalObtainable) * 100 : 0;
 
     const behaviorRatings = [
@@ -457,12 +446,14 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
     const schoolAddress= schoolSettings?.address    || (tenant as any)?.contact?.address || '';
     const schoolPhone  = schoolSettings?.phone      || (tenant as any)?.contact?.phoneNumbers || '';
     const schoolEmail  = schoolSettings?.email      || (tenant as any)?.contact?.email || '';
-    const schoolLogo   = schoolSettings?.logo       || (tenant as any)?.branding?.logo || '/logo.png';
+    const schoolLogo = isTahfeezOrIslamic 
+      ? (schoolSettings?.islamicLogo || (tenant as any)?.branding?.islamicLogo || schoolSettings?.logo || (tenant as any)?.branding?.logo || '/logo.png')
+      : (schoolSettings?.logo || (tenant as any)?.branding?.logo || '/logo.png');
 
-    const primaryColor = tenant?.branding?.primaryColor || '#800020';
-    const secondaryColor = '#475569';
-    const borderColor = '#800020';
-    const maroon = '#800020';
+    const primaryColor = isTahfeezOrIslamic ? '#1c1917' : (tenant?.branding?.primaryColor || '#800020');
+    const secondaryColor = isTahfeezOrIslamic ? '#6b7280' : '#475569';
+    const borderColor = isTahfeezOrIslamic ? '#1c1917' : '#800020';
+    const maroon = isTahfeezOrIslamic ? '#1c1917' : '#800020';
     const bgSlateAsh = '#f1f5f9';
 
     const getRatingLabel = (val: number): string => {
@@ -520,28 +511,30 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
       }
 
       return subjects.map((s: any, idx: number) => {
-        const ca1   = s.isGraded ? s.score20_1 : '—';
-        const ca2   = s.isGraded ? s.score20_2 : '—';
+        const hasSplitCa = (Number(s.score20_1) || 0) > 0 || (Number(s.score20_2) || 0) > 0;
+        const ca1   = s.isGraded ? (hasSplitCa ? (s.score20_1 ?? 0) : (s.score60 ?? 0)) : '—';
+        const ca2   = s.isGraded ? (hasSplitCa ? (s.score20_2 ?? 0) : '—') : '—';
         const exam  = s.isGraded ? (s.score40 ?? '—') : '—';
         const total = s.isGraded ? s.score100 : '—';
         const grade = s.isGraded ? mapGradeToStandard(s.grade) : '—';
         const subjectArabic = s.subjectNameArabic || getSubjectArabicName(s);
 
         return (
-          <tr key={idx} style={{ height: '24px', borderBottom: `1.5px solid ${borderColor}` }}>
-            <td style={{ padding: '4px 8px', border: `1.5px solid ${borderColor}`, fontWeight: 'bold', textAlign: 'right', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+          <tr key={idx} style={{ height: '18px', borderBottom: `1.5px solid ${borderColor}` }}>
+            <td style={{ padding: '3px 6px', border: `1.5px solid ${borderColor}`, fontWeight: 'bold', textAlign: 'right', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
               {subjectArabic}
             </td>
-            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontWeight: 'bold', fontSize: '10.5px', width: '13%' }}>{grade}</td>
-            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontWeight: 'bold', fontSize: '10.5px', backgroundColor: bgSlateAsh, color: maroon, width: '13%' }}>{total}</td>
-            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontSize: '10px', width: '13%' }}>{exam}</td>
-            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontSize: '10px', width: '13%' }}>{ca2}</td>
-            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontSize: '10px', width: '13%' }}>{ca1}</td>
+            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontSize: '9px', width: '13%' }}>{ca1}</td>
+            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontSize: '9px', width: '13%' }}>{ca2}</td>
+            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontSize: '9px', width: '13%' }}>{exam}</td>
+            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontWeight: 'bold', fontSize: '9.5px', backgroundColor: bgSlateAsh, color: maroon, width: '13%' }}>{total}</td>
+            <td style={{ textAlign: 'center', border: `1.5px solid ${borderColor}`, fontWeight: 'bold', fontSize: '9.5px', width: '13%' }}>{grade}</td>
           </tr>
         );
       });
     };
 
+    const aff = affectiveData;
     const elementsOfEvaluation = [
       {
         labelEn: 'Correctness of recitation & Tajweed Practicing',
@@ -592,20 +585,19 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
       >
         <div>
           {/* ═══ HEADER (Single Center Logo) ═══ */}
-          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-            <div style={{ marginBottom: '6px' }}>
-              <img src={schoolLogo} style={{ width: '85px', height: '85px', objectFit: 'contain' }} alt="Logo" />
+          <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+            <div style={{ marginBottom: '3px' }}>
+              <img src={schoolLogo} style={{ width: '55px', height: '55px', objectFit: 'contain' }} alt="Logo" />
             </div>
-            <div style={{ fontSize: '28px', fontWeight: 800, color: maroon, fontFamily: "'Tajawal', 'Cairo', sans-serif", lineHeight: 1.1, marginBottom: '2px' }}>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: maroon, fontFamily: "'Tajawal', 'Cairo', sans-serif", lineHeight: 1.1, marginBottom: '1px' }}>
               {schoolNameAr}
             </div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: maroon, fontFamily: "'Times New Roman', Times, serif", letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '4px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: maroon, fontFamily: "'Times New Roman', Times, serif", letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '2px' }}>
               {schoolNameEn}
             </div>
-            <div style={{ fontSize: '11.5px', color: '#1e293b', fontWeight: 'bold', lineHeight: 1.35, fontFamily: "'Times New Roman', Times, serif" }}>
+            <div style={{ fontSize: '9.5px', color: '#1e293b', fontWeight: 'bold', lineHeight: 1.3, fontFamily: "'Times New Roman', Times, serif" }}>
               {schoolAddress}<br />
-              Tel: {schoolPhone}<br />
-              Email: {schoolEmail}
+              Tel: {schoolPhone} | Email: {schoolEmail}
             </div>
           </div>
 
@@ -661,19 +653,19 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
           </div>
 
           {/* ═══ TAHFEEZH SECTION (QUR'AN & HIFZ) ═══ */}
-          <div style={{ marginBottom: '6px' }}>
-            <div style={{ fontWeight: 'bold', color: maroon, backgroundColor: bgSlateAsh, border: `1.5px solid ${maroon}`, padding: '2px 8px', fontSize: '10px', marginBottom: '2px', textAlign: 'right', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+          <div style={{ marginBottom: '4px' }}>
+            <div style={{ fontWeight: 'bold', color: maroon, backgroundColor: bgSlateAsh, border: `1.5px solid ${maroon}`, padding: '1px 6px', fontSize: '9px', marginBottom: '2px', textAlign: 'right', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
               قسم التحفيظ
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '9.5px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '8.5px' }}>
               <thead>
-                <tr style={{ backgroundColor: bgSlateAsh, color: maroon, height: '20px', textAlign: 'center', fontWeight: 'bold' }}>
+                <tr style={{ backgroundColor: bgSlateAsh, color: maroon, height: '18px', textAlign: 'center', fontWeight: 'bold' }}>
                   <th style={{ textAlign: 'right', paddingRight: '6px', border: `1.5px solid ${maroon}` }}>المواد</th>
-                  <th style={{ width: '15%', border: `1.5px solid ${maroon}` }}>التقدير</th>
-                  <th style={{ width: '19%', border: `1.5px solid ${maroon}` }}>المجموع</th>
-                  <th style={{ width: '16%', border: `1.5px solid ${maroon}` }}>الامتحان</th>
-                  <th style={{ width: '17%', border: `1.5px solid ${maroon}` }}>المستمر ٢</th>
                   <th style={{ width: '17%', border: `1.5px solid ${maroon}` }}>المستمر ١</th>
+                  <th style={{ width: '17%', border: `1.5px solid ${maroon}` }}>المستمر ٢</th>
+                  <th style={{ width: '16%', border: `1.5px solid ${maroon}` }}>الامتحان</th>
+                  <th style={{ width: '19%', border: `1.5px solid ${maroon}` }}>المجموع</th>
+                  <th style={{ width: '15%', border: `1.5px solid ${maroon}` }}>التقدير</th>
                 </tr>
               </thead>
               <tbody>
@@ -683,64 +675,66 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
           </div>
 
           {/* ═══ HIFZ DETAILS / بيانات التحفيظ ═══ */}
-          <div style={{ marginBottom: '6px' }}>
-            <div style={{ fontWeight: 'bold', color: maroon, backgroundColor: bgSlateAsh, border: `1.5px solid ${maroon}`, padding: '2px 8px', fontSize: '10px', marginBottom: '2px', textAlign: 'right', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+          <div style={{ marginBottom: '4px' }}>
+            <div style={{ fontWeight: 'bold', color: maroon, backgroundColor: bgSlateAsh, border: `1.5px solid ${maroon}`, padding: '1px 6px', fontSize: '9px', marginBottom: '2px', textAlign: 'right', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
               بيانات التحفيظ
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '9.5px', textAlign: 'right' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '8.5px', textAlign: 'right' }}>
               <tbody>
-                <tr style={{ height: '22px', borderBottom: `1.5px solid ${maroon}` }}>
-                  <td style={{ padding: '2px 8px', fontWeight: 'bold', backgroundColor: bgSlateAsh, width: '35%', color: maroon, borderLeft: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>إجمالي أيام الحفظ</td>
-                  <td style={{ padding: '2px 8px', fontWeight: 'bold', textAlign: 'center', width: '15%' }}>{result.tahfeezhDetails?.absenceOfHifz || 0}</td>
-                  <td style={{ padding: '2px 8px', fontWeight: 'bold', backgroundColor: bgSlateAsh, width: '25%', color: maroon, borderLeft: `1.5px solid ${maroon}`, borderRight: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الغياب والطلب</td>
-                  <td style={{ padding: '2px 8px', fontSize: '9px', textAlign: 'center', direction: 'ltr', width: '25%' }}>
+                <tr style={{ height: '18px', borderBottom: `1.5px solid ${maroon}` }}>
+                  <td style={{ padding: '1px 6px', fontWeight: 'bold', backgroundColor: bgSlateAsh, width: '35%', color: maroon, borderLeft: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>إجمالي أيام الحفظ</td>
+                  <td style={{ padding: '1px 6px', fontWeight: 'bold', textAlign: 'center', width: '15%' }}>{result.tahfeezhDetails?.absenceOfHifz || 0}</td>
+                  <td style={{ padding: '1px 6px', fontWeight: 'bold', backgroundColor: bgSlateAsh, width: '25%', color: maroon, borderLeft: `1.5px solid ${maroon}`, borderRight: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الغياب والطلب</td>
+                  <td style={{ padding: '1px 6px', fontSize: '8px', textAlign: 'center', direction: 'ltr', width: '25%' }}>
                     Absent: {result.tahfeezhDetails?.daysAbsent ?? (timesOpenedVal - timesPresentVal)} &nbsp;|&nbsp; Present: {result.tahfeezhDetails?.daysPresent ?? timesPresentVal}
                   </td>
                 </tr>
-                <tr style={{ height: '22px' }}>
-                  <td style={{ padding: '2px 8px', fontWeight: 'bold', backgroundColor: bgSlateAsh, color: maroon, borderLeft: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>من سورة إلى سورة</td>
-                  <td style={{ padding: '2px 8px', fontWeight: 'bold', textAlign: 'center', direction: 'rtl' }}>
+                <tr style={{ height: '18px' }}>
+                  <td style={{ padding: '1px 6px', fontWeight: 'bold', backgroundColor: bgSlateAsh, color: maroon, borderLeft: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>من سورة إلى سورة</td>
+                  <td style={{ padding: '1px 6px', fontWeight: 'bold', textAlign: 'center', direction: 'rtl' }}>
                     من {result.tahfeezhDetails?.fromSurah || '—'} إلى {result.tahfeezhDetails?.toSurah || '—'}
                   </td>
-                  <td style={{ padding: '2px 8px', fontWeight: 'bold', backgroundColor: bgSlateAsh, color: maroon, borderLeft: `1.5px solid ${maroon}`, borderRight: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>أوجه الحفظ</td>
-                  <td style={{ padding: '2px 8px', fontWeight: 'bold', textAlign: 'center' }}>{result.tahfeezhDetails?.memorizedPages || '—'}</td>
+                  <td style={{ padding: '1px 6px', fontWeight: 'bold', backgroundColor: bgSlateAsh, color: maroon, borderLeft: `1.5px solid ${maroon}`, borderRight: `1.5px solid ${maroon}`, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>أوجه الحفظ</td>
+                  <td style={{ padding: '1px 6px', fontWeight: 'bold', textAlign: 'center' }}>{result.tahfeezhDetails?.memorizedPages || '—'}</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
           {/* ═══ ISLAMIC STUDIES TABLE (Arabic Only) ═══ */}
-          <div style={{ fontWeight: 'bold', color: maroon, backgroundColor: bgSlateAsh, border: `1.5px solid ${maroon}`, padding: '2px 8px', fontSize: '10px', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
-            الدراسات الإسلامية
+          <div style={{ marginBottom: '4px' }}>
+            <div style={{ fontWeight: 'bold', color: maroon, backgroundColor: bgSlateAsh, border: `1.5px solid ${maroon}`, padding: '1px 6px', fontSize: '9px', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+              الدراسات الإسلامية
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '8.5px', marginBottom: '4px' }}>
+              <thead>
+                <tr style={{ backgroundColor: bgSlateAsh, color: maroon, height: '18px', textAlign: 'center', fontWeight: 'bold' }}>
+                  <th style={{ textAlign: 'right', paddingRight: '6px', border: `1.5px solid ${maroon}` }}>المواد</th>
+                  <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>المستمر ١</th>
+                  <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>المستمر ٢</th>
+                  <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>الامتحان</th>
+                  <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>المجموع</th>
+                  <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>التقدير</th>
+                </tr>
+              </thead>
+              <tbody>
+                {renderSubjectRowsReact(islamicSubjects)}
+              </tbody>
+            </table>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '9.5px', marginBottom: '6px' }}>
-            <thead>
-              <tr style={{ backgroundColor: bgSlateAsh, color: maroon, height: '20px', textAlign: 'center', fontWeight: 'bold' }}>
-                <th style={{ textAlign: 'right', paddingRight: '6px', border: `1.5px solid ${maroon}` }}>المواد</th>
-                <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>التقدير</th>
-                <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>المجموع</th>
-                <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>الامتحان</th>
-                <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>المستمر ٢</th>
-                <th style={{ width: '13%', border: `1.5px solid ${maroon}` }}>المستمر ١</th>
-              </tr>
-            </thead>
-            <tbody>
-              {renderSubjectRowsReact(islamicSubjects)}
-            </tbody>
-          </table>
 
           {/* ═══ AVERAGES & MARKS ROW (Arabic Only) ═══ */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '9px', marginBottom: '6px', textAlign: 'center' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: `1.5px solid ${maroon}`, fontSize: '8.5px', marginBottom: '4px', textAlign: 'center' }}>
             <tbody>
-              <tr style={{ backgroundColor: bgSlateAsh, height: '18px', fontWeight: 'bold', color: maroon }}>
-                <td style={{ width: '50%', border: `1.5px solid ${maroon}`, fontSize: '8.5px', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>المعدل النهائي</td>
-                <td style={{ width: '50%', border: `1.5px solid ${maroon}`, fontSize: '8.5px', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الدرجة الإجمالية</td>
+              <tr style={{ backgroundColor: bgSlateAsh, height: '16px', fontWeight: 'bold', color: maroon }}>
+                <td style={{ width: '50%', border: `1.5px solid ${maroon}`, fontSize: '8px', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>المعدل النهائي</td>
+                <td style={{ width: '50%', border: `1.5px solid ${maroon}`, fontSize: '8px', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>الدرجة الإجمالية</td>
               </tr>
-              <tr style={{ height: '26px', fontWeight: 'bold' }}>
-                <td style={{ border: `1.5px solid ${maroon}`, fontSize: '13px', color: maroon }}>
+              <tr style={{ height: '20px', fontWeight: 'bold' }}>
+                <td style={{ border: `1.5px solid ${maroon}`, fontSize: '11px', color: maroon }}>
                   {result.finalAverage || Math.round(finalPercentage)}%
                 </td>
-                <td style={{ border: `1.5px solid ${maroon}`, fontSize: '13px', color: maroon }}>
+                <td style={{ border: `1.5px solid ${maroon}`, fontSize: '11px', color: maroon }}>
                   {totalObtained}
                 </td>
               </tr>
@@ -833,8 +827,7 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1.5px solid ${maroon}`, borderBottom: `1.5px solid ${maroon}`, padding: '6px 0', fontSize: '10px', marginTop: '4px', direction: 'rtl', textAlign: 'right' }}>
             <div style={{ width: '32%' }}>
-              <span style={{ fontWeight: 'bold', fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>التوقيع:</span>
-              <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '60%', minHeight: '12px', verticalAlign: 'bottom', textAlign: 'center' }}>
+              <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '75%', minHeight: '12px', verticalAlign: 'bottom', textAlign: 'center' }}>
                 {(tenant as any)?.branding?.principalSignature ? (
                   <img src={(tenant as any).branding.principalSignature} style={{ maxHeight: '16px', objectFit: 'contain' }} alt="Signature" />
                 ) : ''}

@@ -366,11 +366,15 @@ export const renderNurseryReport = async (
           border: 3.5px double ${primaryColor};
           padding: 8px;
           width: 100%;
-          height: calc(297mm - 10mm);
+          min-height: calc(297mm - 10mm);
+          height: auto;
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
+        }
+        tr {
+          page-break-inside: avoid;
         }
       </style>
     </head>

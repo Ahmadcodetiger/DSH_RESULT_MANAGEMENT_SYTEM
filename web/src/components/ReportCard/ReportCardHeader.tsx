@@ -14,7 +14,15 @@ export const ReportCardHeader: React.FC<ReportCardHeaderProps> = ({
   result,
   student,
 }) => {
-  const logo = tenant?.branding?.logo || schoolSettings?.logo || '/logo.png';
+  // Arabic label check: show Arabic only for Islamic / Tahfeez / Hybrid schools (when result has Islamic/Tahfeez subjects)
+  const allSubjects = result?.subjects || [];
+  const hasIslamicOrTahfeez = allSubjects.some(
+    (s: any) => s.section === 'islamic' || s.section === 'tahfeezh'
+  );
+
+  const logo = hasIslamicOrTahfeez
+    ? (tenant?.branding?.islamicLogo || schoolSettings?.islamicLogo || tenant?.branding?.logo || schoolSettings?.logo || '/logo.png')
+    : (tenant?.branding?.logo || schoolSettings?.logo || '/logo.png');
   const schoolName = tenant?.name || schoolSettings?.schoolName || 'SMART SCHOOL';
   const schoolNameArabic = tenant?.nameArabic || schoolSettings?.schoolNameArabic || '';
   const motto = tenant?.subHeader || schoolSettings?.motto || 'Learn Today, Lead Tomorrow';
@@ -25,12 +33,6 @@ export const ReportCardHeader: React.FC<ReportCardHeaderProps> = ({
 
   const term = result?.term || schoolSettings?.currentTerm || '';
   const session = result?.academicYear || schoolSettings?.currentAcademicYear || '';
-
-  // Arabic label check: show Arabic only for Islamic / Tahfeez / Hybrid schools (when result has Islamic/Tahfeez subjects)
-  const allSubjects = result?.subjects || [];
-  const hasIslamicOrTahfeez = allSubjects.some(
-    (s: any) => s.section === 'islamic' || s.section === 'tahfeezh'
-  );
 
   const headerColor = '#1e3a8a'; // Dark Blue
 

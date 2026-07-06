@@ -8,6 +8,7 @@ export interface ITenantBranding {
   loginBanner: string;
   schoolStamp: string;
   principalSignature: string;
+  islamicLogo?: string;
 }
 
 export interface ITenantContact {
@@ -181,6 +182,7 @@ const TenantSchema = new Schema<ITenant>(
       loginBanner: { type: String, default: '' },
       schoolStamp: { type: String, default: '' },
       principalSignature: { type: String, default: '' },
+      islamicLogo: { type: String, default: '' },
     },
 
     // Contact Info
