@@ -65,7 +65,16 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const paramOverride = urlParams.get('tenant');
       const paramMode = urlParams.get('mode');
       
-      let localOverride = localStorage.getItem('huffaz_tenant_override') || 'darulhikmah';
+      const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+      const isVercel = hostname.endsWith('.vercel.app');
+
+      let localOverride = localStorage.getItem('huffaz_tenant_override');
+      
+      // On localhost, default to 'darulhikmah' if no override is set. On Vercel, default to 'saas'
+      if (!localOverride) {
+        localOverride = isLocalHost ? 'darulhikmah' : 'saas';
+      }
+
       if (paramOverride) {
         localOverride = paramOverride;
         localStorage.setItem('huffaz_tenant_override', paramOverride);
@@ -75,8 +84,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         localStorage.setItem('huffaz_tenant_override', 'saas');
       }
 
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        // If testing on localhost, we allow manual/localStorage toggle or default to 'darulhikmah'
+      if (isLocalHost || isVercel) {
+        // If testing on localhost or vercel deployment, we allow manual/localStorage toggle
         if (localOverride === 'saas') {
           slug = null;
           setIsSaaSMode(true);

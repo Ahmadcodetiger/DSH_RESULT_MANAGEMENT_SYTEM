@@ -45,8 +45,8 @@ function extractSubdomain(host: string): string | null {
   // Strip port if present
   const hostname = host.split(':')[0];
 
-  // Skip if localhost or IP address
-  if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+  // Skip if localhost, IP address, or Vercel deployment domains
+  if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname.endsWith('.vercel.app')) {
     return null;
   }
 

@@ -26,6 +26,13 @@ const SubjectSchema = new Schema(
       required: true,
       // Grouping category
     },
+    classSection: {
+      type: String,
+      default: '',
+      trim: true,
+      index: true,
+      // Grouping class section, e.g. "Foundation", "Primary", "Secondary"
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -36,8 +43,8 @@ const SubjectSchema = new Schema(
   }
 );
 
-// Compound index: subject name unique within a tenant
-SubjectSchema.index({ tenantId: 1, name: 1 }, { unique: true });
+// Compound index: subject name unique within a tenant and class section
+SubjectSchema.index({ tenantId: 1, name: 1, classSection: 1 }, { unique: true });
 SubjectSchema.index({ tenantId: 1, section: 1, isActive: 1 });
 
 export default model('Subject', SubjectSchema);

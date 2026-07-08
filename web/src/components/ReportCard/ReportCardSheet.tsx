@@ -595,9 +595,9 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
             <div style={{ fontSize: '12px', fontWeight: 700, color: maroon, fontFamily: "'Times New Roman', Times, serif", letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '2px' }}>
               {schoolNameEn}
             </div>
-            <div style={{ fontSize: '9.5px', color: '#1e293b', fontWeight: 'bold', lineHeight: 1.3, fontFamily: "'Times New Roman', Times, serif" }}>
-              {schoolAddress}<br />
-              Tel: {schoolPhone} | Email: {schoolEmail}
+            <div style={{ fontSize: '11px', color: royalBlue, fontWeight: 'bold', lineHeight: 1.3, fontFamily: "'Times New Roman', Times, serif", direction: 'ltr' }}>
+              <span style={{ color: royalBlue }}>{schoolAddress}</span><br />
+              <span style={{ color: royalBlue }}>Tel:</span> <span style={{ color: maroon }}>{schoolPhone}</span> <span style={{ color: royalBlue }}>|</span> <span style={{ color: royalBlue }}>Email:</span> <span style={{ color: maroon }}>{schoolEmail}</span>
             </div>
           </div>
 
@@ -990,18 +990,10 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
           <div>
             {renderChecklistTable('NUMERACY', 1, numPadded)}
             {renderChecklistTable('LITERACY', 2, litPadded)}
-            {renderChecklistTable('CREATIVE ART', 3, artPadded)}
-            {renderChecklistTable('SENSORIAL EDUCATION', 4, senPadded)}
-          </div>
-
-          <div>
-            {renderChecklistTable('RHYMES', 5, rhyPadded)}
-            {renderChecklistTable('SOCIAL & EMOTIONAL DEVELOPMENT', 6, socPadded)}
-            {renderChecklistTable('HANDWRITING', 7, hanPadded)}
 
             <div style={{ border: '1px solid #000000', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#ffffff' }}>
-              <div style={{ backgroundColor: '#1e40af', color: '#ffffff', textAlign: 'center', fontWeight: 'bold', fontSize: '11px', padding: '4px', textTransform: 'uppercase' }}>
-                8. Grading Key
+              <div style={{ backgroundColor: '#800020', color: '#ffffff', textAlign: 'center', fontWeight: 'bold', fontSize: '11px', padding: '4px', textTransform: 'uppercase' }}>
+                Grading Key
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', textAlign: 'center' }}>
                 <tbody>
@@ -1023,6 +1015,14 @@ export const ReportCardSheet: React.FC<ReportCardSheetProps> = ({
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div>
+            {renderChecklistTable('CREATIVE ART', 3, artPadded)}
+            {renderChecklistTable('SENSORIAL EDUCATION', 4, senPadded)}
+            {renderChecklistTable('RHYMES', 5, rhyPadded)}
+            {renderChecklistTable('SOCIAL & EMOTIONAL DEVELOPMENT', 6, socPadded)}
+            {renderChecklistTable('HANDWRITING', 7, hanPadded)}
           </div>
         </div>
 

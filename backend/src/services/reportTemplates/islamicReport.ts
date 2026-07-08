@@ -30,11 +30,13 @@ export const renderIslamicReport = async (
   highestScore: number = 0,
   lowestScore: number = 0
 ) => {
-  const primaryColor = '#1c1917';
+  const primaryColor = '#800020'; // Maroon
   const secondaryColor = '#6b7280';
-  const borderColor = primaryColor;
+  const royalBlue = '#0a235c';
+  const borderColor = royalBlue; // Royal Blue borders
   const textColor = '#1c1917';
-  const maroon = '#1c1917';
+  const maroon = '#800020';
+  const ashColor = '#f1f5f9';
   
   let qrCodeDataUrl = '';
   try {
@@ -52,9 +54,9 @@ export const renderIslamicReport = async (
   const logo = tenant.branding?.islamicLogo || tenant.branding?.logo || SCHOOL_LOGO_BASE64;
   const schoolName    = tenant.name      || 'AL-QALAM ACADEMY';
   const schoolNameArabic = tenant.nameArabic || 'أكاديمية القلم كدونا';
-  const address       = tenant.contact?.address      || 'No. 2, Al-Qalam Street Rigasa, Kaduna.';
-  const phoneNumbers  = tenant.contact?.phoneNumbers || tenant.contact?.phone || '08035120756';
-  const email         = tenant.contact?.email        || 'aakaduna@gmail.com';
+  const address       = (tenant.contact?.address || '').trim().replace(/^\s*[•\.\-]\s*/, '').replace(/\s*\.\s*$/, '');
+  const phoneNumbers  = tenant.contact?.phoneNumbers || tenant.contact?.phone || '';
+  const email         = tenant.contact?.email        || '';
 
   const term    = result.term         || '';
   const session = result.academicYear || '';
@@ -158,13 +160,13 @@ export const renderIslamicReport = async (
 
       return `
         <tr style="border-bottom: 1.5px solid ${borderColor};">
-          <td style="padding: 4px 6px; border: 1.5px solid ${borderColor}; font-weight: bold; text-align: right; font-size: 10.5px; font-family: 'Cairo', sans-serif;">
+          <td style="padding: 4px 6px; border: 1.5px solid ${borderColor}; font-weight: bold; text-align: right; font-size: 10.5px; font-family: 'Noto Naskh Arabic', 'Cairo', sans-serif;">
             ${escapeHtml(subjectArabic)}
           </td>
           <td style="text-align: center; border: 1.5px solid ${borderColor}; font-size: 10px; width: 13%;">${ca1}</td>
           <td style="text-align: center; border: 1.5px solid ${borderColor}; font-size: 10px; width: 13%;">${ca2}</td>
           <td style="text-align: center; border: 1.5px solid ${borderColor}; font-size: 10px; width: 13%;">${exam}</td>
-          <td style="text-align: center; border: 1.5px solid ${borderColor}; font-weight: bold; font-size: 10.5px; background-color: #f1f5f9; color: ${primaryColor}; width: 13%;">${total}</td>
+          <td style="text-align: center; border: 1.5px solid ${borderColor}; font-weight: bold; font-size: 10.5px; background-color: ${ashColor}; color: ${primaryColor}; width: 13%;">${total}</td>
           <td style="text-align: center; border: 1.5px solid ${borderColor}; font-weight: bold; font-size: 10.5px; width: 13%;">${grade}</td>
         </tr>
       `;
@@ -211,7 +213,7 @@ export const renderIslamicReport = async (
       <meta charset="UTF-8">
       <title>Report Card - ${escapeHtml(student.name)}</title>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;500;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;500;700;800&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -221,7 +223,7 @@ export const renderIslamicReport = async (
         }
 
         body {
-          font-family: 'Tajawal', 'Cairo', 'Amiri', 'Tahoma', 'Arial', sans-serif;
+          font-family: 'Noto Naskh Arabic', 'Cairo', 'Tajawal', 'Amiri', sans-serif;
           color: ${textColor};
           background: #ffffff;
           font-size: 9px;
@@ -233,7 +235,7 @@ export const renderIslamicReport = async (
         }
 
         .outer-border {
-          border: 3.5px double ${maroon};
+          border: 3.5px double ${borderColor};
           padding: 10px;
           width: 100%;
           height: 281mm;
@@ -246,7 +248,7 @@ export const renderIslamicReport = async (
         }
 
         .tnr { font-family: 'Times New Roman', Times, serif; }
-        .cairo { font-family: 'Tajawal', 'Cairo', 'Tahoma', sans-serif; }
+        .cairo { font-family: 'Noto Naskh Arabic', 'Cairo', 'Tajawal', sans-serif; }
         tr { page-break-inside: avoid; }
       </style>
     </head>
@@ -254,39 +256,39 @@ export const renderIslamicReport = async (
       <div class="outer-border">
         <!-- TOP/MIDDLE CONTENT GROUP -->
         <div>
-          <div style="text-align: center; margin-bottom: 4px;">
-            <div style="margin-bottom: 2.5px;">
-              <img src="${logo.startsWith('data:') ? logo : SCHOOL_LOGO_BASE64}" style="width: 52px; height: 52px; object-fit: contain;" alt="Logo" />
+          <div style="text-align: center; margin-bottom: 8px;">
+            <div style="margin-bottom: 3.5px;">
+              <img src="${logo.startsWith('data:') ? logo : SCHOOL_LOGO_BASE64}" style="width: 75px; height: 75px; object-fit: contain;" alt="Logo" />
             </div>
-            <div class="cairo" style="font-size: 20px; font-weight: 800; color: ${maroon}; line-height: 1.05; margin-bottom: 1.5px;">
+            <div class="cairo" style="font-size: 24px; font-weight: 800; color: ${maroon}; line-height: 1.05; margin-bottom: 2px;">
               ${escapeHtml(schoolNameArabic)}
             </div>
-            <div class="tnr" style="font-size: 12px; font-weight: 700; color: ${maroon}; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 1.5px;">
+            <div class="tnr" style="font-size: 15px; font-weight: 700; color: ${maroon}; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 2px;">
               ${escapeHtml(schoolName)}
             </div>
-            <div class="tnr" style="font-size: 9px; color: #1e293b; font-weight: bold; line-height: 1.2;">
-              ${escapeHtml(address)}<br>
-              Tel: ${escapeHtml(phoneNumbers)} | Email: ${escapeHtml(email)}
+            <div class="tnr" style="font-size: 11px; color: ${royalBlue}; font-weight: bold; line-height: 1.25; direction: ltr;">
+              <span style="color: ${royalBlue};">${escapeHtml(address.replace(/\.+$/, ''))}</span><br>
+              <span style="color: ${royalBlue};">Tel:</span> <span style="color: ${maroon};">${escapeHtml(phoneNumbers)}</span> <span style="color: ${royalBlue};">|</span> <span style="color: ${royalBlue};">Email:</span> <span style="color: ${maroon};">${escapeHtml(email)}</span>
             </div>
           </div>
 
           <!-- ═══ STUDENT INFO BOX GRID ═══ -->
-          <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; margin-bottom: 4px; font-size: 9.5px;">
+          <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; margin-bottom: 6px; font-size: 11px;">
             <tbody>
               <tr>
-                <td style="border: 1.5px solid ${borderColor}; padding: 3.5px 6px; width: 33.33%;">
+                <td style="border: 1.5px solid ${borderColor}; padding: 5px 8px; width: 33.33%;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span class="cairo" style="font-weight: bold; color: ${textColor};">المستوى:</span>
                     <span style="font-weight: bold;">${escapeHtml(student.level || result.level)}</span>
                   </div>
                 </td>
-                <td style="border: 1.5px solid ${borderColor}; padding: 3.5px 6px; width: 33.33%;">
+                <td style="border: 1.5px solid ${borderColor}; padding: 5px 8px; width: 33.33%;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span class="cairo" style="font-weight: bold; color: ${textColor};">اسم الطالب/ة:</span>
-                    <span style="font-weight: bold; font-family: 'Tajawal', 'Cairo', sans-serif;">${escapeHtml(student.nameArabic || student.name)}</span>
+                    <span style="font-weight: bold; font-family: 'Noto Naskh Arabic', 'Tajawal', 'Cairo', sans-serif;">${escapeHtml(student.nameArabic || student.name)}</span>
                   </div>
                 </td>
-                <td style="border: 1.5px solid ${borderColor}; padding: 3.5px 6px; width: 33.33%;">
+                <td style="border: 1.5px solid ${borderColor}; padding: 5px 8px; width: 33.33%;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span class="cairo" style="font-weight: bold; color: ${textColor};">رقم الطالب:</span>
                     <span style="font-weight: bold;">${escapeHtml(student.admissionNumber)}</span>
@@ -294,19 +296,19 @@ export const renderIslamicReport = async (
                 </td>
               </tr>
               <tr>
-                <td style="border: 1.5px solid ${borderColor}; padding: 3.5px 6px;">
+                <td style="border: 1.5px solid ${borderColor}; padding: 5px 8px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span class="cairo" style="font-weight: bold; color: ${textColor};">القسم:</span>
                     <span style="font-weight: bold;">${escapeHtml(student.section || result.section)}</span>
                   </div>
                 </td>
-                <td style="border: 1.5px solid ${borderColor}; padding: 3.5px 6px;">
+                <td style="border: 1.5px solid ${borderColor}; padding: 5px 8px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span class="cairo" style="font-weight: bold; color: ${textColor};">العام الدراسي:</span>
                     <span style="font-weight: bold;">${escapeHtml(session)}</span>
                   </div>
                 </td>
-                <td style="border: 1.5px solid ${borderColor}; padding: 3.5px 6px;">
+                <td style="border: 1.5px solid ${borderColor}; padding: 5px 8px;">
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                     <span class="cairo" style="font-weight: bold; color: ${textColor};">التقدير العام:</span>
                     <span style="font-weight: bold;">${escapeHtml(result.generalGrade || '—')}</span>
@@ -317,25 +319,25 @@ export const renderIslamicReport = async (
           </table>
 
           <!-- ═══ BANNER SUBTITLE ═══ -->
-          <div style="background-color: ${maroon}; color: white; height: 18px; display: flex; justify-content: center; align-items: center; font-weight: bold; margin-bottom: 4px;">
-            <span class="cairo" style="font-size: 9.5px;">كشف درجات الامتحان والتقييم - ${escapeHtml(translateTermToArabic(term))}</span>
+          <div style="background-color: ${royalBlue}; color: white; height: 24px; display: flex; justify-content: center; align-items: center; font-weight: bold; margin-bottom: 6px;">
+            <span class="cairo" style="font-size: 11px;">كشف درجات الامتحان والتقييم - ${escapeHtml(translateTermToArabic(term))}</span>
           </div>
 
           <!-- ═══ TAHFEEZH SECTION ═══ -->
           ${tahfeezSubjects.length > 0 ? `
           <div style="margin-bottom: 4px;">
-            <div class="cairo" style="font-weight: bold; color: ${maroon}; background-color: #f1f5f9; border: 1.5px solid ${maroon}; padding: 2px 5px; font-size: 9px; margin-bottom: 2px; text-align: right;">
+            <div class="cairo" style="font-weight: bold; color: white; background-color: ${royalBlue}; border: 1.5px solid ${borderColor}; padding: 2px 5px; font-size: 9px; margin-bottom: 2px; text-align: right;">
               قسم التحفيظ
             </div>
-            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${maroon}; font-size: 9px;">
+            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; font-size: 9px;">
               <thead>
-                <tr style="background-color: #f1f5f9; color: ${maroon}; height: 18px; text-align: center; font-weight: bold;">
-                  <th style="text-align: right; padding-right: 6px; border: 1.5px solid ${maroon};">المواد</th>
-                  <th style="width: 17%; border: 1.5px solid ${maroon};">المستمر ١</th>
-                  <th style="width: 17%; border: 1.5px solid ${maroon};">المستمر ٢</th>
-                  <th style="width: 16%; border: 1.5px solid ${maroon};">الامتحان</th>
-                  <th style="width: 19%; border: 1.5px solid ${maroon};">المجموع</th>
-                  <th style="width: 15%; border: 1.5px solid ${maroon};">التقدير</th>
+                <tr style="background-color: ${ashColor}; color: ${royalBlue}; height: 18px; text-align: center; font-weight: bold;">
+                  <th style="text-align: right; padding-right: 6px; border: 1.5px solid ${borderColor};">المواد</th>
+                  <th style="width: 17%; border: 1.5px solid ${borderColor};">الاختبارات 1</th>
+                  <th style="width: 17%; border: 1.5px solid ${borderColor};">الاختبارات 2</th>
+                  <th style="width: 16%; border: 1.5px solid ${borderColor};">الامتحانات</th>
+                  <th style="width: 19%; border: 1.5px solid ${borderColor};">المجموع</th>
+                  <th style="width: 15%; border: 1.5px solid ${borderColor};">التقدير</th>
                 </tr>
               </thead>
               <tbody>
@@ -346,26 +348,26 @@ export const renderIslamicReport = async (
 
           <!-- ═══ HIFZ DETAILS ═══ -->
           <div style="margin-bottom: 4px;">
-            <div class="cairo" style="font-weight: bold; color: ${maroon}; background-color: #f1f5f9; border: 1.5px solid ${maroon}; padding: 2px 5px; font-size: 9px; margin-bottom: 2px; text-align: right;">
+            <div class="cairo" style="font-weight: bold; color: white; background-color: ${royalBlue}; border: 1.5px solid ${borderColor}; padding: 2px 5px; font-size: 9px; margin-bottom: 2px; text-align: right;">
               بيانات التحفيظ
             </div>
-            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${maroon}; font-size: 9px; text-align: right;">
+            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; font-size: 9px; text-align: right;">
               <tbody>
                 <tr>
-                  <td style="padding: 4px 6px; font-weight: bold; background-color: #f1f5f9; width: 35%; color: ${maroon}; border: 1px solid ${maroon};">إجمالي أيام الحفظ</td>
-                  <td style="padding: 4px 6px; font-weight: bold; text-align: center; width: 15%; border: 1px solid ${maroon};">${result.tahfeezhDetails?.absenceOfHifz || 0}</td>
-                  <td style="padding: 4px 6px; font-weight: bold; background-color: #f1f5f9; width: 25%; color: ${maroon}; border: 1px solid ${maroon};">الغياب والطلب</td>
-                  <td style="padding: 4px 6px; font-size: 8px; text-align: center; direction: ltr; width: 25%; border: 1px solid ${maroon};">
+                  <td style="padding: 4px 6px; font-weight: bold; background-color: ${ashColor}; width: 35%; color: ${royalBlue}; border: 1px solid ${borderColor};">إجمالي أيام الحفظ</td>
+                  <td style="padding: 4px 6px; font-weight: bold; text-align: center; width: 15%; border: 1px solid ${borderColor};">${result.tahfeezhDetails?.absenceOfHifz || 0}</td>
+                  <td style="padding: 4px 6px; font-weight: bold; background-color: ${ashColor}; width: 25%; color: ${royalBlue}; border: 1px solid ${borderColor};">الغياب والطلب</td>
+                  <td style="padding: 4px 6px; font-size: 8px; text-align: center; direction: ltr; width: 25%; border: 1px solid ${borderColor};">
                     Absent: ${result.tahfeezhDetails?.daysAbsent ?? (timesOpened - timesPresent)} &nbsp;|&nbsp; Present: ${result.tahfeezhDetails?.daysPresent ?? timesPresent}
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding: 4px 6px; font-weight: bold; background-color: #f1f5f9; color: ${maroon}; border: 1px solid ${maroon};">من سورة إلى سورة</td>
-                  <td style="padding: 4px 6px; font-weight: bold; text-align: center; direction: rtl; border: 1px solid ${maroon};">
+                  <td style="padding: 4px 6px; font-weight: bold; background-color: ${ashColor}; color: ${royalBlue}; border: 1px solid ${borderColor};">من سورة إلى سورة</td>
+                  <td style="padding: 4px 6px; font-weight: bold; text-align: center; direction: rtl; border: 1px solid ${borderColor};">
                     من ${escapeHtml(result.tahfeezhDetails?.fromSurah || '—')} إلى ${escapeHtml(result.tahfeezhDetails?.toSurah || '—')}
                   </td>
-                  <td style="padding: 4px 6px; font-weight: bold; background-color: #f1f5f9; color: ${maroon}; border: 1px solid ${maroon};">أوجه الحفظ</td>
-                  <td style="padding: 4px 6px; font-weight: bold; text-align: center; border: 1px solid ${maroon};">${result.tahfeezhDetails?.memorizedPages || '—'}</td>
+                  <td style="padding: 4px 6px; font-weight: bold; background-color: ${ashColor}; color: ${royalBlue}; border: 1px solid ${borderColor};">أوجه الحفظ</td>
+                  <td style="padding: 4px 6px; font-weight: bold; text-align: center; border: 1px solid ${borderColor};">${result.tahfeezhDetails?.memorizedPages || '—'}</td>
                 </tr>
               </tbody>
             </table>
@@ -375,18 +377,18 @@ export const renderIslamicReport = async (
           <!-- ═══ ISLAMIC STUDIES TABLE ═══ -->
           ${islamicSubjects.length > 0 ? `
           <div style="margin-bottom: 4px;">
-            <div class="cairo" style="font-weight: bold; color: ${maroon}; background-color: #f1f5f9; border: 1.5px solid ${maroon}; padding: 2px 5px; font-size: 9px; margin-bottom: 2px;">
+            <div class="cairo" style="font-weight: bold; color: white; background-color: ${royalBlue}; border: 1.5px solid ${borderColor}; padding: 2px 5px; font-size: 9px; margin-bottom: 2px;">
               الدراسات الإسلامية
             </div>
-            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${maroon}; font-size: 9px; margin-bottom: 4px;">
+            <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; font-size: 9px; margin-bottom: 4px;">
               <thead>
-                <tr style="background-color: #f1f5f9; color: ${maroon}; height: 18px; text-align: center; font-weight: bold;">
-                  <th style="text-align: right; padding-right: 6px; border: 1.5px solid ${maroon};">المواد</th>
-                  <th style="width: 13%; border: 1.5px solid ${maroon};">المستمر ١</th>
-                  <th style="width: 13%; border: 1.5px solid ${maroon};">المستمر ٢</th>
-                  <th style="width: 13%; border: 1.5px solid ${maroon};">الامتحان</th>
-                  <th style="width: 13%; border: 1.5px solid ${maroon};">المجموع</th>
-                  <th style="width: 13%; border: 1.5px solid ${maroon};">التقدير</th>
+                <tr style="background-color: ${ashColor}; color: ${royalBlue}; height: 18px; text-align: center; font-weight: bold;">
+                  <th style="text-align: right; padding-right: 6px; border: 1.5px solid ${borderColor};">المواد</th>
+                  <th style="width: 13%; border: 1.5px solid ${borderColor};">الاختبارات 1</th>
+                  <th style="width: 13%; border: 1.5px solid ${borderColor};">الاختبارات 2</th>
+                  <th style="width: 13%; border: 1.5px solid ${borderColor};">الامتحانات</th>
+                  <th style="width: 13%; border: 1.5px solid ${borderColor};">المجموع</th>
+                  <th style="width: 13%; border: 1.5px solid ${borderColor};">التقدير</th>
                 </tr>
               </thead>
               <tbody>
@@ -397,17 +399,17 @@ export const renderIslamicReport = async (
           ` : ''}
 
           <!-- ═══ AVERAGES & MARKS ROW ═══ -->
-          <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${maroon}; font-size: 9px; margin-bottom: 4px; text-align: center;">
+          <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; font-size: 9px; margin-bottom: 4px; text-align: center;">
             <tbody>
-              <tr style="background-color: #f1f5f9; height: 15px; font-weight: bold; color: ${maroon};">
-                <td style="width: 50%; border: 1.5px solid ${maroon}; font-size: 8.5px;">المعدل النهائي</td>
-                <td style="width: 50%; border: 1.5px solid ${maroon}; font-size: 8.5px;">الدرجة الإجمالية</td>
+              <tr style="background-color: ${ashColor}; height: 15px; font-weight: bold; color: ${royalBlue};">
+                <td style="width: 50%; border: 1.5px solid ${borderColor}; font-size: 8.5px;">المعدل النهائي</td>
+                <td style="width: 50%; border: 1.5px solid ${borderColor}; font-size: 8.5px;">الدرجة الإجمالية</td>
               </tr>
               <tr style="height: 18px; font-weight: bold;">
-                <td style="border: 1.5px solid ${maroon}; font-size: 11px; color: ${maroon};">
+                <td style="border: 1.5px solid ${borderColor}; font-size: 11px; color: ${primaryColor};">
                   ${result.finalAverage || Math.round(finalPercentage)}%
                 </td>
-                <td style="border: 1.5px solid ${maroon}; font-size: 11px; color: ${maroon};">
+                <td style="border: 1.5px solid ${borderColor}; font-size: 11px; color: ${primaryColor};">
                   ${totalObtained}
                 </td>
               </tr>
@@ -418,23 +420,23 @@ export const renderIslamicReport = async (
           <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 8px; margin-top: 4px;">
             <!-- Left: Elements of Evaluation Table -->
             <div>
-              <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${maroon}; font-size: 8.5px;">
+              <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; font-size: 8.5px;">
                 <thead>
-                  <tr style="background-color: #f1f5f9; color: ${maroon}; height: 15px; font-weight: bold; text-align: center;">
-                    <th style="border: 1.5px solid ${maroon}; text-align: left; padding-left: 6px; width: 65%;">Elements of Evaluation / عناصر التقويم</th>
-                    <th style="border: 1.5px solid ${maroon}; width: 35%;">Rating / التقييم</th>
+                  <tr style="background-color: ${ashColor}; color: ${royalBlue}; height: 15px; font-weight: bold; text-align: center;">
+                    <th style="border: 1.5px solid ${borderColor}; text-align: left; padding-left: 6px; width: 65%;">Elements of Evaluation / عناصر التقويم</th>
+                    <th style="border: 1.5px solid ${borderColor}; width: 35%;">Rating / التقييم</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${elementsOfEvaluation.map(item => `
-                    <tr style="border-bottom: 1.5px solid ${maroon};">
-                      <td style="padding: 2.5px 4px; border: 1.5px solid ${maroon}; font-size: 7.5px;">
+                    <tr style="border-bottom: 1.5px solid ${borderColor};">
+                      <td style="padding: 2.5px 4px; border: 1.5px solid ${borderColor}; font-size: 7.5px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; direction: ltr;">
                           <span class="tnr" style="text-align: left;">${item.labelEn}</span>
-                          <span class="cairo" style="font-weight: bold; color: ${maroon}; font-size: 8px; text-align: right; direction: rtl;">${item.labelAr}</span>
+                          <span class="cairo" style="font-weight: bold; color: ${royalBlue}; font-size: 8px; text-align: right; direction: rtl;">${item.labelAr}</span>
                         </div>
                       </td>
-                      <td style="text-align: center; border: 1.5px solid ${maroon}; font-weight: bold; font-size: 8px; color: ${maroon};">
+                      <td style="text-align: center; border: 1.5px solid ${borderColor}; font-weight: bold; font-size: 8px; color: ${primaryColor};">
                         <div style="display: flex; justify-content: space-between; padding: 0 4px; direction: ltr;">
                           <span class="tnr" style="text-align: left;">${getRatingLabel(item.val)}</span>
                           <span class="cairo" style="text-align: right; direction: rtl;">${getRatingLabelAr(item.val)}</span>
@@ -449,47 +451,47 @@ export const renderIslamicReport = async (
             <!-- Right: Criteria & Level/Rating Tables -->
             <div style="display: flex; flex-direction: column; gap: 3.5px;">
               <!-- Table 1: Evaluation Criteria -->
-              <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${maroon}; text-align: center; font-size: 6.5px;">
+              <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; text-align: center; font-size: 6.5px;">
                 <thead>
-                  <tr style="background-color: #f1f5f9; color: ${maroon}; height: 13px; font-weight: bold;">
-                    <td style="border: 1.5px solid ${maroon};">Evaluation Criteria</td>
-                    <td style="border: 1.5px solid ${maroon};">معايير التقييم</td>
+                  <tr style="background-color: ${ashColor}; color: ${royalBlue}; height: 13px; font-weight: bold;">
+                    <td style="border: 1.5px solid ${borderColor};">Evaluation Criteria</td>
+                    <td style="border: 1.5px solid ${borderColor};">معايير التقييم</td>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">Excellent (A) 100-80</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">ممتاز (أ) ١٠٠-٨٠</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">V. Good (B) 79-70</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">جيد جداً (ب) ٧٩-٧٠</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">Good (C) 69-60</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">جيد (ج) ٦٩-٦٠</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">Pass (D) 59-50</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">مقبول (د) ٥٩-٥٠</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">Fail (F) 49-0</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">ضعيف (هـ) ٤٩-٠</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">Excellent (A) 100-80</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">ممتاز (أ) ١٠٠-٨٠</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">V. Good (B) 79-70</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">جيد جداً (ب) ٧٩-٧٠</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">Good (C) 69-60</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">جيد (ج) ٦٩-٦٠</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">Pass (D) 59-50</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">مقبول (د) ٥٩-٥٠</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">Fail (F) 49-0</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">ضعيف (هـ) ٤٩-٠</td></tr>
                 </tbody>
               </table>
 
               <!-- Table 2: Level/Rating -->
-              <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${maroon}; text-align: center; font-size: 6.5px;">
+              <table style="width: 100%; border-collapse: collapse; border: 1.5px solid ${borderColor}; text-align: center; font-size: 6.5px;">
                 <thead>
-                  <tr style="background-color: #f1f5f9; color: ${maroon}; height: 13px; font-weight: bold;">
-                    <td style="border: 1.5px solid ${maroon};">Level/Rating</td>
-                    <td style="border: 1.5px solid ${maroon};">مستوى التقييم</td>
+                  <tr style="background-color: ${ashColor}; color: ${royalBlue}; height: 13px; font-weight: bold;">
+                    <td style="border: 1.5px solid ${borderColor};">Level/Rating</td>
+                    <td style="border: 1.5px solid ${borderColor};">مستوى التقييم</td>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">5-Excellent</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">٥ - ممتاز</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">4-V. Good</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">٤ - جيد جداً</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">3-Good</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">٣ - جيد</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">2-Fair</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">٢ - مقبول</td></tr>
-                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${maroon};">1-Poor</td><td style="border: 1.5px solid ${maroon}; font-weight: bold;">١ - ضعيف</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">5-Excellent</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">٥ - ممتاز</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">4-V. Good</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">٤ - جيد جداً</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">3-Good</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">٣ - جيد</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">2-Fair</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">٢ - مقبول</td></tr>
+                  <tr style="height: 10.5px;"><td style="border: 1.5px solid ${borderColor};">1-Poor</td><td style="border: 1.5px solid ${borderColor}; font-weight: bold; color: ${primaryColor};">١ - ضعيف</td></tr>
                 </tbody>
               </table>
             </div>
           </div>
 
           <!-- ═══ SUPERVISOR'S RECOMMENDATIONS ═══ -->
-          <div style="border: 1.5px solid ${maroon}; margin-top: 3px; margin-bottom: 3px; font-size: 8.5px; direction: rtl; text-align: right;">
-            <div style="background-color: #f1f5f9; font-weight: bold; color: ${maroon}; padding: 3px 5px; border-bottom: 1.5px solid ${maroon};">
+          <div style="border: 1.5px solid ${borderColor}; margin-top: 3px; margin-bottom: 3px; font-size: 8.5px; direction: rtl; text-align: right;">
+            <div style="background-color: ${royalBlue}; font-weight: bold; color: white; padding: 3px 5px; border-bottom: 1.5px solid ${borderColor};">
               توصيات المشرف التربوي
             </div>
-            <div style="padding: 5px; min-height: 20px; font-style: italic; font-weight: bold; font-family: 'Tajawal', 'Cairo', sans-serif;">
+            <div style="padding: 5px; min-height: 20px; font-style: italic; font-weight: bold; font-family: 'Noto Naskh Arabic', 'Tajawal', 'Cairo', sans-serif;">
               ${escapeHtml(result.teacherRecommendations || result.headTeacherComments || '—')}
             </div>
           </div>
@@ -497,7 +499,7 @@ export const renderIslamicReport = async (
 
         <!-- ═══ BOTTOM SIGNATURE & INFO FOOTER (Pushed to bottom using margin-top: auto) ═══ -->
         <div style="margin-top: auto;">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1.5px solid ${maroon}; border-bottom: 1.5px solid ${maroon}; padding: 4px 0; font-size: 8.5px; direction: rtl; text-align: right;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1.5px solid ${borderColor}; border-bottom: 1.5px solid ${borderColor}; padding: 4px 0; font-size: 8.5px; direction: rtl; text-align: right;">
             <div style="width: 32%;">
               <span style="border-bottom: 1px solid #000; display: inline-block; width: 75%; min-height: 10px; vertical-align: bottom; text-align: center;">
                 ${tenant.branding?.principalSignature
@@ -507,13 +509,13 @@ export const renderIslamicReport = async (
               </span>
             </div>
             <div style="width: 38%; text-align: center;">
-              <span style="font-weight: bold;">رسوم الفترة القادمة:</span>
+              <span style="font-weight: bold; color: ${royalBlue};">رسوم الفترة القادمة:</span>
               <span style="border-bottom: 1px solid #000; display: inline-block; width: 45%; min-height: 10px; vertical-align: bottom;">
                 ${escapeHtml(result.nextTermSchoolFees || '—')}
               </span>
             </div>
             <div style="width: 30%; text-align: left;">
-              <span style="font-weight: bold;">بداية الفترة القادمة:</span>
+              <span style="font-weight: bold; color: ${royalBlue};">بداية الفترة القادمة:</span>
               <span style="border-bottom: 1px solid #000; display: inline-block; width: 40%; min-height: 10px; vertical-align: bottom;">
                 ${escapeHtml(result.nextTermBegins || '—')}
               </span>

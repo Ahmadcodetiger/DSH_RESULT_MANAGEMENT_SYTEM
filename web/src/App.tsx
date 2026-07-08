@@ -500,10 +500,16 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                   <thead>
                     <tr style={{ background: '#f5f5f5', borderBottom: '1px solid var(--border)' }}>
                       <th style={{ padding: '0.5rem', textAlign: 'left' }}>Subject</th>
-                      {isAlQalam ? (
+                      {isTahfeezOrIslamic ? (
                         <>
                           <th style={{ width: '120px', padding: '0.5rem' }}>C.A. (60)</th>
                           <th style={{ width: '120px', padding: '0.5rem' }}>Exam (40)</th>
+                        </>
+                      ) : isAlQalam ? (
+                        <>
+                          <th style={{ width: '80px', padding: '0.5rem' }}>CA 1 (30)</th>
+                          <th style={{ width: '80px', padding: '0.5rem' }}>CA 2 (30)</th>
+                          <th style={{ width: '80px', padding: '0.5rem' }}>Exam (40)</th>
                         </>
                       ) : (
                         <>
@@ -519,26 +525,52 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                   <tbody>
                     {editSubjects.map((s, idx) => {
                       if (isTahfeezOrIslamic && s.section === 'academic') return null;
+                      const isIslamicSubj = s.section === 'tahfeezh' || s.section === 'islamic';
+                      const isTahfeezOrIslamicSubj = isTahfeezOrIslamic || isIslamicSubj;
                       return (
                         <tr key={s.subjectName} style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '0.5rem' }}>
                             <strong>{s.subjectName}</strong>
                             <div style={{ fontSize: '0.8rem', color: '#666' }}>{s.subjectNameArabic}</div>
                           </td>
-                          {isAlQalam ? (
+                          {isTahfeezOrIslamicSubj ? (
                             <>
-                              <td style={{ padding: '0.5rem' }}>
+                              <td colSpan={2} style={{ padding: '0.5rem' }}>
                                 <input 
                                   type="number" 
-                                  value={s.score60 || 0} 
-                                  onChange={e => handleScoreEditChange(idx, 'score60', parseInt(e.target.value) || 0)} 
+                                  value={s.score60 === undefined || s.score60 === null ? '' : s.score60} 
+                                  onChange={e => handleScoreEditChange(idx, 'score60', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
                                 />
                               </td>
                               <td style={{ padding: '0.5rem' }}>
                                 <input 
                                   type="number" 
-                                  value={s.score40 || 0} 
-                                  onChange={e => handleScoreEditChange(idx, 'score40', parseInt(e.target.value) || 0)} 
+                                  value={s.score40 === undefined || s.score40 === null ? '' : s.score40} 
+                                  onChange={e => handleScoreEditChange(idx, 'score40', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                            </>
+                          ) : isAlQalam ? (
+                            <>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score20_1 === undefined || s.score20_1 === null ? '' : s.score20_1} 
+                                  onChange={e => handleScoreEditChange(idx, 'score20_1', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score20_2 === undefined || s.score20_2 === null ? '' : s.score20_2} 
+                                  onChange={e => handleScoreEditChange(idx, 'score20_2', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
+                                />
+                              </td>
+                              <td style={{ padding: '0.5rem' }}>
+                                <input 
+                                  type="number" 
+                                  value={s.score40 === undefined || s.score40 === null ? '' : s.score40} 
+                                  onChange={e => handleScoreEditChange(idx, 'score40', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
                                 />
                               </td>
                             </>
@@ -547,22 +579,22 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                               <td style={{ padding: '0.5rem' }}>
                                 <input 
                                   type="number" 
-                                  value={s.score20_1 || 0} 
-                                  onChange={e => handleScoreEditChange(idx, 'score20_1', parseInt(e.target.value) || 0)} 
+                                  value={s.score20_1 === undefined || s.score20_1 === null ? '' : s.score20_1} 
+                                  onChange={e => handleScoreEditChange(idx, 'score20_1', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
                                 />
                               </td>
                               <td style={{ padding: '0.5rem' }}>
                                 <input 
                                   type="number" 
-                                  value={s.score20_2 || 0} 
-                                  onChange={e => handleScoreEditChange(idx, 'score20_2', parseInt(e.target.value) || 0)} 
+                                  value={s.score20_2 === undefined || s.score20_2 === null ? '' : s.score20_2} 
+                                  onChange={e => handleScoreEditChange(idx, 'score20_2', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
                                 />
                               </td>
                               <td style={{ padding: '0.5rem' }}>
                                 <input 
                                   type="number" 
-                                  value={s.score60 || 0} 
-                                  onChange={e => handleScoreEditChange(idx, 'score60', parseInt(e.target.value) || 0)} 
+                                  value={s.score60 === undefined || s.score60 === null ? '' : s.score60} 
+                                  onChange={e => handleScoreEditChange(idx, 'score60', e.target.value === '' ? '' : parseInt(e.target.value) || 0)} 
                                 />
                               </td>
                             </>
@@ -1043,7 +1075,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                               <thead>
                                 <tr>
                                   <th>Subject</th>
-                                  {isAlQalam ? (
+                                  {isAlQalam || !result.subjects.some(subj => subj.section === 'tahfeezh' && ((Number(subj.score20_1) || 0) > 0 || (Number(subj.score20_2) || 0) > 0)) ? (
                                     <>
                                       <th style={{ width: '80px' }}>CA (60)</th>
                                       <th style={{ width: '80px' }}>Exam (40)</th>
@@ -1052,7 +1084,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                                     <>
                                       <th style={{ width: '60px' }}>CA 1</th>
                                       <th style={{ width: '60px' }}>CA 2</th>
-                                      <th style={{ width: '60px' }}>Exam</th>
+                                      <th style={{ width: '60px' }}>Exam (40)</th>
                                     </>
                                   )}
                                   <th style={{ width: '70px' }}>Total</th>
@@ -1060,28 +1092,31 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                                 </tr>
                               </thead>
                               <tbody>
-                                {result.subjects.filter(s => s.section === 'tahfeezh').map(s => (
-                                  <tr key={s.subjectName}>
-                                    <td>
-                                      <div>{s.subjectName}</div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
-                                    </td>
-                                    {isAlQalam ? (
-                                      <>
-                                        <td>{s.score60}</td>
-                                        <td>{s.score40}</td>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <td>{s.score20_1}</td>
-                                        <td>{s.score20_2}</td>
-                                        <td>{s.score60}</td>
-                                      </>
-                                    )}
-                                    <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
-                                    <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
-                                  </tr>
-                                ))}
+                                {result.subjects.filter(s => s.section === 'tahfeezh').map(s => {
+                                  const hasSplit = (Number(s.score20_1) || 0) > 0 || (Number(s.score20_2) || 0) > 0;
+                                  return (
+                                    <tr key={s.subjectName}>
+                                      <td>
+                                        <div>{s.subjectName}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
+                                      </td>
+                                      {isAlQalam || !hasSplit ? (
+                                        <>
+                                          <td>{s.score60}</td>
+                                          <td>{s.score40}</td>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <td>{s.score20_1}</td>
+                                          <td>{s.score20_2}</td>
+                                          <td>{s.score40}</td>
+                                        </>
+                                      )}
+                                      <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
+                                      <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -1093,7 +1128,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                               <thead>
                                 <tr>
                                   <th>Subject</th>
-                                  {isAlQalam ? (
+                                  {isAlQalam || !result.subjects.some(subj => subj.section === 'islamic' && ((Number(subj.score20_1) || 0) > 0 || (Number(subj.score20_2) || 0) > 0)) ? (
                                     <>
                                       <th style={{ width: '80px' }}>CA (60)</th>
                                       <th style={{ width: '80px' }}>Exam (40)</th>
@@ -1102,7 +1137,7 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                                     <>
                                       <th style={{ width: '60px' }}>CA 1</th>
                                       <th style={{ width: '60px' }}>CA 2</th>
-                                      <th style={{ width: '60px' }}>Exam</th>
+                                      <th style={{ width: '60px' }}>Exam (40)</th>
                                     </>
                                   )}
                                   <th style={{ width: '70px' }}>Total</th>
@@ -1110,28 +1145,31 @@ function ResultSheetViewerModal({ result, token, onClose, student: propStudent, 
                                 </tr>
                               </thead>
                               <tbody>
-                                {result.subjects.filter(s => s.section === 'islamic').map(s => (
-                                  <tr key={s.subjectName}>
-                                    <td>
-                                      <div>{s.subjectName}</div>
-                                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
-                                    </td>
-                                    {isAlQalam ? (
-                                      <>
-                                        <td>{s.score60}</td>
-                                        <td>{s.score40}</td>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <td>{s.score20_1}</td>
-                                        <td>{s.score20_2}</td>
-                                        <td>{s.score60}</td>
-                                      </>
-                                    )}
-                                    <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
-                                    <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
-                                  </tr>
-                                ))}
+                                {result.subjects.filter(s => s.section === 'islamic').map(s => {
+                                  const hasSplit = (Number(s.score20_1) || 0) > 0 || (Number(s.score20_2) || 0) > 0;
+                                  return (
+                                    <tr key={s.subjectName}>
+                                      <td>
+                                        <div>{s.subjectName}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
+                                      </td>
+                                      {isAlQalam || !hasSplit ? (
+                                        <>
+                                          <td>{s.score60}</td>
+                                          <td>{s.score40}</td>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <td>{s.score20_1}</td>
+                                          <td>{s.score20_2}</td>
+                                          <td>{s.score40}</td>
+                                        </>
+                                      )}
+                                      <td style={{ fontWeight: 'bold' }}>{s.score100}</td>
+                                      <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{s.grade}</td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -2186,9 +2224,9 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
   // Whether this teacher sees Attendance Summary
   const canSeeAttendance = true; // all teachers (class master or not) see attendance
 
-  const fetchActiveSubjects = async () => {
+  const fetchActiveSubjects = async (lvl?: string, sec?: string) => {
     try {
-      const res = await subjectService.getSubjects(true);
+      const res = await subjectService.getSubjects(true, undefined, lvl, sec);
       setSubjectsList(res || []);
       const initialGrades = (res || []).map((s: any) => ({
         subjectName: s.name,
@@ -2209,8 +2247,8 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
   };
 
   useEffect(() => {
-    fetchActiveSubjects();
-  }, []);
+    fetchActiveSubjects(selectedLevel || undefined, selectedSection || undefined);
+  }, [selectedLevel, selectedSection]);
 
   useEffect(() => {
     if (teacher.assignedClasses && teacher.assignedClasses.length > 0) {
@@ -2827,10 +2865,16 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                     <thead>
                       <tr>
                         <th>Subject Name</th>
-                        {isAlQalam ? (
+                        {isClassTahfeez ? (
                           <>
                             <th style={{ width: '100px' }}>C.A. (60)</th>
                             <th style={{ width: '100px' }}>Exam (40)</th>
+                          </>
+                        ) : isAlQalam ? (
+                          <>
+                            <th style={{ width: '80px' }}>CA 1 (30)</th>
+                            <th style={{ width: '80px' }}>CA 2 (30)</th>
+                            <th style={{ width: '80px' }}>Exam (40)</th>
                           </>
                         ) : (
                           <>
@@ -2846,22 +2890,24 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                     <tbody>
                       {subjectGrades.map((s, idx) => {
                         if (!showAll && s.subjectName !== subjectName) return null;
+                        const isIslamicSubj = s.section === 'tahfeezh' || s.section === 'islamic';
+                        const isTahfeezOrIslamicSubj = isClassTahfeez || isIslamicSubj;
                         return (
                           <tr key={s.subjectName}>
                             <td className="subject-name-cell">
                               <div className="subject-name-en">{s.subjectName}</div>
                               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-arabic)' }}>{s.subjectNameArabic}</div>
                             </td>
-                            {isAlQalam ? (
+                            {isTahfeezOrIslamicSubj ? (
                               <>
-                                <td data-label="C.A. (60)">
+                                <td colSpan={2} data-label="C.A. (60)">
                                   <input 
                                     type="number" 
                                     min={0} 
                                     max={60}
                                     className="score-input"
-                                    value={s.score60 || 0} 
-                                    onChange={e => handleScoreChange(idx, 'score60', Math.min(60, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    value={s.score60 === undefined || s.score60 === null ? '' : s.score60} 
+                                    onChange={e => handleScoreChange(idx, 'score60', e.target.value === '' ? '' : Math.min(60, Math.max(0, parseInt(e.target.value) || 0)))}
                                   />
                                 </td>
                                 <td data-label="Exam (40)">
@@ -2870,8 +2916,41 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                                     min={0} 
                                     max={40}
                                     className="score-input"
-                                    value={s.score40 || 0} 
-                                    onChange={e => handleScoreChange(idx, 'score40', Math.min(40, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    value={s.score40 === undefined || s.score40 === null ? '' : s.score40} 
+                                    onChange={e => handleScoreChange(idx, 'score40', e.target.value === '' ? '' : Math.min(40, Math.max(0, parseInt(e.target.value) || 0)))}
+                                  />
+                                </td>
+                              </>
+                            ) : isAlQalam ? (
+                              <>
+                                <td data-label="CA 1 (30)">
+                                  <input 
+                                    type="number" 
+                                    min={0} 
+                                    max={30}
+                                    className="score-input"
+                                    value={s.score20_1 === undefined || s.score20_1 === null ? '' : s.score20_1} 
+                                    onChange={e => handleScoreChange(idx, 'score20_1', e.target.value === '' ? '' : Math.min(30, Math.max(0, parseInt(e.target.value) || 0)))}
+                                  />
+                                </td>
+                                <td data-label="CA 2 (30)">
+                                  <input 
+                                    type="number" 
+                                    min={0} 
+                                    max={30}
+                                    className="score-input"
+                                    value={s.score20_2 === undefined || s.score20_2 === null ? '' : s.score20_2} 
+                                    onChange={e => handleScoreChange(idx, 'score20_2', e.target.value === '' ? '' : Math.min(30, Math.max(0, parseInt(e.target.value) || 0)))}
+                                  />
+                                </td>
+                                <td data-label="Exam (40)">
+                                  <input 
+                                    type="number" 
+                                    min={0} 
+                                    max={40}
+                                    className="score-input"
+                                    value={s.score40 === undefined || s.score40 === null ? '' : s.score40} 
+                                    onChange={e => handleScoreChange(idx, 'score40', e.target.value === '' ? '' : Math.min(40, Math.max(0, parseInt(e.target.value) || 0)))}
                                   />
                                 </td>
                               </>
@@ -2883,8 +2962,8 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                                     min={0} 
                                     max={20}
                                     className="score-input"
-                                    value={s.score20_1} 
-                                    onChange={e => handleScoreChange(idx, 'score20_1', Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    value={s.score20_1 === undefined || s.score20_1 === null ? '' : s.score20_1} 
+                                    onChange={e => handleScoreChange(idx, 'score20_1', e.target.value === '' ? '' : Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
                                   />
                                 </td>
                                 <td data-label="CA 2 (20)">
@@ -2893,8 +2972,8 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                                     min={0} 
                                     max={20}
                                     className="score-input"
-                                    value={s.score20_2} 
-                                    onChange={e => handleScoreChange(idx, 'score20_2', Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    value={s.score20_2 === undefined || s.score20_2 === null ? '' : s.score20_2} 
+                                    onChange={e => handleScoreChange(idx, 'score20_2', e.target.value === '' ? '' : Math.min(20, Math.max(0, parseInt(e.target.value) || 0)))}
                                   />
                                 </td>
                                 <td data-label="Exam (60)">
@@ -2903,8 +2982,8 @@ function TeacherDashboardView({ tenant, teacher, schoolSettings }: { tenant: any
                                     min={0} 
                                     max={60}
                                     className="score-input"
-                                    value={s.score60} 
-                                    onChange={e => handleScoreChange(idx, 'score60', Math.min(60, Math.max(0, parseInt(e.target.value) || 0)))}
+                                    value={s.score60 === undefined || s.score60 === null ? '' : s.score60} 
+                                    onChange={e => handleScoreChange(idx, 'score60', e.target.value === '' ? '' : Math.min(60, Math.max(0, parseInt(e.target.value) || 0)))}
                                   />
                                 </td>
                               </>

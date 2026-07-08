@@ -23,6 +23,7 @@ import {
   uploadStudents,
   getStudents,
   deleteStudent,
+  deleteStudentsBatch,
   updateStudent,
   deleteResult,
   toggleResultApproval,
@@ -175,6 +176,7 @@ router.post('/admin/students/upload', requireTenant, authenticateToken, tenantGu
 router.get('/admin/students', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN', 'ACCOUNTANT', 'DIRECTOR']), getStudents);
 router.put('/admin/students/:id', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN']), updateStudent);
 router.delete('/admin/students/:id', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN']), deleteStudent);
+router.post('/admin/students/delete-batch', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN']), deleteStudentsBatch);
 router.post('/admin/students/promote', requireTenant, authenticateToken, tenantGuard, requireRole(['ADMIN']), promoteStudents);
 
 // --- School Class Management (Admin Only) ---

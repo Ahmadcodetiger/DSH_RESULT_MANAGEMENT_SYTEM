@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Amiri:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
 
 :root {
   /* Color System */
@@ -40,7 +40,7 @@
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Times New Roman', 'Times', 'Outfit', sans-serif;
-  --font-arabic: 'Amiri', serif;
+  --font-arabic: 'Noto Naskh Arabic', 'Amiri', serif;
 
   /* Elevation */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -2930,4 +2930,15 @@ input:focus, select:focus, textarea:focus {
 :root.tenant-alqalam .parent-result-card:hover {
   border-color: #1a3a9c !important;
 }
+
+/* Custom font-family override for Islamic / Tahfeez report cards */
+.islamic-bilingual-reportsheet[style*="Cairo"],
+.islamic-bilingual-reportsheet[style*="Tajawal"],
+.islamic-bilingual-reportsheet[style*="Amiri"],
+.islamic-bilingual-reportsheet [style*="Cairo"],
+.islamic-bilingual-reportsheet [style*="Tajawal"],
+.islamic-bilingual-reportsheet [style*="Amiri"] {
+  font-family: 'Noto Naskh Arabic', 'Cairo', 'Tajawal', 'Amiri', sans-serif !important;
+}
+
 

@@ -122,6 +122,11 @@ export default function AdminDashboardView({
   const [settingsLogo, setSettingsLogo] = useState(schoolSettings?.logo || '');
   const [settingsIslamicLogo, setSettingsIslamicLogo] = useState(schoolSettings?.islamicLogo || '');
   const [selectedRollCallClass, setSelectedRollCallClass] = useState<string>('All');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedStudentIds([]);
+  }, [selectedRollCallClass]);
   const [newTeacherLevel, setNewTeacherLevel] = useState('5');
   const [newTeacherSection, setNewTeacherSection] = useState('ALLO');
   const [newTeacherSubject, setNewTeacherSubject] = useState("Al-Qur'an Karem (Hifz)");
@@ -468,14 +473,16 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
     name: string;
     nameArabic: string;
     section: 'academic' | 'tahfeezh' | 'islamic';
+    classSection?: string;
     isActive: boolean;
   }
   const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
   const [newSubjName, setNewSubjName] = useState('');
   const [newSubjNameArabic, setNewSubjNameArabic] = useState('');
   const [newSubjSection, setNewSubjSection] = useState<'academic' | 'tahfeezh' | 'islamic'>('academic');
+  const [newSubjClassSection, setNewSubjClassSection] = useState('');
   const [editingSubj, setEditingSubj] = useState<Subject | null>(null);
-  const [editSubjForm, setEditSubjForm] = useState({ name: '', nameArabic: '', section: 'academic' as 'academic' | 'tahfeezh' | 'islamic' });
+  const [editSubjForm, setEditSubjForm] = useState({ name: '', nameArabic: '', section: 'academic' as 'academic' | 'tahfeezh' | 'islamic', classSection: '' });
 
   // Teacher editing & multiple assignments states
   const [editingTeacher, setEditingTeacher] = useState<User | null>(null);
@@ -616,9 +623,11 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
         name: newSubjName,
         nameArabic: newSubjNameArabic,
         section: newSubjSection,
+        classSection: newSubjClassSection,
       });
       setNewSubjName('');
       setNewSubjNameArabic('');
+      setNewSubjClassSection('');
       fetchSubjects();
       alert('Subject created successfully!');
     } catch (err: any) {
@@ -949,6 +958,41 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
     }
   };
 
+  const visibleStudents = students.filter(s => selectedRollCallClass === 'All' || s.level === selectedRollCallClass);
+  const allVisibleSelected = visibleStudents.length > 0 && visibleStudents.every(s => selectedStudentIds.includes(s._id));
+
+  const handleToggleSelectAll = () => {
+    if (allVisibleSelected) {
+      const visibleIds = visibleStudents.map(s => s._id);
+      setSelectedStudentIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      const visibleIds = visibleStudents.map(s => s._id);
+      setSelectedStudentIds(prev => [...new Set([...prev, ...visibleIds])]);
+    }
+  };
+
+  const handleToggleSelectStudent = (studentId: string) => {
+    setSelectedStudentIds(prev => 
+      prev.includes(studentId)
+        ? prev.filter(id => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  const handleDeleteSelectedStudents = async () => {
+    if (selectedStudentIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete the ${selectedStudentIds.length} selected students?`)) return;
+    try {
+      setUploadStatus('Deleting selected students...');
+      await api.post('/admin/students/delete-batch', { ids: selectedStudentIds });
+      setUploadStatus('Selected students deleted successfully!');
+      setSelectedStudentIds([]);
+      fetchStudents();
+    } catch (err: any) {
+      setUploadStatus(err.response?.data?.message || 'Failed to delete selected students.');
+    }
+  };
+
   const handleAddStudentManual = async (e: React.FormEvent) => {
     e.preventDefault();
     const { name, nameArabic, admissionNumber, level, section, academicYear, parentPin, schoolFees, picture, dob, gender, house, club } = manualStudent;
@@ -1242,7 +1286,10 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                             </td>
                             <td>
                               {(!t.role || t.role === 'TEACHER') ? (
-                                t.assignedClasses?.map(c => `Lvl ${c.level}-${c.section} (${c.subjectName || 'both'})`).join(', ') || 'None'
+                                [
+                                  ...(t.assignedClasses?.map(c => `Lvl ${c.level}-${c.section} (${c.subjectName || 'both'})`) || []),
+                                  ...((t as any).classTeacherClasses?.map((c: any) => `Lvl ${c.level}-${c.section} (Class Master)`) || [])
+                                ].join(', ') || 'None'
                               ) : 'N/A'}
                             </td>
                             <td>
@@ -1582,7 +1629,25 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                         Active student roll registry, parental access codes, and configured school fees.
                       </p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {selectedStudentIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleDeleteSelectedStudents}
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            backgroundColor: 'var(--error)',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.825rem',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Delete Selected ({selectedStudentIds.length})
+                        </button>
+                      )}
                       <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Filter Class:</label>
                       <select 
                         value={selectedRollCallClass} 
@@ -1600,6 +1665,14 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                     <table className="custom-table">
                       <thead>
                         <tr>
+                          <th style={{ width: '40px', textAlign: 'center' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={allVisibleSelected} 
+                              onChange={handleToggleSelectAll} 
+                              style={{ cursor: 'pointer', transform: 'scale(1.15)' }}
+                            />
+                          </th>
                           <th>Name</th>
                           <th>Adm Number</th>
                           <th>Class</th>
@@ -1609,10 +1682,16 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                         </tr>
                       </thead>
                       <tbody>
-                        {students
-                          .filter(s => selectedRollCallClass === 'All' || s.level === selectedRollCallClass)
-                          .map(s => (
+                        {visibleStudents.map(s => (
                           <tr key={s._id}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={selectedStudentIds.includes(s._id)} 
+                                onChange={() => handleToggleSelectStudent(s._id)}
+                                style={{ cursor: 'pointer', transform: 'scale(1.15)' }}
+                              />
+                            </td>
                             <td>{s.name}</td>
                             <td><code>{s.admissionNumber}</code></td>
                             <td>Level {s.level} - {s.section}</td>
@@ -3076,13 +3155,28 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                     <input type="text" placeholder="e.g. معرفة القراءة والكتابة" value={newSubjNameArabic} onChange={e => setNewSubjNameArabic(e.target.value)} style={{ fontFamily: 'var(--font-arabic)' }} />
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Category / Section *</label>
-                  <select value={newSubjSection} onChange={e => setNewSubjSection(e.target.value as any)}>
-                    <option value="academic">Academic (Secular)</option>
-                    <option value="tahfeezh">Tahfeezh (Qur'an & Hifz)</option>
-                    <option value="islamic">Islamic Studies</option>
-                  </select>
+                <div className="form-row-responsive">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Category / Section *</label>
+                    <select value={newSubjSection} onChange={e => setNewSubjSection(e.target.value as any)}>
+                      <option value="academic">Academic (Secular)</option>
+                      <option value="tahfeezh">Tahfeezh (Qur'an & Hifz)</option>
+                      <option value="islamic">Islamic Studies</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Class Section *</label>
+                    <select
+                      required
+                      value={newSubjClassSection}
+                      onChange={e => setNewSubjClassSection(e.target.value)}
+                    >
+                      <option value="">Select Section</option>
+                      {uniqueSections.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <button type="submit" style={{ ...styles.submitBtn, alignSelf: 'flex-start' }}>Create Subject</button>
               </form>
@@ -3095,7 +3189,8 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                       <tr>
                         <th>Subject Name</th>
                         <th>Arabic Name</th>
-                        <th>Section</th>
+                        <th>Category</th>
+                        <th>Class Section</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -3106,6 +3201,7 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                           <td style={{ fontWeight: '600' }}>{s.name}</td>
                           <td style={{ fontFamily: 'var(--font-arabic)' }}>{s.nameArabic || '—'}</td>
                           <td style={{ textTransform: 'capitalize' }}>{s.section}</td>
+                          <td style={{ fontWeight: '600' }}>{s.classSection || '—'}</td>
                           <td>
                             <span style={{
                               padding: '0.15rem 0.5rem',
@@ -3134,7 +3230,7 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                                 }}
                                 onClick={() => {
                                   setEditingSubj(s);
-                                  setEditSubjForm({ name: s.name, nameArabic: s.nameArabic, section: s.section });
+                                  setEditSubjForm({ name: s.name, nameArabic: s.nameArabic, section: s.section, classSection: s.classSection || '' });
                                 }}
                               >Edit</button>
                               <button
@@ -3204,6 +3300,19 @@ KHANSAU ABDULLAHI,خنساء عبد الله,DSH/016,5,ALLO,2025/2026,5678,18000
                         <option value="academic">Academic (Secular)</option>
                         <option value="tahfeezh">Tahfeezh (Qur'an & Hifz)</option>
                         <option value="islamic">Islamic Studies</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label style={styles.label}>Class Section *</label>
+                      <select
+                        required
+                        value={editSubjForm.classSection}
+                        onChange={e => setEditSubjForm({ ...editSubjForm, classSection: e.target.value })}
+                      >
+                        <option value="">Select Section</option>
+                        {uniqueSections.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
                       </select>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>

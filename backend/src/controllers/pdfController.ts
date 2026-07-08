@@ -9,6 +9,7 @@ import User from '../models/User';
 import Invoice from '../models/Invoice';
 import Tenant from '../models/Tenant';
 import Subject from '../models/Subject';
+import SchoolClass from '../models/SchoolClass';
 import { SCHOOL_LOGO_BASE64 } from './logoBase64';
 import { renderAlQalamReport } from '../services/reportTemplates';
 
@@ -1685,14 +1686,16 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Security check: if teacher, ensure student's class matches teacher's assignedClasses
+    // Security check: if teacher, ensure student's class matches teacher's assignedClasses or classTeacherClasses
     if (req.user?.role === 'TEACHER') {
       const teacher = await User.findOne({ tenantId, _id: req.user.id });
       if (!teacher) {
         return res.status(403).json({ message: 'Teacher details not found' });
       }
-      const hasAccess = teacher.assignedClasses?.some(
+      const hasAccess = (teacher.assignedClasses || []).some(
         (cls) => cls.level === student.level && cls.section === student.section
+      ) || (teacher.classTeacherClasses || []).some(
+        (cls: any) => cls.level === student.level && cls.section === student.section
       );
       if (!hasAccess) {
         return res.status(403).json({ message: 'Access denied: You are not assigned to this student\'s class.' });
@@ -1757,11 +1760,31 @@ export const generateResultPdf = async (req: AuthRequest, res: Response) => {
         levelStr.includes('TAHFEEZ') || levelStr.includes('ISLAMIC') || levelStr.includes('QURAN') ||
         sectionStr.includes('TAHFEEZ') || sectionStr.includes('ISLAMIC') || sectionStr.includes('QURAN');
 
+      let classSectionCategory = '';
+      if (result.level && result.section) {
+        const matchingClass = await SchoolClass.findOne({
+          tenantId,
+          className: result.level,
+          annex: result.section
+        });
+        if (matchingClass) {
+          classSectionCategory = matchingClass.section;
+        }
+      }
+
       const subjectQuery: any = { tenantId, isActive: true };
       if (isIslamicOrTahfeez) {
         subjectQuery.section = { $in: ['tahfeezh', 'islamic'] };
       } else {
         subjectQuery.section = 'academic';
+      }
+
+      if (classSectionCategory) {
+        subjectQuery.$or = [
+          { classSection: classSectionCategory },
+          { classSection: '' },
+          { classSection: { $exists: false } }
+        ];
       }
 
       const activeSubjects = await Subject.find(subjectQuery);

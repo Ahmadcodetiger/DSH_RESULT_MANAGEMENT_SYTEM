@@ -41,6 +41,26 @@ async function _connect() {
         family: 4,                      // Force IPv4 only to avoid NAT64/IPv6 timeout issues
       });
       console.log('MongoDB connected successfully.');
+
+      // Clean up legacy unique subject index to support section-specific subjects
+      try {
+        const db = mongoose.connection.db;
+        if (db) {
+          const collections = await db.listCollections({ name: 'subjects' }).toArray();
+          if (collections.length > 0) {
+            const collection = db.collection('subjects');
+            const indexes = await collection.indexes();
+            const hasOldIndex = indexes.some(idx => idx.name === 'tenantId_1_name_1');
+            if (hasOldIndex) {
+              console.log('Dropping legacy unique index tenantId_1_name_1 from subjects...');
+              await collection.dropIndex('tenantId_1_name_1');
+              console.log('Legacy index dropped successfully.');
+            }
+          }
+        }
+      } catch (indexErr) {
+        console.error('Failed to clean up legacy unique index:', indexErr);
+      }
       return;
     } catch (error) {
       console.error(`MongoDB connection attempt ${attempt}/${maxAttempts} failed:`, error);

@@ -6,11 +6,19 @@ const getApiUrl = () => {
   }
   if (typeof window !== 'undefined' && window.location.hostname) {
     const hostname = window.location.hostname;
-    // If using local subdomains like al-qalam.localhost, point API to localhost:5000
-    if (hostname.endsWith('.localhost')) {
+    // Check if we are running in a local development environment
+    const isLocal = 
+      hostname === 'localhost' || 
+      hostname === '127.0.0.1' || 
+      hostname.endsWith('.localhost');
+      
+    if (isLocal) {
       return `http://localhost:5000/api`;
     }
-    return `http://${hostname}:5000/api`;
+    // Fallback for local IP address testing (e.g. 192.168.x.x)
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return `http://${hostname}:5000/api`;
+    }
   }
   return 'https://dsh-backend-xi.vercel.app/api';
 };
@@ -132,17 +140,23 @@ export const classService = {
 };
 
 export const subjectService = {
-  async getSubjects(activeOnly = true) {
-    const response = await api.get(`/public/subjects${activeOnly ? '?activeOnly=true' : ''}`);
+  async getSubjects(activeOnly = true, classSection?: string, level?: string, section?: string) {
+    const queryParams = new URLSearchParams();
+    if (activeOnly) queryParams.append('activeOnly', 'true');
+    if (classSection) queryParams.append('classSection', classSection);
+    if (level) queryParams.append('level', level);
+    if (section) queryParams.append('section', section);
+    const queryString = queryParams.toString();
+    const response = await api.get(`/public/subjects${queryString ? `?${queryString}` : ''}`);
     return response.data;
   },
 
-  async createSubject(data: { name: string; nameArabic?: string; section: string }) {
+  async createSubject(data: { name: string; nameArabic?: string; section: string; classSection?: string }) {
     const response = await api.post('/admin/subjects', data);
     return response.data;
   },
 
-  async updateSubject(id: string, data: { name?: string; nameArabic?: string; section?: string; isActive?: boolean }) {
+  async updateSubject(id: string, data: { name?: string; nameArabic?: string; section?: string; classSection?: string; isActive?: boolean }) {
     const response = await api.put(`/admin/subjects/${id}`, data);
     return response.data;
   },

@@ -182,6 +182,39 @@ export const computeResultMetrics = (subjects: SubjectInput[], isAlQalam: boolea
     let grade = '';
     let remark = '';
 
+    const isIslamicOrTahfeez = sub.section === 'tahfeezh' || sub.section === 'islamic';
+
+    if (isIslamicOrTahfeez) {
+      const hasSplitCa = (Number(sub.score20_1) || 0) > 0 || (Number(sub.score20_2) || 0) > 0;
+      const s20_1 = Math.max(0, Number(sub.score20_1) || 0);
+      const s20_2 = Math.max(0, Number(sub.score20_2) || 0);
+      const s60 = Math.max(0, Number(sub.score60) || 0);
+      const s40 = Math.max(0, Number(sub.score40) || 0);
+      
+      const caTotal = hasSplitCa ? (s20_1 + s20_2) : s60;
+      score100 = caTotal + s40;
+      score100 = Math.min(100, score100);
+
+      const res = calculateAlQalamGradeAndRemark(score100);
+      grade = isAlQalam ? res.grade : calculateLetterGrade(score100);
+      remark = res.remark;
+
+      totalMark += score100;
+      gradedSubjectsCount += 1;
+
+      return {
+        ...sub,
+        score60: caTotal,
+        score20_1: s20_1,
+        score20_2: s20_2,
+        score40: s40,
+        score100,
+        grade,
+        subjectRemarks: remark,
+        isGraded: true,
+      };
+    }
+
     if (isAlQalam) {
       const s20_1 = Math.min(30, Math.max(0, Number(sub.score20_1) || 0));
       const s20_2 = Math.min(30, Math.max(0, Number(sub.score20_2) || 0));
@@ -198,7 +231,7 @@ export const computeResultMetrics = (subjects: SubjectInput[], isAlQalam: boolea
         ...sub,
         score20_1: s20_1,
         score20_2: s20_2,
-        score60: s20_1 + s20_2, // Keep score60 as CA Total
+        score60: s20_1 + s20_2,
         score40: s40,
         score100,
         grade,

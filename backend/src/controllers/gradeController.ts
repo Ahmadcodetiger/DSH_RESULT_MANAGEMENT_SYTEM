@@ -5,6 +5,7 @@ import Result from '../models/Result';
 import User from '../models/User';
 import Tenant from '../models/Tenant';
 import Subject from '../models/Subject';
+import SchoolClass from '../models/SchoolClass';
 import { computeResultMetrics, isNurseryOrHub, NURSERY_SUBJECT_NAMES, getNurserySubjectNames } from '../utils/gradeCalculator';
 
 // Fetch students assigned to teacher based on level and section
@@ -72,7 +73,11 @@ export const getStudentsForTeacher = async (req: AuthRequest, res: Response) => 
 
       // If subjectName is specified, check if it's a tahfeezh/islamic subject and filter accordingly
       if (subjectName) {
-        const subject = await Subject.findOne({ tenantId, name: subjectName });
+        const normalizedRegex = subjectName.replace(/[^a-zA-Z0-9]/g, '.?');
+        const subject = await Subject.findOne({
+          tenantId,
+          name: { $regex: new RegExp(`^${normalizedRegex}$`, 'i') }
+        });
         if (subject && (subject.section === 'tahfeezh' || subject.section === 'islamic')) {
           const students = await Student.find(filter).select('-parentPin').sort({ name: 1 });
           const isTahfeezSection = (s: any) => {
@@ -82,6 +87,7 @@ export const getStudentsForTeacher = async (req: AuthRequest, res: Response) => 
                    lev.includes('TAHFEEZ') || lev.includes('ISLAMIC') || lev.includes('QURAN');
           };
           const filteredStudents = students.filter(isTahfeezSection);
+          const finalStudents = filteredStudents.length > 0 ? filteredStudents : students;
 
           // Add grading status for each student
           const { academicYear, term } = req.query;
@@ -89,7 +95,7 @@ export const getStudentsForTeacher = async (req: AuthRequest, res: Response) => 
             const results = await Result.find({ tenantId, academicYear, term });
             const resultMap = new Map(results.map(r => [r.studentId.toString(), r]));
             
-            const studentsWithStatus = filteredStudents.map(s => {
+            const studentsWithStatus = finalStudents.map(s => {
               const studentObj = s.toObject();
               return {
                 ...studentObj,
@@ -99,7 +105,7 @@ export const getStudentsForTeacher = async (req: AuthRequest, res: Response) => 
             });
             return res.status(200).json(studentsWithStatus);
           }
-          return res.status(200).json(filteredStudents);
+          return res.status(200).json(finalStudents);
         }
       }
     } else {
@@ -203,7 +209,12 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
         return res.status(403).json({ message: 'Teacher account not found' });
       }
       
-      isClassTeacher = teacher.classTeacherClasses?.some(
+      const sec = (student.section || '').toUpperCase();
+      const lev = (student.level || '').toUpperCase();
+      const isIslamicClass = sec.includes('TAHFEEZ') || sec.includes('ISLAMIC') || sec.includes('QURAN') ||
+                             lev.includes('TAHFEEZ') || lev.includes('ISLAMIC') || lev.includes('QURAN');
+
+      const hasExplicitClassTeacher = teacher.classTeacherClasses?.some(
         (cls: any) => cls.level === student.level && cls.section === student.section
       ) || false;
 
@@ -211,7 +222,9 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
         (cls) => cls.level === student.level && cls.section === student.section
       ) || [];
 
-      if (teacherClassAssignments.length === 0 && !isClassTeacher) {
+      isClassTeacher = hasExplicitClassTeacher || (isIslamicClass && teacherClassAssignments.length > 0);
+
+      if (teacherClassAssignments.length === 0 && !hasExplicitClassTeacher) {
         return res.status(403).json({ message: 'Access denied: You are not assigned to this student\'s class.' });
       }
 
@@ -219,8 +232,12 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
       
       // Determine what sections the teacher teaches
       const canGradeAll = allowedSubjects.some(s => s?.toLowerCase() === 'both' || s?.toLowerCase() === 'all' || s?.toLowerCase() === 'both/all');
+      const normalize = (name: string) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+      const isSubjectAllowed = (subjName: string) => 
+        allowedSubjects.some(s => normalize(s) === normalize(subjName));
+
       for (const subj of subjects) {
-        if (allowedSubjects.includes(subj.subjectName) || canGradeAll) {
+        if (isSubjectAllowed(subj.subjectName) || canGradeAll) {
           if (subj.section === 'tahfeezh' || subj.section === 'islamic') teachesTahfeezh = true;
           if (subj.section === 'academic') teachesAcademic = true;
         }
@@ -247,11 +264,15 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
       const existingSubjectsMap = new Map(existingResult.subjects.map(s => [s.subjectName, s]));
       
       const canGradeAll = allowedSubjects.some(s => s?.toLowerCase() === 'both' || s?.toLowerCase() === 'all' || s?.toLowerCase() === 'both/all');
+      const normalize = (name: string) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+      const isSubjectAllowed = (subjName: string) => 
+        allowedSubjects.some(s => normalize(s) === normalize(subjName));
+
       finalSubjectsList = subjects.map((incomingSubj: any) => {
         const existingSubj = existingSubjectsMap.get(incomingSubj.subjectName);
         if (isTeacher) {
           // If teacher is allowed to grade this subject, update it
-          if (isClassTeacher || allowedSubjects.includes(incomingSubj.subjectName) || canGradeAll) {
+          if (isSubjectAllowed(incomingSubj.subjectName) || canGradeAll) {
             return incomingSubj;
           }
           // Otherwise, preserve the existing subject grade
@@ -295,9 +316,13 @@ export const submitOrUpdateResult = async (req: AuthRequest, res: Response) => {
       }
     } else {
       const canGradeAll = allowedSubjects.some(s => s?.toLowerCase() === 'both' || s?.toLowerCase() === 'all' || s?.toLowerCase() === 'both/all');
+      const normalize = (name: string) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+      const isSubjectAllowed = (subjName: string) => 
+        allowedSubjects.some(s => normalize(s) === normalize(subjName));
+
       // Create new result sheet - but if teacher, initialize non-assigned subjects as ungraded
       finalSubjectsList = subjects.map((incomingSubj: any) => {
-        if (isTeacher && !isClassTeacher && !allowedSubjects.includes(incomingSubj.subjectName) && !canGradeAll) {
+        if (isTeacher && !isSubjectAllowed(incomingSubj.subjectName) && !canGradeAll) {
           return {
             ...incomingSubj,
             score60: 0,
@@ -459,11 +484,31 @@ const decorateResultWithClassRank = async (resObj: any, tenantId: any) => {
       levelStr.includes('TAHFEEZ') || levelStr.includes('ISLAMIC') || levelStr.includes('QURAN') ||
       sectionStr.includes('TAHFEEZ') || sectionStr.includes('ISLAMIC') || sectionStr.includes('QURAN');
 
+    let classSectionCategory = '';
+    if (obj.level && obj.section) {
+      const matchingClass = await SchoolClass.findOne({
+        tenantId,
+        className: obj.level,
+        annex: obj.section
+      });
+      if (matchingClass) {
+        classSectionCategory = matchingClass.section;
+      }
+    }
+
     const subjectQuery: any = { tenantId, isActive: true };
     if (isIslamicOrTahfeez) {
       subjectQuery.section = { $in: ['tahfeezh', 'islamic'] };
     } else {
       subjectQuery.section = 'academic';
+    }
+
+    if (classSectionCategory) {
+      subjectQuery.$or = [
+        { classSection: classSectionCategory },
+        { classSection: '' },
+        { classSection: { $exists: false } }
+      ];
     }
 
     const activeSubjects = await Subject.find(subjectQuery);
@@ -721,9 +766,16 @@ export const getClassProgress = async (req: AuthRequest, res: Response) => {
     // Check if the user is a teacher and is assigned as Class Teacher for this class
     if (req.user?.role === 'TEACHER') {
       const teacher = await User.findOne({ tenantId, _id: req.user.id });
+      const sec = String(level || '').toUpperCase();
+      const lev = String(level || '').toUpperCase();
+      const isIslamic = sec.includes('TAHFEEZ') || sec.includes('ISLAMIC') || sec.includes('QURAN') ||
+                        lev.includes('TAHFEEZ') || lev.includes('ISLAMIC') || lev.includes('QURAN');
+
       const isClassTeacher = teacher?.classTeacherClasses?.some(
         (c: any) => c.level === level && c.section === section
-      );
+      ) || (isIslamic && (teacher?.assignedClasses || []).some(
+        (c: any) => c.level === level && c.section === section
+      ));
       if (!isClassTeacher) {
         return res.status(403).json({ message: 'Access denied: You are not the Class Teacher for this class.' });
       }
@@ -892,9 +944,16 @@ export const submitClassResultsForApproval = async (req: AuthRequest, res: Respo
     // Verify teacher is Class Teacher for this class
     if (req.user?.role === 'TEACHER') {
       const teacher = await User.findOne({ tenantId, _id: req.user.id });
+      const sec = String(level || '').toUpperCase();
+      const lev = String(level || '').toUpperCase();
+      const isIslamic = sec.includes('TAHFEEZ') || sec.includes('ISLAMIC') || sec.includes('QURAN') ||
+                        lev.includes('TAHFEEZ') || lev.includes('ISLAMIC') || lev.includes('QURAN');
+
       const isClassTeacher = teacher?.classTeacherClasses?.some(
         (c: any) => c.level === level && c.section === section
-      );
+      ) || (isIslamic && (teacher?.assignedClasses || []).some(
+        (c: any) => c.level === level && c.section === section
+      ));
       if (!isClassTeacher) {
         return res.status(403).json({ message: 'Access denied: You are not the Class Teacher for this class.' });
       }

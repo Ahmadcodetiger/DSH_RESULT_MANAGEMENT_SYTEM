@@ -614,6 +614,44 @@ export const deleteStudent = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Batch delete students
+export const deleteStudentsBatch = async (req: AuthRequest, res: Response) => {
+  try {
+    const { ids } = req.body;
+    const tenantId = req.tenantId;
+
+    if (!tenantId) {
+      return res.status(400).json({ message: 'Tenant context required' });
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'List of student IDs required' });
+    }
+
+    const result = await Student.updateMany(
+      { tenantId, _id: { $in: ids } },
+      { isDeleted: true }
+    );
+
+    // Log action
+    await AuditLog.create({
+      tenantId,
+      userId: req.user?.id,
+      userName: req.user?.name || 'Admin',
+      userRole: req.user?.role || 'ADMIN',
+      action: 'STUDENTS_BATCH_DELETED',
+      resource: 'Student',
+      description: `Batch deletion of ${result.modifiedCount} students`,
+      ipAddress: req.ip || '',
+      userAgent: req.headers['user-agent'] || '',
+    });
+
+    return res.status(200).json({ message: `${result.modifiedCount} students deleted successfully` });
+  } catch (error: any) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 // Update student
 export const updateStudent = async (req: AuthRequest, res: Response) => {
   try {
@@ -1368,7 +1406,7 @@ export const updateAnnexes = async (req: AuthRequest, res: Response) => {
 // Create a new subject
 export const createSubject = async (req: AuthRequest, res: Response) => {
   try {
-    const { name, nameArabic, section } = req.body;
+    const { name, nameArabic, section, classSection } = req.body;
     const tenantId = req.tenantId;
 
     if (!tenantId) {
@@ -1379,21 +1417,20 @@ export const createSubject = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: 'Subject name and section category are required' });
     }
 
-    const existing = await Subject.findOne({ tenantId, name: name.trim() });
-    if (existing) {
-      return res.status(400).json({ message: 'A subject with this name already exists' });
-    }
-
     const subject = new Subject({
       tenantId,
       name: name.trim(),
       nameArabic: (nameArabic || '').trim(),
       section,
+      classSection: (classSection || '').trim(),
     });
 
     await subject.save();
     return res.status(201).json({ message: 'Subject created successfully', subject });
   } catch (error: any) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'A subject with this name already exists in this section' });
+    }
     return res.status(500).json({ message: 'Server error creating subject', error: error.message });
   }
 };
@@ -1406,9 +1443,29 @@ export const getSubjects = async (req: any, res: Response) => {
       return res.status(200).json([]); // Return empty if public call without subdomain
     }
 
-    const { activeOnly } = req.query;
+    const { activeOnly, classSection, level, section } = req.query;
     const filter: any = { tenantId };
     if (activeOnly === 'true') filter.isActive = true;
+
+    let targetClassSection = classSection;
+    if (level && section) {
+      const matchingClass = await SchoolClass.findOne({
+        tenantId,
+        className: level,
+        annex: section
+      });
+      if (matchingClass) {
+        targetClassSection = matchingClass.section;
+      }
+    }
+
+    if (targetClassSection) {
+      filter.$or = [
+        { classSection: targetClassSection },
+        { classSection: '' },
+        { classSection: { $exists: false } }
+      ];
+    }
 
     const subjects = await Subject.find(filter).sort({ section: 1, name: 1 });
     return res.status(200).json(subjects);
@@ -1421,7 +1478,7 @@ export const getSubjects = async (req: any, res: Response) => {
 export const updateSubject = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, nameArabic, section, isActive } = req.body;
+    const { name, nameArabic, section, classSection, isActive } = req.body;
     const tenantId = req.tenantId;
 
     if (!tenantId) {
@@ -1436,11 +1493,15 @@ export const updateSubject = async (req: AuthRequest, res: Response) => {
     if (name !== undefined) subject.name = name.trim();
     if (nameArabic !== undefined) subject.nameArabic = nameArabic.trim();
     if (section !== undefined) subject.section = section;
+    if (classSection !== undefined) (subject as any).classSection = classSection.trim();
     if (isActive !== undefined) subject.isActive = isActive;
 
     await subject.save();
     return res.status(200).json({ message: 'Subject updated successfully', subject });
   } catch (error: any) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'A subject with this name already exists in this section' });
+    }
     return res.status(500).json({ message: 'Server error updating subject', error: error.message });
   }
 };

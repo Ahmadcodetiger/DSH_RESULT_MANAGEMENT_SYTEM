@@ -388,14 +388,14 @@ export const renderNurseryReport = async (
                 <img src="${logo.startsWith('data:') ? logo : SCHOOL_LOGO_BASE64}" style="max-width: 90px; max-height: 90px; object-fit: contain;" alt="Logo" />
               </td>
               <td style="text-align: center; vertical-align: middle; padding: 0 10px;">
-                <h1 style="font-size: 26px; font-weight: 800; color: ${headerColor}; margin: 0 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.1; font-family: 'Times New Roman', Times, serif;">
+                <h1 style="font-size: 26px; font-weight: 800; color: #800020; margin: 0 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.1; font-family: 'Times New Roman', Times, serif;">
                   ${escapeHtml(schoolName)}
                 </h1>
-                <p style="font-size: 11px; color: ${headerColor}; margin: 2px 0 0 0; font-weight: 700;">
+                <p style="font-size: 11px; color: #0a235c; margin: 2px 0 0 0; font-weight: 700;">
                   ${escapeHtml(displayAddress)}
                 </p>
-                ${displayPhone ? `<p style="font-size: 10.5px; color: ${headerColor}; margin: 2px 0 0 0; font-weight: 700;"><b>Tel:</b> ${escapeHtml(displayPhone)}</p>` : ''}
-                ${displayEmail ? `<p style="font-size: 10.5px; color: ${headerColor}; margin: 2px 0 0 0; font-weight: 700;"><b>Email:</b> ${escapeHtml(displayEmail)}</p>` : ''}
+                ${displayPhone ? `<p style="font-size: 10.5px; color: #0a235c; margin: 2px 0 0 0; font-weight: 700;"><b>Tel:</b> <span style="color: #800020;">${escapeHtml(displayPhone)}</span></p>` : ''}
+                ${displayEmail ? `<p style="font-size: 10.5px; color: #0a235c; margin: 2px 0 0 0; font-weight: 700;"><b>Email:</b> <span style="color: #800020;">${escapeHtml(displayEmail)}</span></p>` : ''}
                 <div style="margin-top: 8px; margin-bottom: 6px; font-size: 11px; font-weight: 800; padding: 4px 14px; letter-spacing: 0.5px; text-transform: uppercase; background: ${primaryColor}; color: #ffffff; display: inline-block; border-radius: 3px;">
                   ${escapeHtml(result.term.toLowerCase().includes('term') ? result.term : `${result.term} Term`)} Pupil's Performance Report
                 </div>
@@ -417,7 +417,7 @@ export const renderNurseryReport = async (
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
             <!-- Left: Personal Data -->
             <div style="border: 1px solid #000000; border-radius: 4px; overflow: hidden; background: #ffffff;">
-              <div style="background: ${headerColor}; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
+              <div style="background: #800020; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
                 Personal Data
               </div>
               <div style="padding: 4px; font-size: 7.5px;">
@@ -438,7 +438,7 @@ export const renderNurseryReport = async (
             <!-- Right: Class Data & Attendance stacked -->
             <div style="display: flex; flex-direction: column; gap: 6px;">
               <div style="border: 1px solid #000000; border-radius: 4px; overflow: hidden; background: #ffffff;">
-                <div style="background: ${headerColor}; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
+                <div style="background: #800020; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
                   Class Data
                 </div>
                 <table style="width: 100%; border-collapse: collapse; font-size: 7.5px; padding: 3px;">
@@ -448,7 +448,7 @@ export const renderNurseryReport = async (
                 </table>
               </div>
               <div style="border: 1px solid #000000; border-radius: 4px; overflow: hidden; background: #ffffff;">
-                <div style="background: ${headerColor}; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
+                <div style="background: #800020; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
                   Attendance Summary
                 </div>
                 <table style="width: 100%; border-collapse: collapse; font-size: 7.5px; padding: 3px;">
@@ -466,20 +466,11 @@ export const renderNurseryReport = async (
             <div>
               ${renderChecklistTable('NUMERACY', 1, numPadded)}
               ${renderChecklistTable('LITERACY', 2, litPadded)}
-              ${renderChecklistTable('CREATIVE ART', 3, artPadded)}
-              ${renderChecklistTable('SENSORIAL EDUCATION', 4, senPadded)}
-            </div>
 
-            <!-- Right column -->
-            <div>
-              ${renderChecklistTable('RHYMES', 5, rhyPadded)}
-              ${renderChecklistTable('SOCIAL & EMOTIONAL DEVELOPMENT', 6, socPadded)}
-              ${renderChecklistTable('HANDWRITING', 7, hanPadded)}
-
-              <!-- 8. Grading Key -->
+              <!-- Grading Key -->
               <div style="border: 1px solid #000000; border-radius: 4px; overflow: hidden; background: #ffffff;">
-                <div style="background: ${primaryColor}; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
-                  8. Grading Key
+                <div style="background: #800020; color: #ffffff; text-align: center; font-weight: bold; font-size: 8px; padding: 3px; text-transform: uppercase;">
+                  Grading Key
                 </div>
                 <table style="width: 100%; border-collapse: collapse; font-size: 7px; text-align: center;">
                   <tr style="height: 14px; font-weight: bold; background: #f7fafc;">
@@ -499,6 +490,15 @@ export const renderNurseryReport = async (
                   </tr>
                 </table>
               </div>
+            </div>
+
+            <!-- Right column -->
+            <div>
+              ${renderChecklistTable('CREATIVE ART', 3, artPadded)}
+              ${renderChecklistTable('SENSORIAL EDUCATION', 4, senPadded)}
+              ${renderChecklistTable('RHYMES', 5, rhyPadded)}
+              ${renderChecklistTable('SOCIAL & EMOTIONAL DEVELOPMENT', 6, socPadded)}
+              ${renderChecklistTable('HANDWRITING', 7, hanPadded)}
             </div>
           </div>
         </div>

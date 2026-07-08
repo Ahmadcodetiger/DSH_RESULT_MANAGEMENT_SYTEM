@@ -61,20 +61,20 @@ export const ReportCardHeader: React.FC<ReportCardHeaderProps> = ({
         {/* Center Details */}
         <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
           {hasIslamicOrTahfeez && schoolNameArabic && (
-            <h2 style={{ fontFamily: 'Amiri, Cairo, serif', fontSize: '1.5rem', fontWeight: 'bold', color: headerColor, margin: 0, direction: 'rtl' }}>
+            <h2 style={{ fontFamily: 'Amiri, Cairo, serif', fontSize: '1.5rem', fontWeight: 'bold', color: '#800020', margin: 0, direction: 'rtl' }}>
               {schoolNameArabic}
             </h2>
           )}
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, color: headerColor, letterSpacing: '0.05em', margin: '0 0 4px 0', textTransform: 'uppercase', lineHeight: 1.1 }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#800020', letterSpacing: '0.05em', margin: '0 0 4px 0', textTransform: 'uppercase', lineHeight: 1.1 }}>
             {schoolName}
           </h1>
-          <p style={{ fontSize: '0.95rem', color: headerColor, margin: '2px 0 0 0', lineHeight: 1.3, fontWeight: 500, opacity: 0.9 }}>
+          <p style={{ fontSize: '0.95rem', color: '#0a235c', margin: '2px 0 0 0', lineHeight: 1.3, fontWeight: 700 }}>
             {address}
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', fontSize: '0.9rem', color: headerColor, marginTop: '4px', fontWeight: 500, opacity: 0.9 }}>
-            {phone && <span><strong>Tel:</strong> {phone}</span>}
-            {email && <span><strong>Email:</strong> {email}</span>}
-            {website && <span><strong>Web:</strong> {website}</span>}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', fontSize: '0.9rem', color: '#0a235c', marginTop: '4px', fontWeight: 700 }}>
+            {phone && <span><strong>Tel:</strong> <span style={{ color: '#800020' }}>{phone}</span></span>}
+            {email && <span><strong>Email:</strong> <span style={{ color: '#800020' }}>{email}</span></span>}
+            {website && <span><strong>Web:</strong> <span style={{ color: '#800020' }}>{website}</span></span>}
           </div>
           
           <div style={{ marginTop: '0.4rem', display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>

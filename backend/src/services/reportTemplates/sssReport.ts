@@ -243,15 +243,15 @@ export const renderSssReport = async (
                 <img src="${logo.startsWith('data:') ? logo : SCHOOL_LOGO_BASE64}" style="max-width: 90px; max-height: 90px; object-fit: contain;" alt="Logo" />
               </td>
               <td style="text-align: center; vertical-align: middle; padding: 0 10px;">
-                <h1 style="font-size: 26px; font-weight: 800; color: ${headerColor}; margin: 0 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.1; font-family: 'Times New Roman', Times, serif;">
+                <h1 style="font-size: 26px; font-weight: 800; color: #800020; margin: 0 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px; line-height: 1.1; font-family: 'Times New Roman', Times, serif;">
                   ${escapeHtml(schoolName)}
                 </h1>
-                <p style="font-size: 11px; color: ${headerColor}; margin: 2px 0 0 0; font-weight: 700;">
+                <p style="font-size: 11px; color: #0a235c; margin: 2px 0 0 0; font-weight: 700;">
                   ${escapeHtml(address)}
                 </p>
-                ${phoneNumbers ? `<p style="font-size: 10.5px; color: ${headerColor}; margin: 2px 0 0 0; font-weight: 700;"><b>Tel:</b> ${escapeHtml(phoneNumbers)}</p>` : ''}
-                ${email ? `<p style="font-size: 10.5px; color: ${headerColor}; margin: 2px 0 0 0; font-weight: 700;"><b>Email:</b> ${escapeHtml(email)}</p>` : ''}
-                ${website ? `<p style="font-size: 10.5px; color: ${headerColor}; margin: 2px 0 0 0; font-weight: 700;"><b>Web:</b> ${escapeHtml(website)}</p>` : ''}
+                ${phoneNumbers ? `<p style="font-size: 10.5px; color: #0a235c; margin: 2px 0 0 0; font-weight: 700;"><b>Tel:</b> <span style="color: #800020;">${escapeHtml(phoneNumbers)}</span></p>` : ''}
+                ${email ? `<p style="font-size: 10.5px; color: #0a235c; margin: 2px 0 0 0; font-weight: 700;"><b>Email:</b> <span style="color: #800020;">${escapeHtml(email)}</span></p>` : ''}
+                ${website ? `<p style="font-size: 10.5px; color: #0a235c; margin: 2px 0 0 0; font-weight: 700;"><b>Web:</b> <span style="color: #800020;">${escapeHtml(website)}</span></p>` : ''}
                 <div style="margin-top: 8px; margin-bottom: 6px; font-size: 11px; font-weight: 800; padding: 4px 14px; letter-spacing: 0.5px; text-transform: uppercase; background: ${primaryColor}; color: #ffffff; display: inline-block; border-radius: 3px;">
                   ${escapeHtml(term.toLowerCase().includes('term') ? term : `${term} Term`)} Student's Performance Report
                 </div>
